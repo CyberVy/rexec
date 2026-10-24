@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "lib": ["dom", "esnext", "webworker"],
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "noEmit": true,
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noImplicitAny": true,
+    "types": ["@cloudflare/workers-types", "@types/node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", ".wrangler", "dist", "bin"]
+}

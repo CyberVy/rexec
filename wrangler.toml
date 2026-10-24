@@ -1,0 +1,19 @@
+name = "rexec"
+main = "src/server/index.ts"
+compatibility_date = "2025-10-12"
+workers_dev = true
+preview_urls = true
+
+[[durable_objects.bindings]]
+name = "REXEC_HUB"
+class_name = "RexecHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RexecHub"]
+
+[observability]
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true

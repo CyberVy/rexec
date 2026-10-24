@@ -1,0 +1,33 @@
+{
+  "name": "rexec",
+  "version": "0.1.0",
+  "description": "Ultra-lightweight edge-routed remote execution engine",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "rexec": "./bin/rexec.mjs"
+  },
+  "scripts": {
+    "build:agent": "esbuild src/agent/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/agent.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=bin/rexec.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "build": "npm run build:agent && npm run build:cli",
+    "dev:server": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src --deny-warnings",
+    "format": "oxfmt src",
+    "format:check": "oxfmt --check src",
+    "check": "concurrently \"oxlint src --deny-warnings\" \"tsc --noEmit\""
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260422.1",
+    "@types/node": "^20",
+    "concurrently": "^10.0.6",
+    "esbuild": "^0.27.0",
+    "oxfmt": "^0.73.0",
+    "oxlint": "^1.86.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "wrangler": "4.84.1"
+  }
+}
