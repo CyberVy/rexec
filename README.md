@@ -9,11 +9,13 @@ Ultra-lightweight edge-routed remote execution engine.
 ## Features
 
 - **Serverless Edge Relay**: Built on Cloudflare Workers and Durable Objects, providing global low-latency routing without maintaining self-hosted relays.
-- **Zero-Dependency Remote Agent**: The target worker agent runs on standard Node.js without any third-party npm dependencies.
-- **Dual Client Architecture**:
-  - `rexec`: Local invoker CLI that streams real-time stdout/stderr and mirrors remote process exit codes.
-  - `rexec-agent`: Remote daemon running on target worker nodes that maintains a persistent WebSocket connection and manages child process lifecycles.
+- **Zero-Dependency Runtimes**: Both the remote worker agent and local terminal caller run on standard Node.js without any third-party npm dependencies.
+- **Three-Tier Architecture**:
+  - **Caller** (`rexec` CLI & universal `RexecCaller` SDK): Initiates executions and file transfers using 100% Web standard APIs.
+  - **Hub** (Cloudflare Worker & Durable Object): Edge routing and streaming relay between callers and worker nodes.
+  - **Agent** (`rexec-agent`): Remote daemon running on target worker nodes that maintains a persistent WebSocket connection and manages child process lifecycles.
 - **Real-Time Streaming & Process Fidelity**: Chunked execution output streamed via WebSocket and Server-Sent Events (SSE). Clean process termination and signal forwarding on `Ctrl+C` (SIGINT).
+- **Streaming File & Directory Transfers**: Bi-directional file and directory transfers powered by WHATWG Web Streams and streaming `tar` pipelines with real-time transfer progress bars.
 
 ---
 
@@ -21,8 +23,8 @@ Ultra-lightweight edge-routed remote execution engine.
 
 ```mermaid
 flowchart LR
-    subgraph Local["Local Machine"]
-        CLI["rexec (CLI)"]
+    subgraph Client["Caller (Local Terminal / Web)"]
+        Caller["rexec (Terminal Caller)\n/ Web Client"]
     end
 
     subgraph Edge["Cloudflare Edge Network"]
@@ -32,15 +34,17 @@ flowchart LR
     subgraph Remote["Remote Node (Colab / GPU VM / Container)"]
         Agent["rexec-agent (Node.js)"]
         Task["Subprocess\n(Python, Bash, etc.)"]
+        FS["Filesystem\n(Files & Directories)"]
     end
 
-    CLI -- "1. POST /exec (HTTP SSE)" --> Hub
+    Caller -- "1. POST /exec (HTTP SSE)\nGET/POST /file (Web Streams)" --> Hub
     Agent -- "2. Persistent WebSocket" --> Hub
-    Hub -- "3. Dispatch Task" --> Agent
+    Hub -- "3. Dispatch Task / Transfer" --> Agent
     Agent --> Task
+    Agent <--> FS
     Task -- "4. Stream stdout/stderr" --> Agent
     Agent -- "5. WebSocket Chunks" --> Hub
-    Hub -- "6. SSE Stream Chunks" --> CLI
+    Hub -- "6. SSE / HTTP Stream" --> Caller
 ```
 
 ---

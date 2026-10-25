@@ -1,10 +1,18 @@
 ## Project Structure
 
 - `src/`: Core source code.
-  - `protocol.ts`: Shared protocol types and message envelopes between Hub, Agent, and CLI.
+  - `protocol.ts`: Shared protocol types and message envelopes across Server, Agent, and Caller.
+  - `transfer/`: Unified file/directory transfer domain using WHATWG Web Streams.
+    - `types.ts`: Universal stream contracts (`TransferSource`, `TransferSink`, `ProgressInfo`, `PullResult`, `PushResult`).
+    - `http.ts`: Runtime-agnostic HTTP streaming pipelines (`pull_http`, `push_http`).
+    - `adapters/node.ts`: Node.js filesystem and streaming `tar` packaging adapter (`create_node_source`, `create_node_sink`).
   - `server/`: Cloudflare Workers & Durable Objects implementation (`RexecHub`).
-  - `agent/`: Remote worker node agent running on target servers (Node.js).
-  - `cli/`: Local command-line interface client (Node.js).
+  - `agent/`: Remote worker node daemon running on target servers (Node.js).
+    - `task.ts`: Subprocess execution and lifecycle management (`TaskManager`).
+    - `transfer_manager.ts`: Multiplexed WebSocket transfer session management (`TransferManager`).
+  - `caller/`: Calling client domain.
+    - `core/`: Universal calling SDK using 100% Web Standard APIs (`RexecCaller`, `exec_command`).
+    - `terminal/`: Local command-line interface client for terminal users (`rexec`).
 - `cli/`: Local developer tools and debug channel.
   - `debug/`: Black-box end-to-end debugging harness and automated test matrix.
 - `dist/`: Standalone build distribution outputs and binary entries (`rexec`, `rexec-agent`).
@@ -12,7 +20,7 @@
 ## Naming Conventions
 
 - Types, interfaces, classes, enums, and type aliases: `PascalCase` (e.g. `RexecHub`, `AgentToHubMessage`).
-- Functions and methods: `snake_case` (e.g. `format_ws_url`, `handle_exec_request`).
+- Functions and methods: `snake_case` (e.g. `format_ws_url`, `create_node_source`).
 - Variables, parameters, and local state values: `snake_case` (e.g. `task_id`, `auth_token`).
 - Constants: `SCREAMING_SNAKE_CASE` for module-level immutable values.
 - Type imports: use `import type` when importing only types.
@@ -26,7 +34,7 @@
 - **Single Concern Ownership**: Every concern (validation, transformation, lifecycle control, error formatting) must have exactly ONE designated owner layer. NEVER split, smear, or partially handle the same responsibility across multiple modules. If a layer owns a concern, it must handle it completely and decisively.
 - **Direct Flow & Zero Re-wrapping**: When an upstream or downstream component already returns a complete, well-formed contract, pass it through directly. NEVER redundantly unpack, inspect, and reconstruct well-formed objects or streams across intermediate layers. Avoid paranoid multi-layer defensive programming.
 - **Standard Primitives Over Trivial Wrappers**: Prefer language and platform standard APIs directly over thin helper functions that add no domain logic. Maintain a high signal-to-noise ratio (SNR) across the codebase: the codebase serves as in-context prompt training for future AI sessions, and redundant boilerplate actively degrades model reasoning.
-- Agent and CLI runtimes must remain zero-dependency on target machines.
+- Agent and Caller runtimes must remain zero-dependency on target machines.
 
 ## AI Debugging & Autonomous Troubleshooting
 
