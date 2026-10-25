@@ -13,11 +13,17 @@
     "build": "npm run build:agent && npm run build:cli",
     "dev:server": "wrangler dev",
     "deploy": "wrangler deploy",
+    "debug:serve": "tsx cli/debug/serve.ts",
+    "debug:test": "tsx cli/debug/tests/run_all.ts",
+    "debug:test:basic": "tsx cli/debug/tests/basic.ts",
+    "debug:test:env": "tsx cli/debug/tests/env_cwd.ts",
+    "debug:test:abort": "tsx cli/debug/tests/abort.ts",
+    "debug:test:large": "tsx cli/debug/tests/large_output.ts",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src --deny-warnings",
-    "format": "oxfmt src",
-    "format:check": "oxfmt --check src",
-    "check": "concurrently \"oxlint src --deny-warnings\" \"tsc --noEmit\""
+    "lint": "oxlint src cli --deny-warnings",
+    "format": "oxfmt src cli",
+    "format:check": "oxfmt --check src cli",
+    "check": "concurrently \"oxlint src cli --deny-warnings\" \"tsc --noEmit\""
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20260422.1",
