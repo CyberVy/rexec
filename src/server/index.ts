@@ -10,6 +10,7 @@ interface ActiveTask {
     writer: WritableStreamDefaultWriter<Uint8Array>
     timeout_id?: ReturnType<typeof setTimeout>
     encoder: TextEncoder
+    write_queue: Promise<void>
 }
 
 export class RexecHub extends DurableObject {
@@ -111,15 +112,15 @@ export class RexecHub extends DurableObject {
                 const task = this.active_tasks.get(msg.task_id)
                 if (task) {
                     const payload = JSON.stringify({ stream: msg.stream, data: msg.data })
-                    task.writer.write(task.encoder.encode(`event: chunk\ndata: ${payload}\n\n`)).catch(() => {})
+                    this.write_to_task(task, `event: chunk\ndata: ${payload}\n\n`)
                 }
             } else if (msg.type === "exit") {
                 const task = this.active_tasks.get(msg.task_id)
                 if (task) {
                     if (task.timeout_id) clearTimeout(task.timeout_id)
                     const payload = JSON.stringify({ code: msg.code, signal: msg.signal })
-                    task.writer
-                        .write(task.encoder.encode(`event: exit\ndata: ${payload}\n\n`))
+                    task.write_queue = task.write_queue
+                        .then(() => task.writer.write(task.encoder.encode(`event: exit\ndata: ${payload}\n\n`)))
                         .then(() => task.writer.close())
                         .catch(() => {})
                     this.active_tasks.delete(msg.task_id)
@@ -171,7 +172,7 @@ export class RexecHub extends DurableObject {
             }
         }, timeout_ms)
 
-        this.active_tasks.set(task_id, { writer, timeout_id, encoder })
+        this.active_tasks.set(task_id, { writer, timeout_id, encoder, write_queue: Promise.resolve() })
 
         request.signal.addEventListener("abort", () => {
             const task = this.active_tasks.get(task_id)
@@ -199,6 +200,12 @@ export class RexecHub extends DurableObject {
                 Connection: "keep-alive"
             }
         })
+    }
+
+    private write_to_task(task: ActiveTask, text: string): void {
+        task.write_queue = task.write_queue
+            .then(() => task.writer.write(task.encoder.encode(text)))
+            .catch(() => {})
     }
 
     private send_to_agent(msg: HubToAgentMessage): void {
