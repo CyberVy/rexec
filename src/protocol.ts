@@ -7,6 +7,7 @@ export interface FileMetadata {
     size: number
     mtime?: number
     mode?: number
+    is_directory?: boolean
 }
 
 // ==========================================
@@ -69,6 +70,7 @@ export interface FilePullStartMessage {
     type: "file:pull_start"
     transfer_id: string
     path: string
+    recursive?: boolean
 }
 
 export interface FilePullMetaMessage {
@@ -89,6 +91,7 @@ export interface FilePushStartMessage {
     path: string
     size: number
     mode?: number
+    recursive?: boolean
 }
 
 export interface FilePushEndMessage {

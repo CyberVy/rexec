@@ -191,8 +191,98 @@ async function run_file_transfer_tests(): Promise<boolean> {
         all_passed = false
     }
 
+    // 8. Directory Push Without -r Flag (Should Error)
+    const test_8 = "test:dir_push_without_recursive_flag"
+    const local_test_dir = path.join(tmp_test_dir, "sample_dir_src")
+    fs.mkdirSync(path.join(local_test_dir, "nested"), { recursive: true })
+    fs.writeFileSync(path.join(local_test_dir, "f1.txt"), "hello f1", "utf-8")
+    fs.writeFileSync(path.join(local_test_dir, "nested", "f2.txt"), "hello f2", "utf-8")
+    try {
+        const res = await run_rexec_cli(["push", local_test_dir])
+        const passed = res.exit_code === 1 && res.stderr.includes("is a directory. Use -r or --recursive")
+        print_verdict(test_8, passed, `exit_code: ${res.exit_code}, stderr: ${res.stderr.trim()}`)
+        record_history({
+            test_name: test_8,
+            command: `rexec push ${local_test_dir}`,
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res.exit_code,
+            duration_ms: res.duration_ms
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_8, false, (err as Error).message)
+        all_passed = false
+    }
+
+    // 9. Directory Push With -r Flag
+    const test_9 = "test:dir_push_recursive"
+    const remote_dest_dir = "remote_sample_dir"
+    try {
+        const res = await run_rexec_cli(["push", "-r", local_test_dir, remote_dest_dir])
+        const verify_f1 = await run_rexec(`cat ${remote_dest_dir}/f1.txt`)
+        const verify_f2 = await run_rexec(`cat ${remote_dest_dir}/nested/f2.txt`)
+        const passed = res.exit_code === 0 && verify_f1.stdout === "hello f1" && verify_f2.stdout === "hello f2"
+        print_verdict(test_9, passed, passed ? undefined : `f1: ${verify_f1.stdout}, f2: ${verify_f2.stdout}`)
+        record_history({
+            test_name: test_9,
+            command: `rexec push -r ${local_test_dir} ${remote_dest_dir}`,
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res.exit_code,
+            duration_ms: res.duration_ms
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_9, false, (err as Error).message)
+        all_passed = false
+    }
+
+    // 10. Directory Pull Without -r Flag (Should Error)
+    const test_10 = "test:dir_pull_without_recursive_flag"
+    try {
+        const res = await run_rexec_cli(["pull", remote_dest_dir])
+        const passed = res.exit_code === 1 && res.stderr.includes("is a directory. Use -r or --recursive")
+        print_verdict(test_10, passed, `exit_code: ${res.exit_code}, stderr: ${res.stderr.trim()}`)
+        record_history({
+            test_name: test_10,
+            command: `rexec pull ${remote_dest_dir}`,
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res.exit_code,
+            duration_ms: res.duration_ms
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_10, false, (err as Error).message)
+        all_passed = false
+    }
+
+    // 11. Directory Pull With -r Flag
+    const test_11 = "test:dir_pull_recursive"
+    const downloaded_dir = path.join(tmp_test_dir, "sample_dir_downloaded")
+    try {
+        const res = await run_rexec_cli(["pull", "-r", remote_dest_dir, downloaded_dir])
+        const downloaded_f1 = fs.existsSync(path.join(downloaded_dir, "f1.txt"))
+            ? fs.readFileSync(path.join(downloaded_dir, "f1.txt"), "utf-8")
+            : ""
+        const downloaded_f2 = fs.existsSync(path.join(downloaded_dir, "nested", "f2.txt"))
+            ? fs.readFileSync(path.join(downloaded_dir, "nested", "f2.txt"), "utf-8")
+            : ""
+        const passed = res.exit_code === 0 && downloaded_f1 === "hello f1" && downloaded_f2 === "hello f2"
+        print_verdict(test_11, passed, passed ? undefined : `f1: ${downloaded_f1}, f2: ${downloaded_f2}`)
+        record_history({
+            test_name: test_11,
+            command: `rexec pull -r ${remote_dest_dir} ${downloaded_dir}`,
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res.exit_code,
+            duration_ms: res.duration_ms
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_11, false, (err as Error).message)
+        all_passed = false
+    }
+
     // Cleanup remote test files
-    await run_rexec(`rm -f ${remote_text_filename} ${remote_bin_filename}`)
+    await run_rexec(`rm -rf ${remote_text_filename} ${remote_bin_filename} ${remote_dest_dir}`)
     fs.rmSync(tmp_test_dir, { recursive: true, force: true })
 
     return all_passed
