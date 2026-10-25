@@ -25,6 +25,9 @@ Examples:
 async function check_status(hub_url: string, token: string): Promise<void> {
     const url = new URL(hub_url)
     url.pathname = "/health"
+    if (token) {
+        url.searchParams.set("token", token)
+    }
     try {
         const res = await fetch(url.toString(), {
             headers: { Authorization: `Bearer ${token}` }
@@ -33,8 +36,16 @@ async function check_status(hub_url: string, token: string): Promise<void> {
             console.error(`Error querying hub: HTTP ${res.status} ${res.statusText}`)
             process.exit(1)
         }
-        const data = (await res.json()) as { status: string; agent_connected: boolean; active_tasks: number }
+        const data = (await res.json()) as {
+            status: string
+            agent_connected: boolean
+            node_id?: string
+            active_tasks: number
+        }
         console.log(`Hub Status: ${data.status}`)
+        if (data.node_id) {
+            console.log(`Node ID: ${data.node_id}`)
+        }
         console.log(`Agent Connected: ${data.agent_connected ? "YES (Online)" : "NO (Offline)"}`)
         console.log(`Active Tasks: ${data.active_tasks}`)
         process.exit(data.agent_connected ? 0 : 1)
@@ -93,7 +104,9 @@ async function main(): Promise<void> {
     }
 
     if (!token) {
-        console.error("Error: Missing Auth Token. Provide --token <secret> or set REXEC_TOKEN env var.")
+        console.error(
+            "Error: Missing Auth Token. Provide --token <secret> (printed when rexec-agent starts) or set REXEC_TOKEN env var."
+        )
         process.exit(1)
     }
 

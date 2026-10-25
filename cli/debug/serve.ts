@@ -87,17 +87,7 @@ async function run(): Promise<void> {
 
     const wrangler_child = spawn(
         "npx",
-        [
-            "wrangler",
-            "dev",
-            "--ip",
-            options.ip,
-            "--port",
-            String(options.port),
-            "--var",
-            `AUTH_TOKEN:${DEBUG_TOKEN}`,
-            "--show-interactive-dev-session=false"
-        ],
+        ["wrangler", "dev", "--ip", options.ip, "--port", String(options.port), "--show-interactive-dev-session=false"],
         {
             cwd: repo_root,
             env: { ...process.env, FORCE_COLOR: "0" }

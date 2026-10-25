@@ -88,6 +88,96 @@ async function run_basic_tests(): Promise<boolean> {
         all_passed = false
     }
 
+    // 4. Reject Unauthenticated Registration Test
+    const test_4 = "test:reject_unauthenticated_registration"
+    try {
+        const res = await fetch(`${config.hub_url}/ws`)
+        const passed = res.status === 401 || res.status === 400
+        print_verdict(test_4, passed, `status: ${res.status} (expected 401)`)
+        record_history({
+            test_name: test_4,
+            command: "GET /ws (no token)",
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res.status,
+            duration_ms: 0
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_4, false, (err as Error).message)
+        record_history({
+            test_name: test_4,
+            command: "GET /ws (no token)",
+            verdict: "FAIL",
+            exit_code: 1,
+            duration_ms: 0,
+            error_message: (err as Error).message
+        })
+        all_passed = false
+    }
+
+    // 5. Verify Authorization Header Accepted on /ws
+    const test_5 = "test:auth_header_accepted_for_ws"
+    try {
+        // A GET /ws with Authorization header passes the auth barrier (fails with 426 Upgrade Required, NOT 401)
+        const res = await fetch(`${config.hub_url}/ws`, {
+            headers: { Authorization: `Bearer test-token` }
+        })
+        const passed = res.status === 426
+        print_verdict(test_5, passed, `status: ${res.status} (expected 426 Upgrade Required)`)
+        record_history({
+            test_name: test_5,
+            command: "GET /ws (with Authorization header)",
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res.status,
+            duration_ms: 0
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_5, false, (err as Error).message)
+        record_history({
+            test_name: test_5,
+            command: "GET /ws (with Authorization header)",
+            verdict: "FAIL",
+            exit_code: 1,
+            duration_ms: 0,
+            error_message: (err as Error).message
+        })
+        all_passed = false
+    }
+
+    // 6. Reject Duplicate Token Registration Test
+    const test_6 = "test:reject_duplicate_token_registration"
+    try {
+        const ws_url = `${config.hub_url.replace(/^http/, "ws")}/ws?token=rexec-debug-token&node_id=conflicting-node`
+        const ws = new WebSocket(ws_url)
+        const close_code = await new Promise<number>((resolve) => {
+            ws.addEventListener("close", (e) => resolve(e.code))
+            ws.addEventListener("error", () => resolve(0))
+            setTimeout(() => resolve(0), 4000)
+        })
+        const passed = close_code === 4409
+        print_verdict(test_6, passed, `close_code: ${close_code} (expected 4409 Conflict)`)
+        record_history({
+            test_name: test_6,
+            command: "Connect with duplicate token",
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: close_code,
+            duration_ms: 0
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_6, false, (err as Error).message)
+        record_history({
+            test_name: test_6,
+            command: "Connect with duplicate token",
+            verdict: "FAIL",
+            exit_code: 1,
+            duration_ms: 0,
+            error_message: (err as Error).message
+        })
+        all_passed = false
+    }
+
     return all_passed
 }
 

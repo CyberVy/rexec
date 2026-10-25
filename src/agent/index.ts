@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process"
+import crypto from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 import type { AgentToHubMessage, HubToAgentMessage, TaskExecMessage, TaskKillMessage } from "@/protocol"
@@ -8,6 +9,7 @@ interface AgentOptions {
     token: string
     workspace: string
     node_id: string
+    is_auto_generated: boolean
 }
 
 function print_usage(): void {
@@ -18,14 +20,14 @@ Usage:
 
 Options:
   --hub <url>          Hub WebSocket/HTTP URL (or via REXEC_HUB env var)
-  --token <secret>     Auth Token (or via REXEC_TOKEN env var)
+  --token <secret>     Auth Token (auto-generated if omitted, or via REXEC_TOKEN env var)
   --workspace <dir>    Base workspace directory (default: current working directory)
   --node-id <id>       Worker node identifier (default: hostname)
   -h, --help           Show this help message
 
 Examples:
-  rexec-agent --hub wss://hub.example.com --token secret123
-  rexec-agent --hub http://127.0.0.1:8787 --token rexec-dev-token --workspace ./workspace
+  rexec-agent --hub wss://hub.example.com
+  rexec-agent --hub http://127.0.0.1:8787 --token my-custom-secret --workspace ./workspace
 `)
 }
 
@@ -70,12 +72,13 @@ function parse_args(): AgentOptions {
         process.exit(1)
     }
 
+    let is_auto_generated = false
     if (!token) {
-        console.error("Error: Missing Auth Token. Provide --token <secret> or set REXEC_TOKEN env var.")
-        process.exit(1)
+        token = `rexec_sec_${crypto.randomBytes(16).toString("hex")}`
+        is_auto_generated = true
     }
 
-    return { hub_url, token, workspace, node_id }
+    return { hub_url, token, workspace, node_id, is_auto_generated }
 }
 
 class RexecAgent {
@@ -132,6 +135,22 @@ class RexecAgent {
         this.ws.addEventListener("open", () => {
             console.log(`[rexec-agent] Connected to hub. Node ID: ${this.options.node_id}`)
             console.log(`[rexec-agent] Workspace: ${this.options.workspace}`)
+            console.log(`[rexec-agent] Session Token: ${this.options.token}`)
+
+            if (this.options.is_auto_generated) {
+                console.log(`
+======================================================
+Session Token generated!
+To run commands from your local machine, use:
+  rexec --hub ${this.options.hub_url} --token ${this.options.token} <command...>
+
+Or set environment variables:
+  export REXEC_HUB=${this.options.hub_url}
+  export REXEC_TOKEN=${this.options.token}
+======================================================
+`)
+            }
+
             this.send({
                 type: "register",
                 node_id: this.options.node_id,
@@ -146,6 +165,12 @@ class RexecAgent {
 
         this.ws.addEventListener("close", (event) => {
             this.stop_heartbeat()
+            if (event.code === 4409) {
+                console.error(
+                    `\n[rexec-agent] Fatal: ${event.reason || "Token is already in use by another active node."}`
+                )
+                process.exit(1)
+            }
             console.warn(`[rexec-agent] Connection closed (code: ${event.code}, reason: ${event.reason || "none"})`)
             this.schedule_reconnect()
         })
