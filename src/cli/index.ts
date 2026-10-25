@@ -1,34 +1,4 @@
-import fs from "node:fs"
-import os from "node:os"
-import path from "node:path"
 import type { ExecRequestPayload } from "@/protocol"
-
-interface CliConfig {
-    hub_url: string
-    token: string
-    cwd?: string
-    timeout_ms?: number
-}
-
-function load_config_file(): Partial<CliConfig> {
-    const locations = [
-        path.join(process.cwd(), ".rexec.json"),
-        path.join(os.homedir(), ".rexec.json"),
-        path.join(os.homedir(), ".config", "rexec", "config.json")
-    ]
-
-    for (const loc of locations) {
-        if (fs.existsSync(loc)) {
-            try {
-                const content = fs.readFileSync(loc, "utf-8")
-                return JSON.parse(content) as Partial<CliConfig>
-            } catch {
-                // Ignore parse errors from invalid config files
-            }
-        }
-    }
-    return {}
-}
 
 function print_usage(): void {
     console.log(`rexec - Ultra-lightweight edge-routed remote execution engine
@@ -38,8 +8,8 @@ Usage:
   rexec status
 
 Options:
-  --hub <url>        Hub URL (or via REXEC_HUB env var or ~/.rexec.json)
-  --token <secret>   Auth Token (or via REXEC_TOKEN env var or ~/.rexec.json)
+  --hub <url>        Hub URL (or via REXEC_HUB env var)
+  --token <secret>   Auth Token (or via REXEC_TOKEN env var)
   --cwd <dir>        Remote working directory relative to remote workspace
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
   -h, --help         Show this help message
@@ -81,12 +51,10 @@ async function main(): Promise<void> {
         process.exit(0)
     }
 
-    const file_config = load_config_file()
-
-    let hub_url = process.env.REXEC_HUB || file_config.hub_url || ""
-    let token = process.env.REXEC_TOKEN || file_config.token || ""
-    let cwd = file_config.cwd
-    let timeout_ms = file_config.timeout_ms || 300000
+    let hub_url = process.env.REXEC_HUB || ""
+    let token = process.env.REXEC_TOKEN || ""
+    let cwd: string | undefined
+    let timeout_ms = 300000
 
     const command_parts: string[] = []
 
@@ -116,12 +84,12 @@ async function main(): Promise<void> {
     }
 
     if (!hub_url) {
-        console.error("Error: Missing Hub URL. Provide --hub <url>, REXEC_HUB env var, or ~/.rexec.json")
+        console.error("Error: Missing Hub URL. Provide --hub <url> or set REXEC_HUB env var.")
         process.exit(1)
     }
 
     if (!token) {
-        console.error("Error: Missing Auth Token. Provide --token <secret>, REXEC_TOKEN env var, or ~/.rexec.json")
+        console.error("Error: Missing Auth Token. Provide --token <secret> or set REXEC_TOKEN env var.")
         process.exit(1)
     }
 
