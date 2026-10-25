@@ -158,25 +158,52 @@ async function main(): Promise<void> {
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ""
+    let current_event = "chunk"
+
+    const process_line = (raw_line: string): boolean => {
+        let line = raw_line
+        if (line.endsWith("\r")) {
+            line = line.slice(0, -1)
+        }
+        if (line.startsWith("event: ")) {
+            current_event = line.slice(7).trim()
+        } else if (line.startsWith("data: ")) {
+            const data_raw = line.slice(6)
+            const should_exit = handle_sse_event(current_event, data_raw)
+            current_event = "chunk"
+            if (should_exit) return true
+        }
+        return false
+    }
 
     try {
         while (true) {
             const { done, value } = await reader.read()
-            if (done) break
+            if (done) {
+                buffer += decoder.decode()
+                if (buffer.length > 0) {
+                    const lines = buffer.split("\n")
+                    for (const line of lines) {
+                        process_line(line)
+                    }
+                }
+                break
+            }
 
             buffer += decoder.decode(value, { stream: true })
             const lines = buffer.split("\n")
             buffer = lines.pop() || ""
 
-            let current_event = ""
+            let should_exit = false
             for (const line of lines) {
-                if (line.startsWith("event: ")) {
-                    current_event = line.slice(7).trim()
-                } else if (line.startsWith("data: ")) {
-                    const data_raw = line.slice(6)
-                    handle_sse_event(current_event, data_raw)
-                    current_event = ""
+                if (process_line(line)) {
+                    should_exit = true
+                    break
                 }
+            }
+            if (should_exit) {
+                await reader.cancel().catch(() => {})
+                break
             }
         }
     } catch (err) {
@@ -187,7 +214,7 @@ async function main(): Promise<void> {
     }
 }
 
-function handle_sse_event(event: string, data_raw: string): void {
+function handle_sse_event(event: string, data_raw: string): boolean {
     try {
         const parsed = JSON.parse(data_raw)
         if (event === "chunk") {
@@ -197,17 +224,19 @@ function handle_sse_event(event: string, data_raw: string): void {
                 process.stderr.write(parsed.data)
             }
         } else if (event === "exit") {
-            process.exit(parsed.code ?? 0)
+            process.exitCode = parsed.code ?? 0
+            return true
         } else if (event === "error") {
             process.stderr.write(`[rexec error] ${parsed.message}\n`)
-            process.exit(1)
+            process.exitCode = 1
+            return true
         }
     } catch {
-        // Fallback for plain text data
         if (event === "chunk") {
             process.stdout.write(data_raw)
         }
     }
+    return false
 }
 
 main().catch((err) => {
