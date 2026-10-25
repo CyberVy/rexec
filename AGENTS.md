@@ -7,8 +7,7 @@
   - `cli/`: Local command-line interface client (Node.js).
 - `cli/`: Local developer tools and debug channel.
   - `debug/`: Black-box end-to-end debugging harness and automated test matrix.
-- `dist/`: Build outputs for standalone agent bundle.
-- `bin/`: CLI launcher and binary entries.
+- `dist/`: Standalone build distribution outputs and binary entries (`rexec`, `rexec-agent`).
 
 ## Naming Conventions
 

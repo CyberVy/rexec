@@ -1,7 +1,7 @@
 # Debug Channel Guide
 
 A stable, black-box debugging and end-to-end verification harness for `rexec`.
-It orchestrates a local Cloudflare Worker Hub (`wrangler dev`) and a local Node Agent (`dist/agent.mjs`), executes scenario-based test suites, and records structured diagnostics under `.debug/`.
+It orchestrates a local Cloudflare Worker Hub (`wrangler dev`) and a local Node Agent (`dist/rexec-agent.mjs`), executes scenario-based test suites, and records structured diagnostics under `.debug/`.
 
 ## Architecture & Contract
 
