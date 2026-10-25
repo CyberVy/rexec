@@ -1,5 +1,12 @@
 import { DurableObject } from "cloudflare:workers"
-import type { AgentToHubMessage, ExecRequestPayload, HubToAgentMessage, TaskExecMessage } from "@/protocol"
+import {
+    TRANSFER_ID_BYTES,
+    type AgentToHubMessage,
+    type ExecRequestPayload,
+    type FileMetadata,
+    type HubToAgentMessage,
+    type TaskExecMessage
+} from "@/protocol"
 
 export interface Env {
     REXEC_HUB: DurableObjectNamespace
@@ -11,6 +18,23 @@ interface ActiveTask {
     timeout_id?: ReturnType<typeof setTimeout>
     encoder: TextEncoder
     write_queue: Promise<void>
+}
+
+interface ActivePull {
+    token: string
+    writer: WritableStreamDefaultWriter<Uint8Array>
+    resolve_meta: (meta: FileMetadata) => void
+    reject_meta: (err: Error) => void
+    meta_received: boolean
+    timeout_id?: ReturnType<typeof setTimeout>
+    write_queue: Promise<void>
+}
+
+interface ActivePush {
+    token: string
+    resolve_push: (result: { sha256?: string }) => void
+    reject_push: (err: Error) => void
+    timeout_id?: ReturnType<typeof setTimeout>
 }
 
 interface AgentSession {
@@ -45,6 +69,8 @@ function extract_token(request: Request, url: URL): string | null {
 export class RexecHub extends DurableObject {
     private agents: Map<string, AgentSession> = new Map()
     private active_tasks: Map<string, ActiveTask> = new Map()
+    private active_pulls: Map<string, ActivePull> = new Map()
+    private active_pushes: Map<string, ActivePush> = new Map()
 
     constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
         super(ctx, env)
@@ -96,6 +122,14 @@ export class RexecHub extends DurableObject {
             return this.handle_exec_request(request, url)
         }
 
+        if (url.pathname === "/file/pull" || url.pathname === "/api/file/pull") {
+            return this.handle_pull_request(request, url)
+        }
+
+        if (url.pathname === "/file/push" || url.pathname === "/api/file/push") {
+            return this.handle_push_request(request, url)
+        }
+
         return new Response("Not Found", { status: 404, headers: get_cors_headers(request) })
     }
 
@@ -138,8 +172,20 @@ export class RexecHub extends DurableObject {
         }
         this.agents.set(token, session)
 
-        server.addEventListener("message", (event) => {
-            this.handle_agent_message(session, event.data)
+        server.addEventListener("message", async (event) => {
+            if (typeof event.data === "string") {
+                this.handle_agent_message(session, event.data)
+            } else if (event.data instanceof ArrayBuffer) {
+                this.handle_agent_binary(session, new Uint8Array(event.data))
+            } else if (ArrayBuffer.isView(event.data)) {
+                this.handle_agent_binary(
+                    session,
+                    new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength)
+                )
+            } else if (event.data && typeof (event.data as Blob).arrayBuffer === "function") {
+                const ab = await (event.data as Blob).arrayBuffer()
+                this.handle_agent_binary(session, new Uint8Array(ab))
+            }
         })
 
         server.addEventListener("close", () => {
@@ -147,6 +193,7 @@ export class RexecHub extends DurableObject {
             if (current && current.ws === server) {
                 this.agents.delete(token)
                 this.abort_tasks_for_token(token, "Agent disconnected unexpectedly")
+                this.abort_transfers_for_token(token, "Agent disconnected unexpectedly")
             }
         })
 
@@ -155,23 +202,23 @@ export class RexecHub extends DurableObject {
             if (current && current.ws === server) {
                 this.agents.delete(token)
                 this.abort_tasks_for_token(token, "Agent connection error")
+                this.abort_transfers_for_token(token, "Agent connection error")
             }
         })
 
         return new Response(null, { status: 101, webSocket: client })
     }
 
-    private handle_agent_message(session: AgentSession, data: unknown): void {
-        if (typeof data !== "string") return
+    private handle_agent_message(session: AgentSession, data: string): void {
         try {
             const msg = JSON.parse(data) as AgentToHubMessage
-            if (msg.type === "chunk") {
+            if (msg.type === "chunk" || msg.type === "task:chunk") {
                 const task = this.active_tasks.get(msg.task_id)
                 if (task && task.token === session.token) {
                     const payload = JSON.stringify({ stream: msg.stream, data: msg.data })
                     this.write_to_task(task, `event: chunk\ndata: ${payload}\n\n`)
                 }
-            } else if (msg.type === "exit") {
+            } else if (msg.type === "exit" || msg.type === "task:exit") {
                 const task = this.active_tasks.get(msg.task_id)
                 if (task && task.token === session.token) {
                     if (task.timeout_id) clearTimeout(task.timeout_id)
@@ -182,6 +229,43 @@ export class RexecHub extends DurableObject {
                         .catch(() => {})
                     this.active_tasks.delete(msg.task_id)
                 }
+            } else if (msg.type === "file:pull_meta") {
+                const pull = this.active_pulls.get(msg.transfer_id)
+                if (pull && pull.token === session.token) {
+                    pull.meta_received = true
+                    pull.resolve_meta(msg.meta)
+                }
+            } else if (msg.type === "file:pull_end") {
+                const pull = this.active_pulls.get(msg.transfer_id)
+                if (pull && pull.token === session.token) {
+                    if (pull.timeout_id) clearTimeout(pull.timeout_id)
+                    pull.write_queue.then(() => pull.writer.close()).catch(() => {})
+                    this.active_pulls.delete(msg.transfer_id)
+                }
+            } else if (msg.type === "file:push_end") {
+                const push = this.active_pushes.get(msg.transfer_id)
+                if (push && push.token === session.token) {
+                    if (push.timeout_id) clearTimeout(push.timeout_id)
+                    push.resolve_push({ sha256: msg.sha256 })
+                    this.active_pushes.delete(msg.transfer_id)
+                }
+            } else if (msg.type === "transfer:error") {
+                const pull = this.active_pulls.get(msg.transfer_id)
+                if (pull && pull.token === session.token) {
+                    if (pull.timeout_id) clearTimeout(pull.timeout_id)
+                    if (!pull.meta_received) {
+                        pull.reject_meta(new Error(msg.error))
+                    } else {
+                        pull.writer.abort(new Error(msg.error)).catch(() => {})
+                    }
+                    this.active_pulls.delete(msg.transfer_id)
+                }
+                const push = this.active_pushes.get(msg.transfer_id)
+                if (push && push.token === session.token) {
+                    if (push.timeout_id) clearTimeout(push.timeout_id)
+                    push.reject_push(new Error(msg.error))
+                    this.active_pushes.delete(msg.transfer_id)
+                }
             } else if (msg.type === "register") {
                 if (msg.hostname) session.hostname = msg.hostname
                 if (msg.node_id) session.node_id = msg.node_id
@@ -190,6 +274,18 @@ export class RexecHub extends DurableObject {
             }
         } catch {
             // Ignore malformed message
+        }
+    }
+
+    private handle_agent_binary(session: AgentSession, bytes: Uint8Array): void {
+        if (bytes.length < TRANSFER_ID_BYTES) return
+        const id_bytes = bytes.subarray(0, TRANSFER_ID_BYTES)
+        const transfer_id = new TextDecoder().decode(id_bytes)
+        const raw_payload = bytes.subarray(TRANSFER_ID_BYTES)
+
+        const pull = this.active_pulls.get(transfer_id)
+        if (pull && pull.token === session.token) {
+            pull.write_queue = pull.write_queue.then(() => pull.writer.write(raw_payload)).catch(() => {})
         }
     }
 
@@ -234,7 +330,7 @@ export class RexecHub extends DurableObject {
                     .write(task.encoder.encode(`event: error\ndata: ${payload}\n\n`))
                     .then(() => task.writer.close())
                     .catch(() => {})
-                this.send_to_agent(session, { type: "kill", task_id, signal: "SIGTERM" })
+                this.send_to_agent(session, { type: "task:kill", task_id, signal: "SIGTERM" })
                 this.active_tasks.delete(task_id)
             }
         }, timeout_ms)
@@ -251,14 +347,14 @@ export class RexecHub extends DurableObject {
             const task = this.active_tasks.get(task_id)
             if (task) {
                 if (task.timeout_id) clearTimeout(task.timeout_id)
-                this.send_to_agent(session, { type: "kill", task_id, signal: "SIGINT" })
+                this.send_to_agent(session, { type: "task:kill", task_id, signal: "SIGINT" })
                 task.writer.close().catch(() => {})
                 this.active_tasks.delete(task_id)
             }
         })
 
         const exec_msg: TaskExecMessage = {
-            type: "exec",
+            type: "task:exec",
             task_id,
             cmd: body.cmd,
             cwd: body.cwd,
@@ -274,6 +370,186 @@ export class RexecHub extends DurableObject {
                 ...headers
             }
         })
+    }
+
+    private async handle_pull_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
+        const token = extract_token(request, url)
+        if (!token) {
+            return new Response("Missing authorization token", { status: 401, headers })
+        }
+
+        const session = this.agents.get(token)
+        if (!session || session.ws.readyState !== WebSocket.OPEN) {
+            return Response.json(
+                { error: "No agent connected for this token. Please start rexec-agent first." },
+                { status: 503, headers }
+            )
+        }
+
+        const file_path = url.searchParams.get("path")
+        if (!file_path) {
+            return Response.json({ error: "Missing 'path' query parameter" }, { status: 400, headers })
+        }
+
+        const transfer_id = crypto.randomUUID().replace(/-/g, "").slice(0, TRANSFER_ID_BYTES)
+        const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
+        const writer = writable.getWriter()
+
+        let resolve_meta!: (meta: FileMetadata) => void
+        let reject_meta!: (err: Error) => void
+        const meta_promise = new Promise<FileMetadata>((res, rej) => {
+            resolve_meta = res
+            reject_meta = rej
+        })
+
+        const timeout_id = setTimeout(() => {
+            const pull = this.active_pulls.get(transfer_id)
+            if (pull) {
+                if (!pull.meta_received) {
+                    pull.reject_meta(new Error("Pull request timed out waiting for agent"))
+                } else {
+                    pull.writer.abort(new Error("Pull stream timed out")).catch(() => {})
+                }
+                this.active_pulls.delete(transfer_id)
+            }
+        }, 300000)
+
+        this.active_pulls.set(transfer_id, {
+            token,
+            writer,
+            resolve_meta,
+            reject_meta,
+            meta_received: false,
+            timeout_id,
+            write_queue: Promise.resolve()
+        })
+
+        request.signal.addEventListener("abort", () => {
+            const pull = this.active_pulls.get(transfer_id)
+            if (pull) {
+                if (pull.timeout_id) clearTimeout(pull.timeout_id)
+                this.send_to_agent(session, { type: "transfer:error", transfer_id, error: "Client aborted request" })
+                pull.writer.abort(new Error("Client aborted")).catch(() => {})
+                this.active_pulls.delete(transfer_id)
+            }
+        })
+
+        this.send_to_agent(session, {
+            type: "file:pull_start",
+            transfer_id,
+            path: file_path
+        })
+
+        try {
+            const meta = await meta_promise
+            return new Response(readable, {
+                status: 200,
+                headers: {
+                    "Content-Type": "application/octet-stream",
+                    "Content-Length": String(meta.size),
+                    "X-File-Path": encodeURIComponent(meta.path),
+                    "X-File-Size": String(meta.size),
+                    ...headers
+                }
+            })
+        } catch (err) {
+            clearTimeout(timeout_id)
+            this.active_pulls.delete(transfer_id)
+            return Response.json({ error: (err as Error).message }, { status: 404, headers })
+        }
+    }
+
+    private async handle_push_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
+        if (request.method !== "POST") {
+            return new Response("Method Not Allowed", { status: 405, headers })
+        }
+
+        const token = extract_token(request, url)
+        if (!token) {
+            return new Response("Missing authorization token", { status: 401, headers })
+        }
+
+        const session = this.agents.get(token)
+        if (!session || session.ws.readyState !== WebSocket.OPEN) {
+            return Response.json(
+                { error: "No agent connected for this token. Please start rexec-agent first." },
+                { status: 503, headers }
+            )
+        }
+
+        const file_path = url.searchParams.get("path")
+        if (!file_path) {
+            return Response.json({ error: "Missing 'path' query parameter" }, { status: 400, headers })
+        }
+
+        if (!request.body) {
+            return Response.json({ error: "Missing request body" }, { status: 400, headers })
+        }
+
+        const size = Number(request.headers.get("Content-Length") || url.searchParams.get("size") || 0)
+        const transfer_id = crypto.randomUUID().replace(/-/g, "").slice(0, TRANSFER_ID_BYTES)
+
+        let resolve_push!: (result: { sha256?: string }) => void
+        let reject_push!: (err: Error) => void
+        const push_promise = new Promise<{ sha256?: string }>((res, rej) => {
+            resolve_push = res
+            reject_push = rej
+        })
+
+        const timeout_id = setTimeout(() => {
+            const push = this.active_pushes.get(transfer_id)
+            if (push) {
+                push.reject_push(new Error("Push request timed out"))
+                this.active_pushes.delete(transfer_id)
+            }
+        }, 600000)
+
+        this.active_pushes.set(transfer_id, {
+            token,
+            resolve_push,
+            reject_push,
+            timeout_id
+        })
+
+        this.send_to_agent(session, {
+            type: "file:push_start",
+            transfer_id,
+            path: file_path,
+            size
+        })
+
+        const reader = request.body.getReader()
+        const id_header = new TextEncoder().encode(transfer_id)
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                const packet = new Uint8Array(id_header.length + value.length)
+                packet.set(id_header, 0)
+                packet.set(value, id_header.length)
+                session.ws.send(packet)
+            }
+
+            this.send_to_agent(session, {
+                type: "file:push_end",
+                transfer_id
+            })
+
+            const result = await push_promise
+            return Response.json({ status: "ok", size, sha256: result.sha256 }, { headers })
+        } catch (err) {
+            clearTimeout(timeout_id)
+            this.active_pushes.delete(transfer_id)
+            this.send_to_agent(session, {
+                type: "transfer:error",
+                transfer_id,
+                error: (err as Error).message
+            })
+            return Response.json({ error: (err as Error).message }, { status: 500, headers })
+        }
     }
 
     private write_to_task(task: ActiveTask, text: string): void {
@@ -296,6 +572,27 @@ export class RexecHub extends DurableObject {
                     .then(() => task.writer.close())
                     .catch(() => {})
                 this.active_tasks.delete(task_id)
+            }
+        }
+    }
+
+    private abort_transfers_for_token(token: string, reason: string): void {
+        for (const [id, pull] of this.active_pulls) {
+            if (pull.token === token) {
+                if (pull.timeout_id) clearTimeout(pull.timeout_id)
+                if (!pull.meta_received) {
+                    pull.reject_meta(new Error(reason))
+                } else {
+                    pull.writer.abort(new Error(reason)).catch(() => {})
+                }
+                this.active_pulls.delete(id)
+            }
+        }
+        for (const [id, push] of this.active_pushes) {
+            if (push.token === token) {
+                if (push.timeout_id) clearTimeout(push.timeout_id)
+                push.reject_push(new Error(reason))
+                this.active_pushes.delete(id)
             }
         }
     }
@@ -323,8 +620,15 @@ export default {
             }
         }
 
-        // Intercept unauthenticated exec requests before reaching Durable Object
-        if (url.pathname === "/exec" || url.pathname === "/api/exec") {
+        // Intercept unauthenticated exec or file transfer requests before reaching Durable Object
+        if (
+            url.pathname === "/exec" ||
+            url.pathname === "/api/exec" ||
+            url.pathname === "/file/pull" ||
+            url.pathname === "/api/file/pull" ||
+            url.pathname === "/file/push" ||
+            url.pathname === "/api/file/push"
+        ) {
             const token = extract_token(request, url)
             if (!token) {
                 return new Response("Missing authorization token", {

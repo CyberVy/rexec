@@ -1,8 +1,18 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import crypto from "node:crypto"
+import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import type { AgentToHubMessage, HubToAgentMessage, TaskExecMessage, TaskKillMessage } from "@/protocol"
+import {
+    TRANSFER_ID_BYTES,
+    type AgentToHubMessage,
+    type FilePullStartMessage,
+    type FilePushStartMessage,
+    type HubToAgentMessage,
+    type TaskExecMessage,
+    type TaskKillMessage,
+    type TransferErrorMessage
+} from "@/protocol"
 
 interface AgentOptions {
     hub_url: string
@@ -85,6 +95,11 @@ class RexecAgent {
     private options: AgentOptions
     private ws: WebSocket | null = null
     private running_tasks: Map<string, ChildProcess> = new Map()
+    private active_pulls: Map<string, { stream: fs.ReadStream }> = new Map()
+    private active_pushes: Map<
+        string,
+        { write_stream: fs.WriteStream; hash: crypto.Hash; target_path: string; target_size: number }
+    > = new Map()
     private is_shutting_down = false
     private heartbeat_timer: ReturnType<typeof setInterval> | null = null
 
@@ -126,6 +141,7 @@ class RexecAgent {
 
         try {
             this.ws = new WebSocket(ws_url)
+            this.ws.binaryType = "arraybuffer"
         } catch (err) {
             console.error(`[rexec-agent] WebSocket creation failed:`, err)
             this.schedule_reconnect()
@@ -160,7 +176,11 @@ Or set environment variables:
         })
 
         this.ws.addEventListener("message", (event) => {
-            this.handle_message(event.data)
+            if (typeof event.data === "string") {
+                this.handle_message(event.data)
+            } else {
+                this.handle_binary_data(event.data)
+            }
         })
 
         this.ws.addEventListener("close", (event) => {
@@ -207,19 +227,52 @@ Or set environment variables:
         }
     }
 
-    private handle_message(raw_data: unknown): void {
-        if (typeof raw_data !== "string") return
+    private handle_message(raw_data: string): void {
         try {
             const msg = JSON.parse(raw_data) as HubToAgentMessage
-            if (msg.type === "exec") {
+            if (msg.type === "task:exec" || msg.type === "exec") {
                 this.execute_task(msg)
-            } else if (msg.type === "kill") {
+            } else if (msg.type === "task:kill" || msg.type === "kill") {
                 this.kill_task(msg)
+            } else if (msg.type === "file:pull_start") {
+                this.handle_pull_start(msg)
+            } else if (msg.type === "file:push_start") {
+                this.handle_push_start(msg)
+            } else if (msg.type === "file:push_end") {
+                this.handle_push_end(msg.transfer_id)
+            } else if (msg.type === "transfer:error") {
+                this.handle_transfer_error(msg)
             } else if (msg.type === "registered") {
                 console.log(`[rexec-agent] Registration confirmed by hub. Ready for commands.`)
             }
         } catch (err) {
             console.error(`[rexec-agent] Failed to parse incoming message:`, err)
+        }
+    }
+
+    private async handle_binary_data(data: unknown): Promise<void> {
+        let buf: Buffer
+        if (Buffer.isBuffer(data)) {
+            buf = data
+        } else if (data instanceof ArrayBuffer) {
+            buf = Buffer.from(data)
+        } else if (ArrayBuffer.isView(data)) {
+            buf = Buffer.from(data.buffer, data.byteOffset, data.byteLength)
+        } else if (data && typeof (data as Blob).arrayBuffer === "function") {
+            const ab = await (data as Blob).arrayBuffer()
+            buf = Buffer.from(ab)
+        } else {
+            return
+        }
+
+        if (buf.length < TRANSFER_ID_BYTES) return
+        const transfer_id = buf.subarray(0, TRANSFER_ID_BYTES).toString("utf-8")
+        const chunk = buf.subarray(TRANSFER_ID_BYTES)
+
+        const push = this.active_pushes.get(transfer_id)
+        if (push) {
+            push.hash.update(chunk)
+            push.write_stream.write(chunk)
         }
     }
 
@@ -287,6 +340,151 @@ Or set environment variables:
         })
     }
 
+    private async handle_pull_start(msg: FilePullStartMessage): Promise<void> {
+        const target_path = path.isAbsolute(msg.path)
+            ? path.resolve(msg.path)
+            : path.resolve(this.options.workspace, msg.path)
+
+        console.log(`[rexec-agent] [pull:${msg.transfer_id.slice(0, 8)}] Preparing to send: ${target_path}`)
+
+        try {
+            const stat = await fs.promises.stat(target_path)
+            if (stat.isDirectory()) {
+                this.send({
+                    type: "transfer:error",
+                    transfer_id: msg.transfer_id,
+                    error: `Path '${msg.path}' is a directory, not a file`
+                })
+                return
+            }
+
+            this.send({
+                type: "file:pull_meta",
+                transfer_id: msg.transfer_id,
+                meta: {
+                    path: target_path,
+                    size: stat.size,
+                    mtime: stat.mtimeMs,
+                    mode: stat.mode
+                }
+            })
+
+            const id_header = Buffer.from(msg.transfer_id, "utf-8")
+            const hash = crypto.createHash("sha256")
+            const stream = fs.createReadStream(target_path, { highWaterMark: 64 * 1024 })
+
+            stream.on("data", (chunk: Buffer | string) => {
+                const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+                hash.update(buf)
+                const packet = Buffer.concat([id_header, buf])
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(packet)
+                }
+            })
+
+            stream.on("end", () => {
+                const sha256 = hash.digest("hex")
+                console.log(
+                    `[rexec-agent] [pull:${msg.transfer_id.slice(0, 8)}] Completed (${stat.size} bytes, sha256: ${sha256.slice(0, 8)})`
+                )
+                this.send({
+                    type: "file:pull_end",
+                    transfer_id: msg.transfer_id,
+                    sha256
+                })
+                this.active_pulls.delete(msg.transfer_id)
+            })
+
+            stream.on("error", (err) => {
+                console.error(`[rexec-agent] [pull:${msg.transfer_id.slice(0, 8)}] Read error:`, err)
+                this.send({
+                    type: "transfer:error",
+                    transfer_id: msg.transfer_id,
+                    error: `Failed to read file: ${err.message}`
+                })
+                this.active_pulls.delete(msg.transfer_id)
+            })
+
+            this.active_pulls.set(msg.transfer_id, { stream })
+        } catch {
+            this.send({
+                type: "transfer:error",
+                transfer_id: msg.transfer_id,
+                error: `File not found: ${msg.path}`
+            })
+        }
+    }
+
+    private handle_push_start(msg: FilePushStartMessage): void {
+        const target_path = path.isAbsolute(msg.path)
+            ? path.resolve(msg.path)
+            : path.resolve(this.options.workspace, msg.path)
+
+        console.log(
+            `[rexec-agent] [push:${msg.transfer_id.slice(0, 8)}] Preparing to receive: ${target_path} (${msg.size} bytes)`
+        )
+
+        try {
+            fs.mkdirSync(path.dirname(target_path), { recursive: true })
+            const write_stream = fs.createWriteStream(target_path)
+            const hash = crypto.createHash("sha256")
+
+            write_stream.on("error", (err) => {
+                console.error(`[rexec-agent] [push:${msg.transfer_id.slice(0, 8)}] Write error:`, err)
+                this.send({
+                    type: "transfer:error",
+                    transfer_id: msg.transfer_id,
+                    error: `Failed to write file: ${err.message}`
+                })
+                this.active_pushes.delete(msg.transfer_id)
+            })
+
+            this.active_pushes.set(msg.transfer_id, {
+                write_stream,
+                hash,
+                target_path,
+                target_size: msg.size
+            })
+        } catch (err) {
+            this.send({
+                type: "transfer:error",
+                transfer_id: msg.transfer_id,
+                error: `Failed to initialize destination: ${(err as Error).message}`
+            })
+        }
+    }
+
+    private handle_push_end(transfer_id: string): void {
+        const push = this.active_pushes.get(transfer_id)
+        if (!push) return
+
+        push.write_stream.end(() => {
+            const sha256 = push.hash.digest("hex")
+            console.log(
+                `[rexec-agent] [push:${transfer_id.slice(0, 8)}] Completed (${push.target_size} bytes, sha256: ${sha256.slice(0, 8)})`
+            )
+            this.send({
+                type: "file:push_end",
+                transfer_id,
+                sha256
+            })
+            this.active_pushes.delete(transfer_id)
+        })
+    }
+
+    private handle_transfer_error(msg: TransferErrorMessage): void {
+        const pull = this.active_pulls.get(msg.transfer_id)
+        if (pull) {
+            pull.stream.destroy()
+            this.active_pulls.delete(msg.transfer_id)
+        }
+        const push = this.active_pushes.get(msg.transfer_id)
+        if (push) {
+            push.write_stream.destroy()
+            this.active_pushes.delete(msg.transfer_id)
+        }
+    }
+
     private kill_task(msg: TaskKillMessage): void {
         const child = this.running_tasks.get(msg.task_id)
         if (child) {
@@ -305,6 +503,16 @@ Or set environment variables:
             child.kill("SIGTERM")
         }
         this.running_tasks.clear()
+
+        for (const [, pull] of this.active_pulls) {
+            pull.stream.destroy()
+        }
+        this.active_pulls.clear()
+
+        for (const [, push] of this.active_pushes) {
+            push.write_stream.destroy()
+        }
+        this.active_pushes.clear()
 
         if (this.ws) {
             try {

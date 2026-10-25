@@ -1,29 +1,162 @@
+import crypto from "node:crypto"
+import fs from "node:fs"
+import path from "node:path"
+import { Readable, Transform } from "node:stream"
 import type { ExecRequestPayload } from "@/protocol"
+
+interface ParsedCli {
+    subcommand: "status" | "pull" | "push" | "run"
+    hub_url: string
+    token: string
+    cwd?: string
+    timeout_ms: number
+    force: boolean
+    args: string[]
+}
 
 function print_usage(): void {
     console.log(`rexec - Ultra-lightweight edge-routed remote execution engine
 
 Usage:
-  rexec [options] <command...>
-  rexec status
+  rexec [options] <command...>        Execute remote command (default fallback)
+  rexec run [options] <command...>    Explicitly execute remote command
+  rexec pull [options] <remote> [loc] Download a file from remote agent
+  rexec push [options] <loc> [remote] Upload a file to remote agent
+  rexec status [options]              Check connection and agent status
+  rexec -- [options] <command...>     Escape command collisions with subcommands
 
 Options:
   --hub <url>        Hub URL (or via REXEC_HUB env var)
   --token <secret>   Auth Token (or via REXEC_TOKEN env var)
   --cwd <dir>        Remote working directory relative to remote workspace
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
+  -f, --force        Overwrite local target file when pulling
   -h, --help         Show this help message
 
 Examples:
   rexec "nvidia-smi"
-  rexec python main.py --port 8000
-  rexec --cwd backend "pytest tests/"
+  rexec run python main.py --epochs 10
+  rexec pull /content/loss.png ./loss.png
+  rexec push ./dataset.zip /content/dataset.zip
   rexec status
+  rexec -- status       # Run a remote command named 'status'
+  rexec -- pull foo     # Run a remote command named 'pull'
 `)
 }
 
+function format_bytes(bytes: number): string {
+    if (bytes <= 0) return "0 B"
+    const units = ["B", "KB", "MB", "GB", "TB"]
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+    return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+function render_progress(label: string, transferred: number, total: number, start_time: number): void {
+    const elapsed_s = (Date.now() - start_time) / 1000
+    const speed = elapsed_s > 0 ? transferred / elapsed_s : 0
+    const speed_str = `${format_bytes(speed)}/s`
+
+    if (total > 0) {
+        const percent = Math.min(100, Math.floor((transferred / total) * 100))
+        const bar_length = 20
+        const filled = Math.min(bar_length, Math.floor((percent / 100) * bar_length))
+        const bar =
+            "=".repeat(filled) + (filled < bar_length ? ">" : "") + " ".repeat(Math.max(0, bar_length - filled - 1))
+        process.stderr.write(
+            `\r[rexec] ${label}: [${bar}] ${percent}% (${format_bytes(transferred)} / ${format_bytes(total)}) ${speed_str} `
+        )
+    } else {
+        process.stderr.write(`\r[rexec] ${label}: ${format_bytes(transferred)} (${speed_str}) `)
+    }
+}
+
+function format_http_url(url_str: string): string {
+    let http_url = url_str.trim()
+    if (http_url.startsWith("wss://")) {
+        http_url = "https://" + http_url.slice(6)
+    } else if (http_url.startsWith("ws://")) {
+        http_url = "http://" + http_url.slice(5)
+    } else if (!http_url.startsWith("https://") && !http_url.startsWith("http://")) {
+        http_url = "https://" + http_url
+    }
+    return http_url
+}
+
+function parse_cli_args(raw_args: string[]): ParsedCli {
+    let hub_url = process.env.REXEC_HUB || ""
+    let token = process.env.REXEC_TOKEN || ""
+    let cwd: string | undefined
+    let timeout_ms = 300000
+    let force = false
+
+    const tokens: string[] = []
+    let has_double_dash = false
+    const after_double_dash: string[] = []
+
+    for (let i = 0; i < raw_args.length; i++) {
+        const arg = raw_args[i]
+        if (has_double_dash) {
+            after_double_dash.push(arg)
+            continue
+        }
+        if (arg === "--") {
+            has_double_dash = true
+            continue
+        }
+        if (arg === "--hub" && i + 1 < raw_args.length) {
+            hub_url = raw_args[++i]
+        } else if (arg.startsWith("--hub=")) {
+            hub_url = arg.slice("--hub=".length)
+        } else if (arg === "--token" && i + 1 < raw_args.length) {
+            token = raw_args[++i]
+        } else if (arg.startsWith("--token=")) {
+            token = arg.slice("--token=".length)
+        } else if (arg === "--cwd" && i + 1 < raw_args.length) {
+            cwd = raw_args[++i]
+        } else if (arg.startsWith("--cwd=")) {
+            cwd = arg.slice("--cwd=".length)
+        } else if (arg === "--timeout" && i + 1 < raw_args.length) {
+            timeout_ms = Number.parseInt(raw_args[++i], 10) || timeout_ms
+        } else if (arg.startsWith("--timeout=")) {
+            timeout_ms = Number.parseInt(arg.slice("--timeout=".length), 10) || timeout_ms
+        } else if (arg === "-f" || arg === "--force") {
+            force = true
+        } else {
+            tokens.push(arg)
+        }
+    }
+
+    if (has_double_dash) {
+        return {
+            subcommand: "run",
+            hub_url,
+            token,
+            cwd,
+            timeout_ms,
+            force,
+            args: [...tokens, ...after_double_dash]
+        }
+    }
+
+    const first_token = tokens[0]
+    if (first_token === "status") {
+        return { subcommand: "status", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+    }
+    if (first_token === "pull") {
+        return { subcommand: "pull", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+    }
+    if (first_token === "push") {
+        return { subcommand: "push", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+    }
+    if (first_token === "run" || first_token === "exec") {
+        return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+    }
+
+    return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, args: tokens }
+}
+
 async function check_status(hub_url: string, token: string): Promise<void> {
-    const url = new URL(hub_url)
+    const url = new URL(format_http_url(hub_url))
     url.pathname = "/health"
     if (token) {
         url.searchParams.set("token", token)
@@ -55,82 +188,244 @@ async function check_status(hub_url: string, token: string): Promise<void> {
     }
 }
 
-async function main(): Promise<void> {
-    const args = process.argv.slice(2)
-    if (args.length === 0 || args.includes("-h") || args.includes("--help")) {
-        print_usage()
-        process.exit(0)
+async function handle_pull(
+    hub_url: string,
+    token: string,
+    remote_path: string,
+    local_path: string | undefined,
+    force: boolean
+): Promise<void> {
+    if (!remote_path) {
+        console.error("Error: Missing remote file path. Usage: rexec pull <remote_path> [local_path]")
+        process.exit(1)
     }
 
-    let hub_url = process.env.REXEC_HUB || ""
-    let token = process.env.REXEC_TOKEN || ""
-    let cwd: string | undefined
-    let timeout_ms = 300000
-    let is_status = false
+    let target_local = local_path
+    if (!target_local) {
+        target_local = path.basename(remote_path)
+    } else if (
+        target_local.endsWith("/") ||
+        target_local.endsWith("\\") ||
+        (fs.existsSync(target_local) && fs.statSync(target_local).isDirectory())
+    ) {
+        target_local = path.join(target_local, path.basename(remote_path))
+    }
 
-    const command_parts: string[] = []
+    if (fs.existsSync(target_local) && !force) {
+        console.error(`Error: Local file '${target_local}' already exists. Use -f or --force to overwrite.`)
+        process.exit(1)
+    }
 
-    for (let i = 0; i < args.length; i++) {
-        const arg = args[i]
-        if (arg === "--hub" && i + 1 < args.length) {
-            hub_url = args[++i]
-        } else if (arg.startsWith("--hub=")) {
-            hub_url = arg.slice("--hub=".length)
-        } else if (arg === "--token" && i + 1 < args.length) {
-            token = args[++i]
-        } else if (arg.startsWith("--token=")) {
-            token = arg.slice("--token=".length)
-        } else if (arg === "--cwd" && i + 1 < args.length) {
-            cwd = args[++i]
-        } else if (arg.startsWith("--cwd=")) {
-            cwd = arg.slice("--cwd=".length)
-        } else if (arg === "--timeout" && i + 1 < args.length) {
-            timeout_ms = Number.parseInt(args[++i], 10) || timeout_ms
-        } else if (arg.startsWith("--timeout=")) {
-            timeout_ms = Number.parseInt(arg.slice("--timeout=".length), 10) || timeout_ms
-        } else if (arg === "status" && command_parts.length === 0) {
-            is_status = true
-        } else if (arg === "--") {
-            command_parts.push(...args.slice(i + 1))
-            break
-        } else {
-            command_parts.push(arg)
+    // Automatically ensure the destination parent directory exists
+    const parent_dir = path.dirname(path.resolve(target_local))
+    fs.mkdirSync(parent_dir, { recursive: true })
+
+    const pull_url = new URL(format_http_url(hub_url))
+    pull_url.pathname = "/file/pull"
+    pull_url.searchParams.set("path", remote_path)
+    pull_url.searchParams.set("token", token)
+
+    let res: Response
+    try {
+        res = await fetch(pull_url.toString(), {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        })
+    } catch (err) {
+        console.error(`[rexec pull] Connection failed: ${(err as Error).message}`)
+        process.exit(1)
+    }
+
+    if (!res.ok) {
+        const error_data = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string }
+        console.error(`[rexec pull error] ${error_data.error || res.statusText}`)
+        process.exit(1)
+    }
+
+    if (!res.body) {
+        console.error(`[rexec pull error] Empty response body`)
+        process.exit(1)
+    }
+
+    const total_size = Number(res.headers.get("Content-Length") || 0)
+    const write_stream = fs.createWriteStream(target_local)
+    let stream_error: Error | null = null
+    write_stream.on("error", (err) => {
+        stream_error = err
+    })
+
+    const hash = crypto.createHash("sha256")
+    const start_time = Date.now()
+    let transferred = 0
+
+    const reader = res.body.getReader()
+    try {
+        while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (stream_error) throw stream_error
+            hash.update(value)
+            write_stream.write(value)
+            transferred += value.length
+            if (process.stderr.isTTY) {
+                render_progress("Pulling", transferred, total_size, start_time)
+            }
+        }
+        await new Promise<void>((resolve, reject) => {
+            if (stream_error) return reject(stream_error)
+            write_stream.on("error", reject)
+            write_stream.end(() => {
+                if (stream_error) reject(stream_error)
+                else resolve()
+            })
+        })
+    } catch (err) {
+        write_stream.destroy()
+        try {
+            fs.unlinkSync(target_local)
+        } catch {
+            // Ignore
+        }
+        console.error(`\n[rexec pull error] Download interrupted: ${(err as Error).message}`)
+        process.exit(1)
+    }
+
+    if (process.stderr.isTTY) {
+        process.stderr.write("\r" + " ".repeat(80) + "\r")
+    }
+
+    const sha256 = hash.digest("hex")
+    console.log(
+        `✓ Downloaded '${remote_path}' -> '${target_local}' (${format_bytes(transferred)}, sha256: ${sha256.slice(0, 12)}...)`
+    )
+}
+
+async function handle_push(
+    hub_url: string,
+    token: string,
+    local_path: string,
+    remote_path: string | undefined
+): Promise<void> {
+    if (!local_path) {
+        console.error("Error: Missing local file path. Usage: rexec push <local_path> [remote_path]")
+        process.exit(1)
+    }
+
+    if (!fs.existsSync(local_path)) {
+        console.error(`Error: Local file '${local_path}' does not exist.`)
+        process.exit(1)
+    }
+
+    const stat = fs.statSync(local_path)
+    if (stat.isDirectory()) {
+        console.error(`Error: '${local_path}' is a directory. Currently only single-file push is supported.`)
+        process.exit(1)
+    }
+
+    let target_remote = remote_path || path.basename(local_path)
+    if (target_remote.endsWith("/") || target_remote.endsWith("\\")) {
+        target_remote = path.posix.join(target_remote, path.basename(local_path))
+    }
+    const push_url = new URL(format_http_url(hub_url))
+    push_url.pathname = "/file/push"
+    push_url.searchParams.set("path", target_remote)
+    push_url.searchParams.set("token", token)
+    push_url.searchParams.set("size", String(stat.size))
+
+    const hash = crypto.createHash("sha256")
+    const start_time = Date.now()
+    let transferred = 0
+
+    const file_stream = fs.createReadStream(local_path)
+    const tracker = new Transform({
+        transform(chunk, _encoding, callback) {
+            transferred += chunk.length
+            hash.update(chunk)
+            if (process.stderr.isTTY) {
+                render_progress("Pushing", transferred, stat.size, start_time)
+            }
+            callback(null, chunk)
+        }
+    })
+
+    const stream = file_stream.pipe(tracker)
+
+    let res: Response
+    try {
+        res = await fetch(push_url.toString(), {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/octet-stream",
+                "Content-Length": String(stat.size)
+            },
+            body: Readable.toWeb(stream) as unknown as BodyInit,
+            // @ts-expect-error Node fetch requires duplex: 'half' for streaming request bodies
+            duplex: "half"
+        })
+    } catch (err) {
+        console.error(`\n[rexec push] Upload failed: ${(err as Error).message}`)
+        process.exit(1)
+    }
+
+    if (process.stderr.isTTY) {
+        process.stderr.write("\r" + " ".repeat(80) + "\r")
+    }
+
+    if (!res.ok) {
+        const error_data = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string }
+        console.error(`[rexec push error] ${error_data.error || res.statusText}`)
+        process.exit(1)
+    }
+
+    const result = (await res.json().catch(() => ({}))) as { sha256?: string }
+    const local_sha256 = hash.digest("hex")
+    const remote_sha256 = result.sha256 || local_sha256
+    console.log(
+        `✓ Pushed '${local_path}' -> '${target_remote}' (${format_bytes(stat.size)}, sha256: ${remote_sha256.slice(0, 12)}...)`
+    )
+}
+
+function handle_sse_event(event: string, data_raw: string): boolean {
+    try {
+        const parsed = JSON.parse(data_raw)
+        if (event === "chunk") {
+            if (parsed.stream === "stdout") {
+                process.stdout.write(parsed.data)
+            } else if (parsed.stream === "stderr") {
+                process.stderr.write(parsed.data)
+            }
+        } else if (event === "exit") {
+            process.exitCode = parsed.code ?? 0
+            return true
+        } else if (event === "error") {
+            process.stderr.write(`[rexec error] ${parsed.message}\n`)
+            process.exitCode = 1
+            return true
+        }
+    } catch {
+        if (event === "chunk") {
+            process.stdout.write(data_raw)
         }
     }
+    return false
+}
 
-    if (!hub_url) {
-        console.error("Error: Missing Hub URL. Provide --hub <url> or set REXEC_HUB env var.")
-        process.exit(1)
-    }
-
-    if (!token) {
-        console.error(
-            "Error: Missing Auth Token. Provide --token <secret> (printed when rexec-agent starts) or set REXEC_TOKEN env var."
-        )
-        process.exit(1)
-    }
-
-    if (is_status) {
-        await check_status(hub_url, token)
-        return
-    }
-
+async function handle_exec(
+    hub_url: string,
+    token: string,
+    command_parts: string[],
+    cwd?: string,
+    timeout_ms = 300000
+): Promise<void> {
     const cmd = command_parts.join(" ").trim()
     if (!cmd) {
         console.error("Error: No command provided to execute.")
         process.exit(1)
     }
 
-    let http_url = hub_url.trim()
-    if (http_url.startsWith("wss://")) {
-        http_url = "https://" + http_url.slice(6)
-    } else if (http_url.startsWith("ws://")) {
-        http_url = "http://" + http_url.slice(5)
-    } else if (!http_url.startsWith("https://") && !http_url.startsWith("http://")) {
-        http_url = "https://" + http_url
-    }
-
-    const exec_url = new URL(http_url)
+    const exec_url = new URL(format_http_url(hub_url))
     exec_url.pathname = "/exec"
 
     const payload: ExecRequestPayload = {
@@ -236,29 +531,44 @@ async function main(): Promise<void> {
     }
 }
 
-function handle_sse_event(event: string, data_raw: string): boolean {
-    try {
-        const parsed = JSON.parse(data_raw)
-        if (event === "chunk") {
-            if (parsed.stream === "stdout") {
-                process.stdout.write(parsed.data)
-            } else if (parsed.stream === "stderr") {
-                process.stderr.write(parsed.data)
-            }
-        } else if (event === "exit") {
-            process.exitCode = parsed.code ?? 0
-            return true
-        } else if (event === "error") {
-            process.stderr.write(`[rexec error] ${parsed.message}\n`)
-            process.exitCode = 1
-            return true
-        }
-    } catch {
-        if (event === "chunk") {
-            process.stdout.write(data_raw)
-        }
+async function main(): Promise<void> {
+    const raw_args = process.argv.slice(2)
+    if (raw_args.length === 0 || raw_args.includes("-h") || raw_args.includes("--help")) {
+        print_usage()
+        process.exit(0)
     }
-    return false
+
+    const parsed = parse_cli_args(raw_args)
+
+    if (!parsed.hub_url) {
+        console.error("Error: Missing Hub URL. Provide --hub <url> or set REXEC_HUB env var.")
+        process.exit(1)
+    }
+
+    if (!parsed.token) {
+        console.error(
+            "Error: Missing Auth Token. Provide --token <secret> (printed when rexec-agent starts) or set REXEC_TOKEN env var."
+        )
+        process.exit(1)
+    }
+
+    if (parsed.subcommand === "status") {
+        await check_status(parsed.hub_url, parsed.token)
+        return
+    }
+
+    if (parsed.subcommand === "pull") {
+        await handle_pull(parsed.hub_url, parsed.token, parsed.args[0], parsed.args[1], parsed.force)
+        return
+    }
+
+    if (parsed.subcommand === "push") {
+        await handle_push(parsed.hub_url, parsed.token, parsed.args[0], parsed.args[1])
+        return
+    }
+
+    // Default or "run" subcommand
+    await handle_exec(parsed.hub_url, parsed.token, parsed.args, parsed.cwd, parsed.timeout_ms)
 }
 
 main().catch((err) => {

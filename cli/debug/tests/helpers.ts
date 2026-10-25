@@ -101,6 +101,36 @@ export async function run_rexec(
     return { stdout, stderr, exit_code, duration_ms }
 }
 
+export async function run_rexec_cli(args: string[]): Promise<ExecResult> {
+    const config = read_debug_config()
+    const start_time = Date.now()
+
+    const cli_args = [CLI_BIN, "--hub", config.hub_url, "--token", DEBUG_TOKEN, ...args]
+
+    const child = spawn("node", cli_args, {
+        cwd: repo_root
+    })
+
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (chunk: Buffer) => {
+        stdout += chunk.toString("utf-8")
+    })
+    child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString("utf-8")
+    })
+
+    const exit_code = await new Promise<number>((resolve) => {
+        child.on("close", (code) => {
+            resolve(code ?? 0)
+        })
+    })
+
+    const duration_ms = Date.now() - start_time
+    return { stdout, stderr, exit_code, duration_ms }
+}
+
 export function print_verdict(test_name: string, passed: boolean, details?: string): void {
     if (passed) {
         console.log(`[PASS] ${test_name}`)

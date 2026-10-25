@@ -21,6 +21,7 @@
     "debug:test:env": "tsx cli/debug/tests/env_cwd.ts",
     "debug:test:abort": "tsx cli/debug/tests/abort.ts",
     "debug:test:large": "tsx cli/debug/tests/large_output.ts",
+    "debug:test:transfer": "tsx cli/debug/tests/file_transfer.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src cli --deny-warnings",
     "format": "oxfmt src cli",
