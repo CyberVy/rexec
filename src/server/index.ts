@@ -20,10 +20,11 @@ export class RexecHub extends DurableObject {
 
     constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
         super(ctx, env)
-        this.auth_token = (env.AUTH_TOKEN as string) || "rexec-secret-key"
+        this.auth_token = (env.AUTH_TOKEN as string) || ""
     }
 
     private verify_token(request: Request, url: URL): boolean {
+        if (!this.auth_token) return false
         const query_token = url.searchParams.get("token")
         const auth_header = request.headers.get("Authorization")
         const bearer_token = auth_header?.startsWith("Bearer ") ? auth_header.slice(7) : null
@@ -203,9 +204,7 @@ export class RexecHub extends DurableObject {
     }
 
     private write_to_task(task: ActiveTask, text: string): void {
-        task.write_queue = task.write_queue
-            .then(() => task.writer.write(task.encoder.encode(text)))
-            .catch(() => {})
+        task.write_queue = task.write_queue.then(() => task.writer.write(task.encoder.encode(text))).catch(() => {})
     }
 
     private send_to_agent(msg: HubToAgentMessage): void {

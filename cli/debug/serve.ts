@@ -12,22 +12,20 @@ const DEBUG_DIR = path.join(repo_root, ".debug")
 const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 const WORKER_LOG_FILE = path.join(DEBUG_DIR, "worker.jsonl")
 const AGENT_LOG_FILE = path.join(DEBUG_DIR, "agent.jsonl")
-const DEV_VARS_FILE = path.join(DEBUG_DIR, ".dev.vars")
-const DEV_VARS_EXAMPLE = path.join(script_dir, "dev.vars.example")
 const AGENT_BUNDLE = path.join(repo_root, "dist", "agent.mjs")
 const DEFAULT_PORT = 8787
+
+export const DEBUG_TOKEN = "rexec-debug-token"
 
 interface ServeOptions {
     port: number
     ip: string
-    env_file: string
 }
 
 function parse_args(): ServeOptions {
     const args = process.argv.slice(2)
     let port = DEFAULT_PORT
     let ip = "127.0.0.1"
-    let env_file = DEV_VARS_FILE
 
     for (let i = 0; i < args.length; i++) {
         const arg = args[i]
@@ -35,24 +33,10 @@ function parse_args(): ServeOptions {
             port = Number.parseInt(args[++i], 10) || DEFAULT_PORT
         } else if (arg === "--ip" && i + 1 < args.length) {
             ip = args[++i]
-        } else if (arg === "--env-file" && i + 1 < args.length) {
-            env_file = path.resolve(repo_root, args[++i])
         }
     }
 
-    return { port, ip, env_file }
-}
-
-function read_token_from_env_file(file_path: string): string {
-    if (!fs.existsSync(file_path)) return "rexec-debug-token"
-    const content = fs.readFileSync(file_path, "utf-8")
-    for (const line of content.split("\n")) {
-        const trimmed = line.trim()
-        if (trimmed.startsWith("AUTH_TOKEN=")) {
-            return trimmed.slice("AUTH_TOKEN=".length).replace(/["']/g, "")
-        }
-    }
-    return "rexec-debug-token"
+    return { port, ip }
 }
 
 async function wait_for_hub_ready(url: string, timeout_ms = 15000): Promise<boolean> {
@@ -73,13 +57,6 @@ async function run(): Promise<void> {
     const options = parse_args()
 
     fs.mkdirSync(DEBUG_DIR, { recursive: true })
-
-    if (!fs.existsSync(options.env_file) && fs.existsSync(DEV_VARS_EXAMPLE)) {
-        fs.copyFileSync(DEV_VARS_EXAMPLE, options.env_file)
-        console.log(`[debug:serve] Created ${options.env_file} from template.`)
-    }
-
-    const token = read_token_from_env_file(options.env_file)
 
     if (!fs.existsSync(AGENT_BUNDLE)) {
         console.log("[debug:serve] Building agent bundle first...")
@@ -117,8 +94,8 @@ async function run(): Promise<void> {
             options.ip,
             "--port",
             String(options.port),
-            "--env-file",
-            options.env_file,
+            "--var",
+            `AUTH_TOKEN:${DEBUG_TOKEN}`,
             "--show-interactive-dev-session=false"
         ],
         {
@@ -146,7 +123,7 @@ async function run(): Promise<void> {
             "--hub",
             `ws://${options.ip}:${options.port}`,
             "--token",
-            token,
+            DEBUG_TOKEN,
             "--node-id",
             "local-debug-agent",
             "--workspace",
@@ -163,18 +140,14 @@ async function run(): Promise<void> {
     fs.mkdirSync(path.join(DEBUG_DIR, "workspace"), { recursive: true })
 
     const config_payload = {
-        hub_url: hub_http_url,
-        token,
-        worker_pid: wrangler_child.pid,
-        agent_pid: agent_child.pid,
-        started_at: new Date().toISOString()
+        hub_url: hub_http_url
     }
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config_payload, null, 2) + "\n")
 
     console.log(`\n======================================================`)
     console.log(`🚀 [rexec debug channel ready]`)
     console.log(`   Hub URL   : ${hub_http_url}`)
-    console.log(`   Token     : ${token}`)
+    console.log(`   Token     : ${DEBUG_TOKEN}`)
     console.log(`   Config    : ${CONFIG_FILE}`)
     console.log(`   Run Tests : npm run debug:test`)
     console.log(`======================================================\n`)

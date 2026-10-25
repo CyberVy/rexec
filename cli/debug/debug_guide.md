@@ -15,7 +15,6 @@ The debug channel does not import internal implementation details from `src/`. I
 ## Directory Structure
 
 - `cli/debug/serve.ts`: Starts the local Worker Hub and local Agent, pipes logs to `.debug/*.jsonl`, and writes `.debug/config.json`.
-- `cli/debug/dev.vars.example`: Template for `.debug/.dev.vars`.
 - `cli/debug/tests/`: Automated scenario tests:
     - `basic.ts`: Hub health check, stdout echo, and stderr non-zero exit code propagation.
     - `env_cwd.ts`: Remote directory isolation and shell pipeline execution.
@@ -23,7 +22,6 @@ The debug channel does not import internal implementation details from `src/`. I
     - `large_output.ts`: Streaming fidelity under high-volume chunked output.
     - `run_all.ts`: Sequential test runner with aggregated pass/fail reporting.
 - `.debug/` (git ignored):
-    - `.dev.vars`: Local environment variables for wrangler.
     - `config.json`: Live target info written by `serve.ts` (removed on exit).
     - `worker.jsonl`: Cloudflare Worker Hub console logs.
     - `agent.jsonl`: Local Agent process logs.

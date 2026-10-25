@@ -9,13 +9,10 @@ export const DEBUG_DIR = path.join(repo_root, ".debug")
 export const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 export const HISTORY_FILE = path.join(DEBUG_DIR, "history.jsonl")
 export const CLI_BIN = path.join(repo_root, "bin", "rexec.mjs")
+export const DEBUG_TOKEN = "rexec-debug-token"
 
 export interface DebugConfig {
     hub_url: string
-    token: string
-    worker_pid: number
-    agent_pid: number
-    started_at: string
 }
 
 export interface ExecResult {
@@ -62,7 +59,7 @@ export async function run_rexec(
     const config = read_debug_config()
     const start_time = Date.now()
 
-    const cli_args = [CLI_BIN, "--hub", config.hub_url, "--token", config.token]
+    const cli_args = [CLI_BIN, "--hub", config.hub_url, "--token", DEBUG_TOKEN]
 
     if (options.cwd) {
         cli_args.push("--cwd", options.cwd)
