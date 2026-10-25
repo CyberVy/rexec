@@ -23,6 +23,9 @@
 - Format files using `oxfmt` (`npm run format`) and lint using `oxlint` (`npm run lint`).
 - Typecheck using `npm run typecheck` (`tsc --noEmit`).
 - Keep edits minimal, clean, and direct. Avoid bloated dependencies and defensive over-engineering.
+- **Single Concern Ownership**: Every concern (validation, transformation, lifecycle control, error formatting) must have exactly ONE designated owner layer. NEVER split, smear, or partially handle the same responsibility across multiple modules. If a layer owns a concern, it must handle it completely and decisively.
+- **Direct Flow & Zero Re-wrapping**: When an upstream or downstream component already returns a complete, well-formed contract, pass it through directly. NEVER redundantly unpack, inspect, and reconstruct well-formed objects or streams across intermediate layers. Avoid paranoid multi-layer defensive programming.
+- **Standard Primitives Over Trivial Wrappers**: Prefer language and platform standard APIs directly over thin helper functions that add no domain logic. Maintain a high signal-to-noise ratio (SNR) across the codebase: the codebase serves as in-context prompt training for future AI sessions, and redundant boilerplate actively degrades model reasoning.
 - Agent and CLI runtimes must remain zero-dependency on target machines.
 
 ## AI Debugging & Autonomous Troubleshooting
