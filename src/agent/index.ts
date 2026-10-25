@@ -30,13 +30,16 @@ function parse_args(): AgentOptions {
         }
     }
 
+    hub_url = hub_url || process.env.REXEC_HUB || ""
+    token = token || process.env.REXEC_TOKEN || ""
+
     if (!hub_url) {
-        console.error("Error: Missing required argument --hub <url>")
+        console.error("Error: Missing Hub URL. Provide --hub <url> or set REXEC_HUB env var.")
         process.exit(1)
     }
 
     if (!token) {
-        console.error("Error: Missing required argument --token <secret>")
+        console.error("Error: Missing Auth Token. Provide --token <secret> or set REXEC_TOKEN env var.")
         process.exit(1)
     }
 
