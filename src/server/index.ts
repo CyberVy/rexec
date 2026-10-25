@@ -392,6 +392,8 @@ export class RexecHub extends DurableObject {
             return Response.json({ error: "Missing 'path' query parameter" }, { status: 400, headers })
         }
 
+        const recursive = url.searchParams.get("recursive") === "1" || url.searchParams.get("recursive") === "true"
+
         const transfer_id = crypto.randomUUID().replace(/-/g, "").slice(0, TRANSFER_ID_BYTES)
         const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>()
         const writer = writable.getWriter()
@@ -438,20 +440,26 @@ export class RexecHub extends DurableObject {
         this.send_to_agent(session, {
             type: "file:pull_start",
             transfer_id,
-            path: file_path
+            path: file_path,
+            recursive
         })
 
         try {
             const meta = await meta_promise
+            const resp_headers: Record<string, string> = {
+                "Content-Type": "application/octet-stream",
+                "X-File-Path": encodeURIComponent(meta.path),
+                ...headers
+            }
+            if (meta.is_directory) {
+                resp_headers["X-Is-Directory"] = "1"
+            } else {
+                resp_headers["Content-Length"] = String(meta.size)
+                resp_headers["X-File-Size"] = String(meta.size)
+            }
             return new Response(readable, {
                 status: 200,
-                headers: {
-                    "Content-Type": "application/octet-stream",
-                    "Content-Length": String(meta.size),
-                    "X-File-Path": encodeURIComponent(meta.path),
-                    "X-File-Size": String(meta.size),
-                    ...headers
-                }
+                headers: resp_headers
             })
         } catch (err) {
             clearTimeout(timeout_id)
@@ -483,6 +491,8 @@ export class RexecHub extends DurableObject {
         if (!file_path) {
             return Response.json({ error: "Missing 'path' query parameter" }, { status: 400, headers })
         }
+
+        const recursive = url.searchParams.get("recursive") === "1" || url.searchParams.get("recursive") === "true"
 
         if (!request.body) {
             return Response.json({ error: "Missing request body" }, { status: 400, headers })
@@ -517,7 +527,8 @@ export class RexecHub extends DurableObject {
             type: "file:push_start",
             transfer_id,
             path: file_path,
-            size
+            size,
+            recursive
         })
 
         const reader = request.body.getReader()

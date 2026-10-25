@@ -142,7 +142,7 @@ rexec "cat /proc/cpuinfo | grep 'model name' | head -n 1"
 rexec -- pull origin main
 ```
 
-#### Transfer Files
+#### Transfer Files and Directories
 
 ```bash
 # Download a file from remote agent to local directory
@@ -151,11 +151,17 @@ rexec pull loss.png
 # Download to a specific local path (or directory)
 rexec pull /content/loss.png ./plots/loss.png
 
+# Download an entire directory recursively (streaming tar)
+rexec pull -r /content/sample_data ./sample_data
+
 # Overwrite existing local file
 rexec pull -f model.pt ./checkpoints/best.pt
 
 # Upload a local file to remote workspace
 rexec push config.yaml
+
+# Upload a local directory recursively (streaming tar)
+rexec push -r ./my_module /content/my_module
 
 # Upload to a specific remote destination
 rexec push ./dataset.zip /content/dataset.zip
@@ -171,8 +177,8 @@ rexec push ./dataset.zip /content/dataset.zip
 Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
-  rexec pull [options] <remote> [loc] Download a file from remote agent
-  rexec push [options] <loc> [remote] Upload a file to remote agent
+  rexec pull [options] <remote> [loc] Download a file or directory from remote agent
+  rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status
   rexec -- [options] <command...>     Escape command collisions with subcommands
 
@@ -181,6 +187,7 @@ Options:
   --token <secret>   Auth Token (or via REXEC_TOKEN env var)
   --cwd <dir>        Remote working directory relative to remote workspace
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
+  -r, --recursive    Transfer directories recursively via streaming tar
   -f, --force        Overwrite local target file when pulling
   -h, --help         Show this help message
 ```

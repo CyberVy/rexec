@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
@@ -11,6 +12,7 @@ interface ParsedCli {
     cwd?: string
     timeout_ms: number
     force: boolean
+    recursive: boolean
     args: string[]
 }
 
@@ -20,8 +22,8 @@ function print_usage(): void {
 Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
-  rexec pull [options] <remote> [loc] Download a file from remote agent
-  rexec push [options] <loc> [remote] Upload a file to remote agent
+  rexec pull [options] <remote> [loc] Download a file or directory from remote agent
+  rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status
   rexec -- [options] <command...>     Escape command collisions with subcommands
 
@@ -30,6 +32,7 @@ Options:
   --token <secret>   Auth Token (or via REXEC_TOKEN env var)
   --cwd <dir>        Remote working directory relative to remote workspace
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
+  -r, --recursive    Transfer directories recursively via streaming tar
   -f, --force        Overwrite local target file when pulling
   -h, --help         Show this help message
 
@@ -37,7 +40,9 @@ Examples:
   rexec "nvidia-smi"
   rexec run python main.py --epochs 10
   rexec pull /content/loss.png ./loss.png
+  rexec pull -r /content/sample_data ./sample_data
   rexec push ./dataset.zip /content/dataset.zip
+  rexec push -r ./my_module /content/my_module
   rexec status
   rexec -- status       # Run a remote command named 'status'
   rexec -- pull foo     # Run a remote command named 'pull'
@@ -88,6 +93,7 @@ function parse_cli_args(raw_args: string[]): ParsedCli {
     let cwd: string | undefined
     let timeout_ms = 300000
     let force = false
+    let recursive = false
 
     const tokens: string[] = []
     let has_double_dash = false
@@ -121,6 +127,8 @@ function parse_cli_args(raw_args: string[]): ParsedCli {
             timeout_ms = Number.parseInt(arg.slice("--timeout=".length), 10) || timeout_ms
         } else if (arg === "-f" || arg === "--force") {
             force = true
+        } else if (arg === "-r" || arg === "--recursive") {
+            recursive = true
         } else {
             tokens.push(arg)
         }
@@ -134,25 +142,26 @@ function parse_cli_args(raw_args: string[]): ParsedCli {
             cwd,
             timeout_ms,
             force,
+            recursive,
             args: [...tokens, ...after_double_dash]
         }
     }
 
     const first_token = tokens[0]
     if (first_token === "status") {
-        return { subcommand: "status", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+        return { subcommand: "status", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
     }
     if (first_token === "pull") {
-        return { subcommand: "pull", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+        return { subcommand: "pull", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
     }
     if (first_token === "push") {
-        return { subcommand: "push", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+        return { subcommand: "push", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
     }
     if (first_token === "run" || first_token === "exec") {
-        return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, args: tokens.slice(1) }
+        return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
     }
 
-    return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, args: tokens }
+    return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens }
 }
 
 async function check_status(hub_url: string, token: string): Promise<void> {
@@ -193,37 +202,21 @@ async function handle_pull(
     token: string,
     remote_path: string,
     local_path: string | undefined,
-    force: boolean
+    force: boolean,
+    recursive: boolean
 ): Promise<void> {
     if (!remote_path) {
         console.error("Error: Missing remote file path. Usage: rexec pull <remote_path> [local_path]")
         process.exit(1)
     }
 
-    let target_local = local_path
-    if (!target_local) {
-        target_local = path.basename(remote_path)
-    } else if (
-        target_local.endsWith("/") ||
-        target_local.endsWith("\\") ||
-        (fs.existsSync(target_local) && fs.statSync(target_local).isDirectory())
-    ) {
-        target_local = path.join(target_local, path.basename(remote_path))
-    }
-
-    if (fs.existsSync(target_local) && !force) {
-        console.error(`Error: Local file '${target_local}' already exists. Use -f or --force to overwrite.`)
-        process.exit(1)
-    }
-
-    // Automatically ensure the destination parent directory exists
-    const parent_dir = path.dirname(path.resolve(target_local))
-    fs.mkdirSync(parent_dir, { recursive: true })
-
     const pull_url = new URL(format_http_url(hub_url))
     pull_url.pathname = "/file/pull"
     pull_url.searchParams.set("path", remote_path)
     pull_url.searchParams.set("token", token)
+    if (recursive) {
+        pull_url.searchParams.set("recursive", "1")
+    }
 
     let res: Response
     try {
@@ -247,6 +240,73 @@ async function handle_pull(
         console.error(`[rexec pull error] Empty response body`)
         process.exit(1)
     }
+
+    const is_directory = res.headers.get("X-Is-Directory") === "1" || recursive
+    if (is_directory) {
+        const target_local = local_path || path.basename(remote_path)
+        fs.mkdirSync(target_local, { recursive: true })
+
+        const tar_proc = spawn("tar", ["-xf", "-", "-C", target_local], {
+            stdio: ["pipe", "ignore", "pipe"]
+        })
+        let tar_stderr = ""
+        tar_proc.stderr?.on("data", (chunk: Buffer) => {
+            tar_stderr += chunk.toString("utf-8")
+        })
+
+        const start_time = Date.now()
+        let transferred = 0
+        const reader = res.body.getReader()
+        try {
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                tar_proc.stdin.write(value)
+                transferred += value.length
+                if (process.stderr.isTTY) {
+                    render_progress("Pulling directory", transferred, 0, start_time)
+                }
+            }
+            await new Promise<void>((resolve, reject) => {
+                tar_proc.stdin.end(() => {})
+                tar_proc.on("close", (code) => {
+                    if (code === 0) resolve()
+                    else reject(new Error(tar_stderr || `tar exit code ${code}`))
+                })
+                tar_proc.on("error", reject)
+            })
+        } catch (err) {
+            tar_proc.kill("SIGTERM")
+            console.error(`\n[rexec pull error] Directory download failed: ${(err as Error).message}`)
+            process.exit(1)
+        }
+
+        if (process.stderr.isTTY) {
+            process.stderr.write("\r" + " ".repeat(80) + "\r")
+        }
+        console.log(`✓ Downloaded directory '${remote_path}' -> '${target_local}' (${format_bytes(transferred)})`)
+        return
+    }
+
+    let target_local = local_path
+    if (!target_local) {
+        target_local = path.basename(remote_path)
+    } else if (
+        target_local.endsWith("/") ||
+        target_local.endsWith("\\") ||
+        (fs.existsSync(target_local) && fs.statSync(target_local).isDirectory())
+    ) {
+        target_local = path.join(target_local, path.basename(remote_path))
+    }
+
+    if (fs.existsSync(target_local) && !force) {
+        console.error(`Error: Local file '${target_local}' already exists. Use -f or --force to overwrite.`)
+        process.exit(1)
+    }
+
+    // Automatically ensure the destination parent directory exists
+    const parent_dir = path.dirname(path.resolve(target_local))
+    fs.mkdirSync(parent_dir, { recursive: true })
 
     const total_size = Number(res.headers.get("Content-Length") || 0)
     const write_stream = fs.createWriteStream(target_local)
@@ -305,7 +365,8 @@ async function handle_push(
     hub_url: string,
     token: string,
     local_path: string,
-    remote_path: string | undefined
+    remote_path: string | undefined,
+    recursive: boolean
 ): Promise<void> {
     if (!local_path) {
         console.error("Error: Missing local file path. Usage: rexec push <local_path> [remote_path]")
@@ -313,14 +374,79 @@ async function handle_push(
     }
 
     if (!fs.existsSync(local_path)) {
-        console.error(`Error: Local file '${local_path}' does not exist.`)
+        console.error(`Error: Local file or directory '${local_path}' does not exist.`)
         process.exit(1)
     }
 
     const stat = fs.statSync(local_path)
     if (stat.isDirectory()) {
-        console.error(`Error: '${local_path}' is a directory. Currently only single-file push is supported.`)
-        process.exit(1)
+        if (!recursive) {
+            console.error(`Error: '${local_path}' is a directory. Use -r or --recursive to transfer directories.`)
+            process.exit(1)
+        }
+
+        let target_remote = remote_path || path.basename(local_path)
+        if (target_remote.endsWith("/") || target_remote.endsWith("\\")) {
+            target_remote = path.posix.join(target_remote, path.basename(local_path))
+        }
+
+        const push_url = new URL(format_http_url(hub_url))
+        push_url.pathname = "/file/push"
+        push_url.searchParams.set("path", target_remote)
+        push_url.searchParams.set("token", token)
+        push_url.searchParams.set("recursive", "1")
+
+        const tar_proc = spawn("tar", ["-cf", "-", "-C", local_path, "."], {
+            stdio: ["ignore", "pipe", "pipe"]
+        })
+        let tar_stderr = ""
+        tar_proc.stderr?.on("data", (chunk: Buffer) => {
+            tar_stderr += chunk.toString("utf-8")
+        })
+
+        const start_time = Date.now()
+        let transferred = 0
+        const tracker = new Transform({
+            transform(chunk, _encoding, callback) {
+                transferred += chunk.length
+                if (process.stderr.isTTY) {
+                    render_progress("Pushing directory", transferred, 0, start_time)
+                }
+                callback(null, chunk)
+            }
+        })
+        const stream = tar_proc.stdout.pipe(tracker)
+
+        let res: Response
+        try {
+            res = await fetch(push_url.toString(), {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/octet-stream"
+                },
+                body: Readable.toWeb(stream) as unknown as BodyInit,
+                // @ts-expect-error Node fetch requires duplex: 'half' for streaming request bodies
+                duplex: "half"
+            })
+        } catch (err) {
+            tar_proc.kill("SIGTERM")
+            console.error(`\n[rexec push] Upload failed: ${(err as Error).message}`)
+            process.exit(1)
+        }
+
+        if (process.stderr.isTTY) {
+            process.stderr.write("\r" + " ".repeat(80) + "\r")
+        }
+
+        if (!res.ok) {
+            const error_data = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string }
+            console.error(`[rexec push error] ${error_data.error || res.statusText}`)
+            process.exit(1)
+        }
+
+        console.log(`✓ Pushed directory '${local_path}' -> '${target_remote}' (${format_bytes(transferred)})`)
+        return
     }
 
     let target_remote = remote_path || path.basename(local_path)
@@ -558,12 +684,12 @@ async function main(): Promise<void> {
     }
 
     if (parsed.subcommand === "pull") {
-        await handle_pull(parsed.hub_url, parsed.token, parsed.args[0], parsed.args[1], parsed.force)
+        await handle_pull(parsed.hub_url, parsed.token, parsed.args[0], parsed.args[1], parsed.force, parsed.recursive)
         return
     }
 
     if (parsed.subcommand === "push") {
-        await handle_push(parsed.hub_url, parsed.token, parsed.args[0], parsed.args[1])
+        await handle_push(parsed.hub_url, parsed.token, parsed.args[0], parsed.args[1], parsed.recursive)
         return
     }
 

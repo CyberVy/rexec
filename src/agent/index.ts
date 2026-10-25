@@ -95,10 +95,17 @@ class RexecAgent {
     private options: AgentOptions
     private ws: WebSocket | null = null
     private running_tasks: Map<string, ChildProcess> = new Map()
-    private active_pulls: Map<string, { stream: fs.ReadStream }> = new Map()
+    private active_pulls: Map<string, { stream?: fs.ReadStream; tar_proc?: ChildProcess }> = new Map()
     private active_pushes: Map<
         string,
-        { write_stream: fs.WriteStream; hash: crypto.Hash; target_path: string; target_size: number }
+        {
+            write_stream?: fs.WriteStream
+            tar_proc?: ChildProcess
+            hash: crypto.Hash
+            target_path: string
+            target_size: number
+            is_directory?: boolean
+        }
     > = new Map()
     private is_shutting_down = false
     private heartbeat_timer: ReturnType<typeof setInterval> | null = null
@@ -272,7 +279,11 @@ Or set environment variables:
         const push = this.active_pushes.get(transfer_id)
         if (push) {
             push.hash.update(chunk)
-            push.write_stream.write(chunk)
+            if (push.is_directory && push.tar_proc?.stdin) {
+                push.tar_proc.stdin.write(chunk)
+            } else if (push.write_stream) {
+                push.write_stream.write(chunk)
+            }
         }
     }
 
@@ -350,11 +361,77 @@ Or set environment variables:
         try {
             const stat = await fs.promises.stat(target_path)
             if (stat.isDirectory()) {
+                if (!msg.recursive) {
+                    this.send({
+                        type: "transfer:error",
+                        transfer_id: msg.transfer_id,
+                        error: `Path '${msg.path}' is a directory. Use -r or --recursive to transfer directories.`
+                    })
+                    return
+                }
+
                 this.send({
-                    type: "transfer:error",
+                    type: "file:pull_meta",
                     transfer_id: msg.transfer_id,
-                    error: `Path '${msg.path}' is a directory, not a file`
+                    meta: {
+                        path: target_path,
+                        size: 0,
+                        is_directory: true
+                    }
                 })
+
+                const id_header = Buffer.from(msg.transfer_id, "utf-8")
+                const hash = crypto.createHash("sha256")
+                const tar_proc = spawn("tar", ["-cf", "-", "-C", target_path, "."], {
+                    stdio: ["ignore", "pipe", "pipe"]
+                })
+
+                tar_proc.stdout.on("data", (chunk: Buffer | string) => {
+                    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+                    hash.update(buf)
+                    const packet = Buffer.concat([id_header, buf])
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.ws.send(new Uint8Array(packet.buffer, packet.byteOffset, packet.byteLength))
+                    }
+                })
+
+                let stderr_output = ""
+                tar_proc.stderr?.on("data", (chunk: Buffer) => {
+                    stderr_output += chunk.toString("utf-8")
+                })
+
+                tar_proc.on("close", (code) => {
+                    if (code === 0) {
+                        const sha256 = hash.digest("hex")
+                        console.log(
+                            `[rexec-agent] [pull:${msg.transfer_id.slice(0, 8)}] Directory archive completed (sha256: ${sha256.slice(0, 8)})`
+                        )
+                        this.send({
+                            type: "file:pull_end",
+                            transfer_id: msg.transfer_id,
+                            sha256
+                        })
+                    } else {
+                        console.error(`[rexec-agent] [pull:${msg.transfer_id.slice(0, 8)}] tar failed:`, stderr_output)
+                        this.send({
+                            type: "transfer:error",
+                            transfer_id: msg.transfer_id,
+                            error: `Failed to archive directory: ${stderr_output || `exit code ${code}`}`
+                        })
+                    }
+                    this.active_pulls.delete(msg.transfer_id)
+                })
+
+                tar_proc.on("error", (err) => {
+                    this.send({
+                        type: "transfer:error",
+                        transfer_id: msg.transfer_id,
+                        error: `Failed to start tar: ${err.message}`
+                    })
+                    this.active_pulls.delete(msg.transfer_id)
+                })
+
+                this.active_pulls.set(msg.transfer_id, { tar_proc })
                 return
             }
 
@@ -421,10 +498,42 @@ Or set environment variables:
             : path.resolve(this.options.workspace, msg.path)
 
         console.log(
-            `[rexec-agent] [push:${msg.transfer_id.slice(0, 8)}] Preparing to receive: ${target_path} (${msg.size} bytes)`
+            `[rexec-agent] [push:${msg.transfer_id.slice(0, 8)}] Preparing to receive: ${target_path} (${msg.recursive ? "directory" : `${msg.size} bytes`})`
         )
 
         try {
+            if (msg.recursive) {
+                fs.mkdirSync(target_path, { recursive: true })
+                const hash = crypto.createHash("sha256")
+                const tar_proc = spawn("tar", ["-xf", "-", "-C", target_path], {
+                    stdio: ["pipe", "ignore", "pipe"]
+                })
+
+                let stderr_output = ""
+                tar_proc.stderr?.on("data", (chunk: Buffer) => {
+                    stderr_output += chunk.toString("utf-8")
+                })
+
+                tar_proc.on("error", (err) => {
+                    console.error(`[rexec-agent] [push:${msg.transfer_id.slice(0, 8)}] tar spawn error:`, err)
+                    this.send({
+                        type: "transfer:error",
+                        transfer_id: msg.transfer_id,
+                        error: `Failed to spawn tar: ${err.message}`
+                    })
+                    this.active_pushes.delete(msg.transfer_id)
+                })
+
+                this.active_pushes.set(msg.transfer_id, {
+                    tar_proc,
+                    hash,
+                    target_path,
+                    target_size: msg.size,
+                    is_directory: true
+                })
+                return
+            }
+
             fs.mkdirSync(path.dirname(target_path), { recursive: true })
             const write_stream = fs.createWriteStream(target_path)
             const hash = crypto.createHash("sha256")
@@ -458,7 +567,32 @@ Or set environment variables:
         const push = this.active_pushes.get(transfer_id)
         if (!push) return
 
-        push.write_stream.end(() => {
+        if (push.is_directory && push.tar_proc) {
+            push.tar_proc.stdin?.end(() => {})
+            push.tar_proc.on("close", (code) => {
+                if (code === 0) {
+                    const sha256 = push.hash.digest("hex")
+                    console.log(
+                        `[rexec-agent] [push:${transfer_id.slice(0, 8)}] Directory unpack completed (sha256: ${sha256.slice(0, 8)})`
+                    )
+                    this.send({
+                        type: "file:push_end",
+                        transfer_id,
+                        sha256
+                    })
+                } else {
+                    this.send({
+                        type: "transfer:error",
+                        transfer_id,
+                        error: `tar extraction failed with exit code ${code}`
+                    })
+                }
+                this.active_pushes.delete(transfer_id)
+            })
+            return
+        }
+
+        push.write_stream?.end(() => {
             const sha256 = push.hash.digest("hex")
             console.log(
                 `[rexec-agent] [push:${transfer_id.slice(0, 8)}] Completed (${push.target_size} bytes, sha256: ${sha256.slice(0, 8)})`
@@ -475,12 +609,14 @@ Or set environment variables:
     private handle_transfer_error(msg: TransferErrorMessage): void {
         const pull = this.active_pulls.get(msg.transfer_id)
         if (pull) {
-            pull.stream.destroy()
+            pull.stream?.destroy()
+            pull.tar_proc?.kill("SIGTERM")
             this.active_pulls.delete(msg.transfer_id)
         }
         const push = this.active_pushes.get(msg.transfer_id)
         if (push) {
-            push.write_stream.destroy()
+            push.write_stream?.destroy()
+            push.tar_proc?.kill("SIGTERM")
             this.active_pushes.delete(msg.transfer_id)
         }
     }
@@ -505,12 +641,14 @@ Or set environment variables:
         this.running_tasks.clear()
 
         for (const [, pull] of this.active_pulls) {
-            pull.stream.destroy()
+            pull.stream?.destroy()
+            pull.tar_proc?.kill("SIGTERM")
         }
         this.active_pulls.clear()
 
         for (const [, push] of this.active_pushes) {
-            push.write_stream.destroy()
+            push.write_stream?.destroy()
+            push.tar_proc?.kill("SIGTERM")
         }
         this.active_pushes.clear()
 
