@@ -21,6 +21,16 @@ interface AgentSession {
     connected_at: number
 }
 
+function get_cors_headers(request?: Request): Record<string, string> {
+    const origin = request?.headers.get("Origin")
+    return {
+        "Access-Control-Allow-Origin": origin || "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept",
+        "Access-Control-Max-Age": "86400"
+    }
+}
+
 function extract_token(request: Request, url: URL): string | null {
     const query_token = url.searchParams.get("token")
     const auth_header = request.headers.get("Authorization")
@@ -45,6 +55,7 @@ export class RexecHub extends DurableObject {
 
         if (url.pathname === "/health" || url.pathname === "/api/health") {
             const token = extract_token(request, url)
+            const headers = get_cors_headers(request)
             if (token) {
                 const session = this.agents.get(token)
                 const is_connected = session !== undefined && session.ws.readyState === WebSocket.OPEN
@@ -52,20 +63,26 @@ export class RexecHub extends DurableObject {
                 for (const [, task] of this.active_tasks) {
                     if (task.token === token) tasks_for_token++
                 }
-                return Response.json({
-                    status: "ok",
-                    agent_connected: is_connected,
-                    node_id: session?.node_id,
-                    active_tasks: tasks_for_token
-                })
+                return Response.json(
+                    {
+                        status: "ok",
+                        agent_connected: is_connected,
+                        node_id: session?.node_id,
+                        active_tasks: tasks_for_token
+                    },
+                    { headers }
+                )
             }
 
-            return Response.json({
-                status: "ok",
-                agent_connected: this.agents.size > 0,
-                connected_agents: this.agents.size,
-                active_tasks: this.active_tasks.size
-            })
+            return Response.json(
+                {
+                    status: "ok",
+                    agent_connected: this.agents.size > 0,
+                    connected_agents: this.agents.size,
+                    active_tasks: this.active_tasks.size
+                },
+                { headers }
+            )
         }
 
         if (url.pathname === "/ws" || url.pathname === "/ws/agent") {
@@ -74,22 +91,22 @@ export class RexecHub extends DurableObject {
 
         if (url.pathname === "/exec" || url.pathname === "/api/exec") {
             if (request.method !== "POST") {
-                return new Response("Method Not Allowed", { status: 405 })
+                return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
             }
             return this.handle_exec_request(request, url)
         }
 
-        return new Response("Not Found", { status: 404 })
+        return new Response("Not Found", { status: 404, headers: get_cors_headers(request) })
     }
 
     private handle_agent_ws(request: Request, url: URL): Response {
         if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
-            return new Response("Expected WebSocket Upgrade", { status: 426 })
+            return new Response("Expected WebSocket Upgrade", { status: 426, headers: get_cors_headers(request) })
         }
 
         const token = extract_token(request, url)
         if (!token) {
-            return new Response("Missing authorization token", { status: 401 })
+            return new Response("Missing authorization token", { status: 401, headers: get_cors_headers(request) })
         }
 
         const node_id = url.searchParams.get("node_id") || "unknown-node"
@@ -177,16 +194,17 @@ export class RexecHub extends DurableObject {
     }
 
     private async handle_exec_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
         const token = extract_token(request, url)
         if (!token) {
-            return new Response("Missing authorization token", { status: 401 })
+            return new Response("Missing authorization token", { status: 401, headers })
         }
 
         const session = this.agents.get(token)
         if (!session || session.ws.readyState !== WebSocket.OPEN) {
             return Response.json(
                 { error: "No agent connected for this token. Please start rexec-agent first." },
-                { status: 503 }
+                { status: 503, headers }
             )
         }
 
@@ -194,11 +212,11 @@ export class RexecHub extends DurableObject {
         try {
             body = (await request.json()) as ExecRequestPayload
         } catch {
-            return Response.json({ error: "Invalid JSON body" }, { status: 400 })
+            return Response.json({ error: "Invalid JSON body" }, { status: 400, headers })
         }
 
         if (!body.cmd) {
-            return Response.json({ error: "Missing 'cmd' in request body" }, { status: 400 })
+            return Response.json({ error: "Missing 'cmd' in request body" }, { status: 400, headers })
         }
 
         const task_id = crypto.randomUUID()
@@ -252,7 +270,8 @@ export class RexecHub extends DurableObject {
             headers: {
                 "Content-Type": "text/event-stream; charset=utf-8",
                 "Cache-Control": "no-cache, no-transform",
-                Connection: "keep-alive"
+                Connection: "keep-alive",
+                ...headers
             }
         })
     }
@@ -284,13 +303,23 @@ export class RexecHub extends DurableObject {
 
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
+        if (request.method === "OPTIONS") {
+            return new Response(null, {
+                status: 204,
+                headers: get_cors_headers(request)
+            })
+        }
+
         const url = new URL(request.url)
 
         // Intercept unauthenticated agent registrations before reaching Durable Object
         if (url.pathname === "/ws" || url.pathname === "/ws/agent") {
             const token = extract_token(request, url)
             if (!token) {
-                return new Response("Missing authorization token for agent registration", { status: 401 })
+                return new Response("Missing authorization token for agent registration", {
+                    status: 401,
+                    headers: get_cors_headers(request)
+                })
             }
         }
 
@@ -298,7 +327,10 @@ export default {
         if (url.pathname === "/exec" || url.pathname === "/api/exec") {
             const token = extract_token(request, url)
             if (!token) {
-                return new Response("Missing authorization token", { status: 401 })
+                return new Response("Missing authorization token", {
+                    status: 401,
+                    headers: get_cors_headers(request)
+                })
             }
         }
 

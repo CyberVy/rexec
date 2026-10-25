@@ -178,6 +178,44 @@ async function run_basic_tests(): Promise<boolean> {
         all_passed = false
     }
 
+    // 7. CORS Preflight & Headers Test
+    const test_7 = "test:cors_support"
+    try {
+        const test_origin = "http://localhost:5173"
+        const res_options = await fetch(`${config.hub_url}/exec`, {
+            method: "OPTIONS",
+            headers: {
+                Origin: test_origin,
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization, content-type"
+            }
+        })
+        const origin_header = res_options.headers.get("access-control-allow-origin")
+        const methods_header = res_options.headers.get("access-control-allow-methods")
+        const passed =
+            res_options.status === 204 && origin_header === test_origin && methods_header?.includes("POST") === true
+        print_verdict(test_7, passed, `status: ${res_options.status}, origin: ${origin_header}`)
+        record_history({
+            test_name: test_7,
+            command: "OPTIONS /exec (CORS preflight)",
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: res_options.status,
+            duration_ms: 0
+        })
+        if (!passed) all_passed = false
+    } catch (err) {
+        print_verdict(test_7, false, (err as Error).message)
+        record_history({
+            test_name: test_7,
+            command: "OPTIONS /exec (CORS preflight)",
+            verdict: "FAIL",
+            exit_code: 1,
+            duration_ms: 0,
+            error_message: (err as Error).message
+        })
+        all_passed = false
+    }
+
     return all_passed
 }
 
