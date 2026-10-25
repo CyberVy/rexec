@@ -12,7 +12,7 @@ const DEBUG_DIR = path.join(repo_root, ".debug")
 const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 const WORKER_LOG_FILE = path.join(DEBUG_DIR, "worker.jsonl")
 const AGENT_LOG_FILE = path.join(DEBUG_DIR, "agent.jsonl")
-const AGENT_BUNDLE = path.join(repo_root, "dist", "agent.mjs")
+const AGENT_BUNDLE = path.join(repo_root, "dist", "rexec-agent.mjs")
 const DEFAULT_PORT = 8787
 
 export const DEBUG_TOKEN = "rexec-debug-token"

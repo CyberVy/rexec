@@ -10,8 +10,32 @@ interface AgentOptions {
     node_id: string
 }
 
+function print_usage(): void {
+    console.log(`rexec-agent - Remote worker node daemon for rexec
+
+Usage:
+  rexec-agent [options]
+
+Options:
+  --hub <url>          Hub WebSocket/HTTP URL (or via REXEC_HUB env var)
+  --token <secret>     Auth Token (or via REXEC_TOKEN env var)
+  --workspace <dir>    Base workspace directory (default: current working directory)
+  --node-id <id>       Worker node identifier (default: hostname)
+  -h, --help           Show this help message
+
+Examples:
+  rexec-agent --hub wss://hub.example.com --token secret123
+  rexec-agent --hub http://127.0.0.1:8787 --token rexec-dev-token --workspace ./workspace
+`)
+}
+
 function parse_args(): AgentOptions {
     const args = process.argv.slice(2)
+    if (args.includes("-h") || args.includes("--help")) {
+        print_usage()
+        process.exit(0)
+    }
+
     let hub_url = ""
     let token = ""
     let workspace = process.cwd()
@@ -21,12 +45,20 @@ function parse_args(): AgentOptions {
         const arg = args[i]
         if (arg === "--hub" && i + 1 < args.length) {
             hub_url = args[++i]
+        } else if (arg.startsWith("--hub=")) {
+            hub_url = arg.slice("--hub=".length)
         } else if (arg === "--token" && i + 1 < args.length) {
             token = args[++i]
+        } else if (arg.startsWith("--token=")) {
+            token = arg.slice("--token=".length)
         } else if (arg === "--workspace" && i + 1 < args.length) {
             workspace = path.resolve(args[++i])
+        } else if (arg.startsWith("--workspace=")) {
+            workspace = path.resolve(arg.slice("--workspace=".length))
         } else if (arg === "--node-id" && i + 1 < args.length) {
             node_id = args[++i]
+        } else if (arg.startsWith("--node-id=")) {
+            node_id = arg.slice("--node-id=".length)
         }
     }
 

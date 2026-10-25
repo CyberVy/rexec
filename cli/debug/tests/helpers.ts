@@ -8,7 +8,7 @@ export const repo_root = path.resolve(script_dir, "../../..")
 export const DEBUG_DIR = path.join(repo_root, ".debug")
 export const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 export const HISTORY_FILE = path.join(DEBUG_DIR, "history.jsonl")
-export const CLI_BIN = path.join(repo_root, "bin", "rexec.mjs")
+export const CLI_BIN = path.join(repo_root, "dist", "rexec.mjs")
 export const DEBUG_TOKEN = "rexec-debug-token"
 
 export interface DebugConfig {
