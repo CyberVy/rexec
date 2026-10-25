@@ -9,7 +9,7 @@
     "rexec-agent": "./dist/rexec-agent.mjs"
   },
   "scripts": {
-    "build:agent": "esbuild src/agent/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/rexec-agent.mjs --banner:js=\"#!/usr/bin/env node\"",
+    "build:agent": "esbuild src/agent/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/rexec-agent.mjs --banner:js=\"#!/usr/bin/env -S node --experimental-websocket\"",
     "build:cli": "esbuild src/cli/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/rexec.mjs --banner:js=\"#!/usr/bin/env node\"",
     "build": "npm run build:agent && npm run build:cli",
     "dev": "npm run debug:serve",

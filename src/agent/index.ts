@@ -318,6 +318,20 @@ Or set environment variables:
     }
 }
 
+function check_websocket_support(): void {
+    if (typeof WebSocket === "undefined") {
+        console.error(
+            `[rexec-agent] Error: Global WebSocket is not available in Node.js ${process.version}.\n` +
+                `Please run with Node.js 22+ or provide the experimental flag:\n` +
+                `  NODE_OPTIONS="--experimental-websocket" rexec-agent ...\n` +
+                `or:\n` +
+                `  node --experimental-websocket <path-to-rexec-agent> ...`
+        )
+        process.exit(1)
+    }
+}
+
 const options = parse_args()
+check_websocket_support()
 const agent = new RexecAgent(options)
 agent.start()
