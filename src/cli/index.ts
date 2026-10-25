@@ -55,6 +55,7 @@ async function main(): Promise<void> {
     let token = process.env.REXEC_TOKEN || ""
     let cwd: string | undefined
     let timeout_ms = 300000
+    let is_status = false
 
     const command_parts: string[] = []
 
@@ -62,19 +63,22 @@ async function main(): Promise<void> {
         const arg = args[i]
         if (arg === "--hub" && i + 1 < args.length) {
             hub_url = args[++i]
+        } else if (arg.startsWith("--hub=")) {
+            hub_url = arg.slice("--hub=".length)
         } else if (arg === "--token" && i + 1 < args.length) {
             token = args[++i]
+        } else if (arg.startsWith("--token=")) {
+            token = arg.slice("--token=".length)
         } else if (arg === "--cwd" && i + 1 < args.length) {
             cwd = args[++i]
+        } else if (arg.startsWith("--cwd=")) {
+            cwd = arg.slice("--cwd=".length)
         } else if (arg === "--timeout" && i + 1 < args.length) {
             timeout_ms = Number.parseInt(args[++i], 10) || timeout_ms
-        } else if (arg === "status") {
-            if (!hub_url || !token) {
-                console.error("Error: --hub and --token must be provided or configured to check status.")
-                process.exit(1)
-            }
-            await check_status(hub_url, token)
-            return
+        } else if (arg.startsWith("--timeout=")) {
+            timeout_ms = Number.parseInt(arg.slice("--timeout=".length), 10) || timeout_ms
+        } else if (arg === "status" && command_parts.length === 0) {
+            is_status = true
         } else if (arg === "--") {
             command_parts.push(...args.slice(i + 1))
             break
@@ -91,6 +95,11 @@ async function main(): Promise<void> {
     if (!token) {
         console.error("Error: Missing Auth Token. Provide --token <secret> or set REXEC_TOKEN env var.")
         process.exit(1)
+    }
+
+    if (is_status) {
+        await check_status(hub_url, token)
+        return
     }
 
     const cmd = command_parts.join(" ").trim()
