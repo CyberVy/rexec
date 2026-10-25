@@ -382,7 +382,9 @@ Or set environment variables:
 
                 const id_header = Buffer.from(msg.transfer_id, "utf-8")
                 const hash = crypto.createHash("sha256")
-                const tar_proc = spawn("tar", ["-cf", "-", "-C", target_path, "."], {
+                const tar_env = { ...process.env, COPYFILE_DISABLE: "1" }
+                const tar_proc = spawn("tar", ["-cf", "-", "--exclude=.DS_Store", "-C", target_path, "."], {
+                    env: tar_env,
                     stdio: ["ignore", "pipe", "pipe"]
                 })
 

@@ -396,7 +396,9 @@ async function handle_push(
         push_url.searchParams.set("token", token)
         push_url.searchParams.set("recursive", "1")
 
-        const tar_proc = spawn("tar", ["-cf", "-", "-C", local_path, "."], {
+        const tar_env = { ...process.env, COPYFILE_DISABLE: "1" }
+        const tar_proc = spawn("tar", ["-cf", "-", "--exclude=.DS_Store", "-C", local_path, "."], {
+            env: tar_env,
             stdio: ["ignore", "pipe", "pipe"]
         })
         let tar_stderr = ""
