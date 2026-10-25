@@ -6,3 +6,4 @@ dist
 .env
 .debug
 .local
+draft/

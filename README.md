@@ -123,11 +123,11 @@ Active Tasks: 0
 #### Execute Commands
 
 ```bash
-# Run remote command
+# Run remote command (default fallback)
 rexec "nvidia-smi"
 
-# Run scripts with arguments
-rexec python train.py --epochs 10 --batch-size 32
+# Explicit subcommand syntax
+rexec run python train.py --epochs 10 --batch-size 32
 
 # Specify a working directory relative to the remote workspace
 rexec --cwd backend "pytest tests/"
@@ -137,6 +137,28 @@ rexec --timeout 600000 "make build"
 
 # Use shell pipes and complex commands
 rexec "cat /proc/cpuinfo | grep 'model name' | head -n 1"
+
+# Escape commands matching subcommands
+rexec -- pull origin main
+```
+
+#### Transfer Files
+
+```bash
+# Download a file from remote agent to local directory
+rexec pull loss.png
+
+# Download to a specific local path (or directory)
+rexec pull /content/loss.png ./plots/loss.png
+
+# Overwrite existing local file
+rexec pull -f model.pt ./checkpoints/best.pt
+
+# Upload a local file to remote workspace
+rexec push config.yaml
+
+# Upload to a specific remote destination
+rexec push ./dataset.zip /content/dataset.zip
 ```
 
 ---
@@ -147,14 +169,19 @@ rexec "cat /proc/cpuinfo | grep 'model name' | head -n 1"
 
 ```text
 Usage:
-  rexec [options] <command...>
-  rexec status
+  rexec [options] <command...>        Execute remote command (default fallback)
+  rexec run [options] <command...>    Explicitly execute remote command
+  rexec pull [options] <remote> [loc] Download a file from remote agent
+  rexec push [options] <loc> [remote] Upload a file to remote agent
+  rexec status [options]              Check connection and agent status
+  rexec -- [options] <command...>     Escape command collisions with subcommands
 
 Options:
   --hub <url>        Hub URL (or via REXEC_HUB env var)
   --token <secret>   Auth Token (or via REXEC_TOKEN env var)
   --cwd <dir>        Remote working directory relative to remote workspace
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
+  -f, --force        Overwrite local target file when pulling
   -h, --help         Show this help message
 ```
 
