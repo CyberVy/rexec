@@ -47,13 +47,21 @@ flowchart LR
 
 ## Getting Started
 
-### 1. Deploy the Hub (Cloudflare Workers)
+### 1. Install
+
+```bash
+git clone https://github.com/CyberVy/rexec.git
+cd rexec
+npm install
+npm run build
+npm link
+```
+
+### 2. Deploy the Hub (Cloudflare Workers)
 
 Deploy the relay server directly to Cloudflare Workers with zero configuration:
 
 ```bash
-npm install
-
 # Deploy to Cloudflare Workers
 npm run deploy
 ```
@@ -62,7 +70,7 @@ No environment variables or secrets are required at deployment time. All worker 
 
 ---
 
-### 2. Start the Remote Agent (`rexec-agent`)
+### 3. Start the Remote Agent (`rexec-agent`)
 
 On your target machine (e.g., Google Colab, remote GPU VM, or container), run `rexec-agent`:
 
@@ -89,7 +97,7 @@ To run commands from your local machine, use:
 
 ---
 
-### 3. Run Remote Commands (`rexec`)
+### 4. Run Remote Commands (`rexec`)
 
 On your local machine, set your environment variables (e.g., in `~/.bashrc` or `~/.zshrc`):
 
