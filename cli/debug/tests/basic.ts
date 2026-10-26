@@ -145,31 +145,48 @@ async function run_basic_tests(): Promise<boolean> {
         all_passed = false
     }
 
-    // 6. Reject Duplicate Token Registration Test
-    const test_6 = "test:reject_duplicate_token_registration"
+    // 6. Token Session Takeover Test (Preemption / Last Write Wins)
+    const test_6 = "test:token_session_takeover"
     try {
-        const ws_url = `${config.hub_url.replace(/^http/, "ws")}/ws?token=rexec-debug-token&node_id=conflicting-node`
-        const ws = new WebSocket(ws_url)
-        const close_code = await new Promise<number>((resolve) => {
-            ws.addEventListener("close", (e) => resolve(e.code))
-            ws.addEventListener("error", () => resolve(0))
-            setTimeout(() => resolve(0), 4000)
+        const takeover_token = "rexec-takeover-token"
+        const ws_base = `${config.hub_url.replace(/^http/, "ws")}/ws?token=${takeover_token}&node_id=initial-node`
+        const ws1 = new WebSocket(ws_base)
+        await new Promise<void>((resolve, reject) => {
+            ws1.addEventListener("open", () => resolve())
+            ws1.addEventListener("error", (e) => reject(e))
         })
-        const passed = close_code === 4409
-        print_verdict(test_6, passed, `close_code: ${close_code} (expected 4409 Conflict)`)
+
+        let ws1_closed_cleanly = false
+        ws1.addEventListener("close", (e) => {
+            if (e.code === 1000) ws1_closed_cleanly = true
+        })
+
+        const ws2_base = `${config.hub_url.replace(/^http/, "ws")}/ws?token=${takeover_token}&node_id=reconnected-node`
+        const ws2 = new WebSocket(ws2_base)
+        const ws2_opened = await new Promise<boolean>((resolve) => {
+            ws2.addEventListener("open", () => resolve(true))
+            ws2.addEventListener("error", () => resolve(false))
+            setTimeout(() => resolve(false), 3000)
+        })
+
+        await new Promise((resolve) => setTimeout(resolve, 200))
+
+        const passed = ws2_opened && ws1_closed_cleanly
+        print_verdict(test_6, passed, `ws2_opened: ${ws2_opened}, ws1_closed_cleanly: ${ws1_closed_cleanly}`)
         record_history({
             test_name: test_6,
-            command: "Connect with duplicate token",
+            command: "Token session takeover (last write wins)",
             verdict: passed ? "PASS" : "FAIL",
-            exit_code: close_code,
+            exit_code: passed ? 0 : 1,
             duration_ms: 0
         })
         if (!passed) all_passed = false
+        ws2.close()
     } catch (err) {
         print_verdict(test_6, false, (err as Error).message)
         record_history({
             test_name: test_6,
-            command: "Connect with duplicate token",
+            command: "Token session takeover (last write wins)",
             verdict: "FAIL",
             exit_code: 1,
             duration_ms: 0,
