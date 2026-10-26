@@ -1,5 +1,6 @@
 import { exec_command } from "./exec"
-import { pull_http, push_http } from "@/transfer/http"
+import { open_forward_tunnel, type ForwardTunnelClient } from "./forward"
+import { pull_http, push_http } from "@/transport/http"
 import type {
     CallerOptions,
     ExecOptions,
@@ -13,6 +14,7 @@ import type {
 } from "./types"
 
 export * from "./types"
+export * from "./forward"
 
 export function format_http_url(url_str: string): string {
     let http_url = url_str.trim()
@@ -79,5 +81,21 @@ export class RexecCaller {
      */
     async push(source: TransferSource, remote_path: string, options?: PushOptions): Promise<PushResult> {
         return push_http(this.hub_url, this.token, source, remote_path, options)
+    }
+
+    /**
+     * Open a multiplexed port forwarding tunnel to a remote agent port.
+     */
+    async forward(
+        remote_port: number,
+        options?: { signal?: AbortSignal; timeout_ms?: number }
+    ): Promise<ForwardTunnelClient> {
+        return open_forward_tunnel({
+            hub_url: this.hub_url,
+            token: this.token,
+            remote_port,
+            signal: options?.signal,
+            timeout_ms: options?.timeout_ms
+        })
     }
 }

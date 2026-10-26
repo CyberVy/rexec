@@ -2,13 +2,13 @@ import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import { Readable, Writable } from "node:stream"
-import type { TransferSink, TransferSource } from "../types"
+import type { FileSink, FileSource } from "../types"
 
 /**
- * Creates a readable transfer source from a local file or directory on Node.js runtime.
+ * Creates a readable file/directory source from a local path on Node.js runtime.
  * Returns a standard WHATWG ReadableStream.
  */
-export function create_node_source(target_path: string, recursive: boolean): TransferSource {
+export function create_node_source(target_path: string, recursive: boolean): FileSource {
     if (!fs.existsSync(target_path)) {
         throw new Error(`File not found: ${target_path}`)
     }
@@ -66,10 +66,10 @@ export function create_node_source(target_path: string, recursive: boolean): Tra
 }
 
 /**
- * Creates a writable transfer sink that writes incoming bytes to a local file or extracts a tar directory on Node.js runtime.
+ * Creates a writable sink that writes incoming bytes to a local file or extracts a tar directory on Node.js runtime.
  * Returns a standard WHATWG WritableStream.
  */
-export function create_node_sink(target_path: string, is_directory: boolean): TransferSink {
+export function create_node_sink(target_path: string, is_directory: boolean): FileSink {
     if (is_directory) {
         fs.mkdirSync(target_path, { recursive: true })
 

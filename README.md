@@ -15,6 +15,7 @@ Ultra-lightweight edge-routed remote execution engine.
   - **Hub** (Cloudflare Worker & Durable Object): Edge routing and streaming relay between callers and worker nodes.
   - **Agent** (`rexec-agent`): Remote daemon running on target worker nodes that maintains a persistent WebSocket connection and manages child process lifecycles.
 - **Real-Time Streaming & Process Fidelity**: Chunked execution output streamed via WebSocket and Server-Sent Events (SSE). Clean process termination and signal forwarding on `Ctrl+C` (SIGINT).
+- **Full-Duplex Port Forwarding**: Multiplexed TCP tunneling over WebSocket (`rexec forward [local_port:]remote_port`), seamlessly routing local ports to remote web services (Jupyter, Gradio, ComfyUI, TensorBoard) without public IP or inbound firewalls.
 - **Streaming File & Directory Transfers**: Bi-directional file and directory transfers powered by WHATWG Web Streams and streaming `tar` pipelines with real-time transfer progress bars.
 
 ---
@@ -171,6 +172,16 @@ rexec push -r ./my_module /content/my_module
 rexec push ./dataset.zip /content/dataset.zip
 ```
 
+#### Port Forwarding (WebUI & TCP Tunnels)
+
+```bash
+# Forward remote port 8080 to localhost:8080
+rexec forward 8080
+
+# Forward remote port 8000 to localhost:9000 (e.g., Gradio, ComfyUI, TensorBoard, Jupyter)
+rexec forward 9000:8000
+```
+
 ---
 
 ## CLI Reference
@@ -181,6 +192,7 @@ rexec push ./dataset.zip /content/dataset.zip
 Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
+  rexec forward [options] <port...>   Forward local port to remote agent port
   rexec pull [options] <remote> [loc] Download a file or directory from remote agent
   rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status

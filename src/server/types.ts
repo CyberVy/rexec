@@ -36,3 +36,11 @@ export interface AgentSession {
     ws: WebSocket
     connected_at: number
 }
+
+export interface ActiveForwardSession {
+    session_id: string
+    token: string
+    caller_ws: WebSocket
+    agent_ws: WebSocket
+    remote_port: number
+}

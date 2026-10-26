@@ -1,14 +1,14 @@
-import type { PullOptions, PullResult, PushOptions, PushResult, TransferSink, TransferSource } from "./types"
+import type { FileSink, FileSource, PullOptions, PullResult, PushOptions, PushResult } from "@/file/types"
 
 /**
  * Universal Web Stream HTTP pull pipeline.
- * Fetches remote file/directory stream from Hub and pipes to TransferSink.
+ * Fetches remote file/directory stream from Hub and pipes to FileSink.
  */
 export async function pull_http(
     hub_url: string,
     token: string,
     remote_path: string,
-    sink: TransferSink,
+    sink: FileSink,
     options?: PullOptions
 ): Promise<PullResult> {
     const pull_url = new URL(hub_url)
@@ -61,12 +61,12 @@ export async function pull_http(
 
 /**
  * Universal Web Stream HTTP push pipeline.
- * Reads bytes from TransferSource and streams via HTTP POST to Hub.
+ * Reads bytes from FileSource and streams via HTTP POST to Hub.
  */
 export async function push_http(
     hub_url: string,
     token: string,
-    source: TransferSource,
+    source: FileSource,
     remote_path: string,
     options?: PushOptions
 ): Promise<PushResult> {

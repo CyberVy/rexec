@@ -5,7 +5,7 @@ import { read_debug_config } from "./helpers"
 
 const script_dir = path.dirname(fileURLToPath(import.meta.url))
 
-const TEST_FILES = ["basic.ts", "env_cwd.ts", "abort.ts", "large_output.ts", "file_transfer.ts"]
+const TEST_FILES = ["basic.ts", "env_cwd.ts", "abort.ts", "large_output.ts", "file_transfer.ts", "forward.ts"]
 
 async function run_test_suite(file_name: string): Promise<boolean> {
     const file_path = path.join(script_dir, file_name)
