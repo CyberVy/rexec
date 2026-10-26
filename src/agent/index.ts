@@ -58,11 +58,9 @@ Or set environment variables:
             on_message: (data) => this.handle_message(data),
             on_binary: (bytes) => this.handle_binary(bytes),
             on_close: (event) => {
-                if (event.code === 4409) {
-                    console.error(
-                        `\n[rexec-agent] Fatal: ${event.reason || "Token is already in use by another active node."}`
-                    )
-                    process.exit(1)
+                if (event.code === 1000) {
+                    console.log(`[rexec-agent] Connection closed (${event.reason || "normal"}).`)
+                    process.exit(0)
                 }
                 console.warn(
                     `[rexec-agent] Connection closed (code: ${event.code}, reason: ${event.reason || "none"}). Reconnecting...`

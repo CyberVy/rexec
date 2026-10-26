@@ -102,16 +102,12 @@ export class RexecHub extends DurableObject {
 
         const existing_session = this.agents.get(token)
         if (existing_session && existing_session.ws.readyState === WebSocket.OPEN) {
-            const web_socket_pair = new WebSocketPair()
-            const [client, server] = Object.values(web_socket_pair)
-            server.accept()
-            const reason = `Token '${token}' is already in use by active node '${existing_session.node_id}'. Connection rejected.`
             try {
-                server.close(4409, reason)
+                existing_session.ws.close(1000, "Replaced by new connection")
             } catch {
                 // Ignore close error
             }
-            return new Response(null, { status: 101, webSocket: client })
+            this.cleanup_agent_session(token, existing_session.ws, "Agent replaced by new connection")
         }
 
         const web_socket_pair = new WebSocketPair()
@@ -144,26 +140,24 @@ export class RexecHub extends DurableObject {
         })
 
         server.addEventListener("close", () => {
-            const current = this.agents.get(token)
-            if (current && current.ws === server) {
-                this.agents.delete(token)
-                this.abort_tasks_for_token(token, "Agent disconnected unexpectedly")
-                this.abort_transfers_for_token(token, "Agent disconnected unexpectedly")
-                this.abort_forwards_for_token(token, "Agent disconnected unexpectedly")
-            }
+            this.cleanup_agent_session(token, server, "Agent disconnected unexpectedly")
         })
 
         server.addEventListener("error", () => {
-            const current = this.agents.get(token)
-            if (current && current.ws === server) {
-                this.agents.delete(token)
-                this.abort_tasks_for_token(token, "Agent connection error")
-                this.abort_transfers_for_token(token, "Agent connection error")
-                this.abort_forwards_for_token(token, "Agent connection error")
-            }
+            this.cleanup_agent_session(token, server, "Agent connection error")
         })
 
         return new Response(null, { status: 101, webSocket: client })
+    }
+
+    private cleanup_agent_session(token: string, ws: WebSocket, reason: string): void {
+        const current = this.agents.get(token)
+        if (current && current.ws === ws) {
+            this.agents.delete(token)
+            this.abort_tasks_for_token(token, reason)
+            this.abort_transfers_for_token(token, reason)
+            this.abort_forwards_for_token(token, reason)
+        }
     }
 
     private handle_agent_message(session: AgentSession, data: string): void {
