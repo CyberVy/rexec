@@ -4,6 +4,21 @@ export interface ProgressInfo {
     speed: number
 }
 
+export interface FileSource {
+    stream: ReadableStream<Uint8Array>
+    size: number
+    is_directory: boolean
+    mtime?: number
+    mode?: number
+    cleanup?: () => void
+}
+
+export interface FileSink {
+    stream: WritableStream<Uint8Array>
+    wait_for_finish: () => Promise<void>
+    cleanup?: () => void
+}
+
 export interface PullOptions {
     recursive?: boolean
     signal?: AbortSignal
@@ -26,17 +41,6 @@ export interface PushResult {
     sha256?: string
 }
 
-export interface TransferSource {
-    stream: ReadableStream<Uint8Array>
-    size: number
-    is_directory: boolean
-    mtime?: number
-    mode?: number
-    cleanup?: () => void
-}
-
-export interface TransferSink {
-    stream: WritableStream<Uint8Array>
-    wait_for_finish: () => Promise<void>
-    cleanup?: () => void
-}
+// Aliases for compatibility
+export type TransferSource = FileSource
+export type TransferSink = FileSink

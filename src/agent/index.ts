@@ -1,68 +1,42 @@
 import os from "node:os"
 import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
+import { ChannelDomain, decode_forward_frame, HubWsClient } from "@/transport"
 import { parse_args } from "./args"
+import { ForwardManager } from "./forward_manager"
 import { TaskManager } from "./task"
 import { TransferManager } from "./transfer_manager"
 import type { AgentOptions } from "./types"
 
 export class RexecAgent {
     private options: AgentOptions
-    private ws: WebSocket | null = null
+    private client: HubWsClient | null = null
     private tasks = new TaskManager()
     private transfers = new TransferManager()
+    private forwards = new ForwardManager()
     private is_shutting_down = false
-    private heartbeat_timer: ReturnType<typeof setInterval> | null = null
 
     constructor(options: AgentOptions) {
         this.options = options
     }
 
     start(): void {
-        this.connect()
+        console.log(`[rexec-agent] Connecting to hub at ${this.options.hub_url}...`)
 
-        process.on("SIGINT", () => this.shutdown("SIGINT"))
-        process.on("SIGTERM", () => this.shutdown("SIGTERM"))
-    }
+        this.client = new HubWsClient({
+            hub_url: this.options.hub_url,
+            path: "/ws",
+            token: this.options.token,
+            query_params: { node_id: this.options.node_id },
+            reconnect: true,
+            reconnect_delay_ms: 3000,
+            heartbeat_interval_ms: 20000,
+            on_open: () => {
+                console.log(`[rexec-agent] Connected to hub. Node ID: ${this.options.node_id}`)
+                console.log(`[rexec-agent] Workspace: ${this.options.workspace}`)
+                console.log(`[rexec-agent] Session Token: ${this.options.token}`)
 
-    private format_ws_url(): string {
-        let base = this.options.hub_url.trim()
-        if (base.startsWith("https://")) {
-            base = "wss://" + base.slice(8)
-        } else if (base.startsWith("http://")) {
-            base = "ws://" + base.slice(7)
-        } else if (!base.startsWith("wss://") && !base.startsWith("ws://")) {
-            base = "wss://" + base
-        }
-
-        const url = new URL(base)
-        url.pathname = "/ws"
-        url.searchParams.set("token", this.options.token)
-        url.searchParams.set("node_id", this.options.node_id)
-        return url.toString()
-    }
-
-    private connect(): void {
-        if (this.is_shutting_down) return
-
-        const ws_url = this.format_ws_url()
-        console.log(`[rexec-agent] Connecting to ${ws_url}...`)
-
-        try {
-            this.ws = new WebSocket(ws_url)
-            this.ws.binaryType = "arraybuffer"
-        } catch (err) {
-            console.error(`[rexec-agent] WebSocket creation failed:`, err)
-            this.schedule_reconnect()
-            return
-        }
-
-        this.ws.addEventListener("open", () => {
-            console.log(`[rexec-agent] Connected to hub. Node ID: ${this.options.node_id}`)
-            console.log(`[rexec-agent] Workspace: ${this.options.workspace}`)
-            console.log(`[rexec-agent] Session Token: ${this.options.token}`)
-
-            if (this.options.is_auto_generated) {
-                console.log(`
+                if (this.options.is_auto_generated) {
+                    console.log(`
 ======================================================
 Session Token generated!
 To run commands from your local machine, use:
@@ -73,71 +47,58 @@ Or set environment variables:
   export REXEC_TOKEN=${this.options.token}
 ======================================================
 `)
-            }
+                }
 
-            this.send({
-                type: "register",
-                node_id: this.options.node_id,
-                hostname: os.hostname()
-            })
-            this.start_heartbeat()
-        })
-
-        this.ws.addEventListener("message", (event) => {
-            if (typeof event.data === "string") {
-                this.handle_message(event.data)
-            } else {
-                void this.transfers.handle_binary_data(event.data)
-            }
-        })
-
-        this.ws.addEventListener("close", (event) => {
-            this.stop_heartbeat()
-            if (event.code === 4409) {
-                console.error(
-                    `\n[rexec-agent] Fatal: ${event.reason || "Token is already in use by another active node."}`
+                this.send({
+                    type: "register",
+                    node_id: this.options.node_id,
+                    hostname: os.hostname()
+                })
+            },
+            on_message: (data) => this.handle_message(data),
+            on_binary: (bytes) => this.handle_binary(bytes),
+            on_close: (event) => {
+                if (event.code === 4409) {
+                    console.error(
+                        `\n[rexec-agent] Fatal: ${event.reason || "Token is already in use by another active node."}`
+                    )
+                    process.exit(1)
+                }
+                console.warn(
+                    `[rexec-agent] Connection closed (code: ${event.code}, reason: ${event.reason || "none"}). Reconnecting...`
                 )
-                process.exit(1)
+            },
+            on_error: (event) => {
+                console.error(`[rexec-agent] Connection error:`, event)
             }
-            console.warn(`[rexec-agent] Connection closed (code: ${event.code}, reason: ${event.reason || "none"})`)
-            this.schedule_reconnect()
         })
 
-        this.ws.addEventListener("error", (event) => {
-            console.error(`[rexec-agent] Connection error:`, event)
+        void this.client.connect().catch((err) => {
+            console.error(`[rexec-agent] Initial connection attempt failed:`, (err as Error).message)
         })
-    }
 
-    private schedule_reconnect(): void {
-        if (this.is_shutting_down) return
-        const delay_ms = 3000
-        console.log(`[rexec-agent] Reconnecting in ${delay_ms / 1000}s...`)
-        setTimeout(() => this.connect(), delay_ms)
-    }
-
-    private start_heartbeat(): void {
-        this.stop_heartbeat()
-        this.heartbeat_timer = setInterval(() => {
-            this.send({ type: "ping" })
-        }, 20000)
-    }
-
-    private stop_heartbeat(): void {
-        if (this.heartbeat_timer) {
-            clearInterval(this.heartbeat_timer)
-            this.heartbeat_timer = null
-        }
+        process.on("SIGINT", () => this.shutdown("SIGINT"))
+        process.on("SIGTERM", () => this.shutdown("SIGTERM"))
     }
 
     private send(msg: AgentToHubMessage): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(msg))
-        }
+        this.client?.send_json(msg)
     }
 
     private send_binary(packet: Uint8Array): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(packet)
+        this.client?.send_binary(packet)
+    }
+
+    private handle_binary(bytes: Uint8Array): void {
+        if (bytes.length === 0) return
+
+        if (bytes[0] === ChannelDomain.FORWARD) {
+            const decoded = decode_forward_frame(bytes)
+            if (decoded) {
+                this.forwards.handle_data(decoded.conn_id, decoded.payload)
+            }
+        } else {
+            void this.transfers.handle_binary_data(bytes)
         }
     }
 
@@ -161,6 +122,16 @@ Or set environment variables:
                 void this.transfers.handle_push_end(msg.transfer_id, (m) => this.send(m))
             } else if (msg.type === "transfer:error") {
                 this.transfers.handle_transfer_error(msg)
+            } else if (msg.type === "forward:open") {
+                this.forwards.handle_open(
+                    msg,
+                    (m) => this.send(m),
+                    (bin) => this.send_binary(bin)
+                )
+            } else if (msg.type === "forward:close") {
+                this.forwards.handle_close(msg)
+            } else if (msg.type === "forward:session_end") {
+                this.forwards.handle_session_end(msg)
             } else if (msg.type === "registered") {
                 console.log(`[rexec-agent] Registration confirmed by hub. Ready for commands.`)
             }
@@ -170,21 +141,15 @@ Or set environment variables:
     }
 
     private shutdown(signal: string): void {
+        if (this.is_shutting_down) return
         console.log(`\n[rexec-agent] Shutting down on ${signal}...`)
         this.is_shutting_down = true
-        this.stop_heartbeat()
 
         this.tasks.abort_all()
         this.transfers.abort_all()
+        this.forwards.abort_all()
 
-        if (this.ws) {
-            try {
-                this.ws.close(1000, "Agent shutting down")
-            } catch {
-                // Ignore
-            }
-        }
-
+        this.client?.close(1000, "Agent shutting down")
         process.exit(0)
     }
 }

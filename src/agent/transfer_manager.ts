@@ -1,21 +1,16 @@
 import crypto from "node:crypto"
 import path from "node:path"
-import {
-    TRANSFER_ID_BYTES,
-    type AgentToHubMessage,
-    type FilePullStartMessage,
-    type FilePushStartMessage,
-    type TransferErrorMessage
-} from "@/protocol"
-import type { TransferSink, TransferSource } from "@/transfer"
-import { create_node_sink, create_node_source } from "@/transfer/adapters/node"
+import type { FileSink, FileSource } from "@/file"
+import { create_node_sink, create_node_source } from "@/file/adapters/node"
+import type { AgentToHubMessage, FilePullStartMessage, FilePushStartMessage, TransferErrorMessage } from "@/protocol"
+import { decode_transfer_frame, encode_transfer_frame } from "@/transport"
 
 export class TransferManager {
-    private active_pulls: Map<string, { source: TransferSource }> = new Map()
+    private active_pulls: Map<string, { source: FileSource }> = new Map()
     private active_pushes: Map<
         string,
         {
-            sink: TransferSink
+            sink: FileSink
             writer: WritableStreamDefaultWriter<Uint8Array>
             hash: crypto.Hash
         }
@@ -31,7 +26,7 @@ export class TransferManager {
 
         console.log(`[rexec-agent] [pull:${msg.transfer_id.slice(0, 8)}] Preparing to send: ${target_path}`)
 
-        let source: TransferSource
+        let source: FileSource
         try {
             source = create_node_source(target_path, Boolean(msg.recursive))
         } catch (err) {
@@ -55,7 +50,6 @@ export class TransferManager {
             }
         })
 
-        const id_header = Buffer.from(msg.transfer_id, "utf-8")
         const hash = crypto.createHash("sha256")
         this.active_pulls.set(msg.transfer_id, { source })
 
@@ -63,7 +57,7 @@ export class TransferManager {
             try {
                 for await (const chunk of source.stream) {
                     hash.update(chunk)
-                    const packet = Buffer.concat([id_header, chunk])
+                    const packet = encode_transfer_frame(msg.transfer_id, chunk)
                     send_binary(packet)
                 }
                 const sha256 = hash.digest("hex")
@@ -110,29 +104,14 @@ export class TransferManager {
         }
     }
 
-    async handle_binary_data(data: unknown): Promise<void> {
-        let buf: Buffer
-        if (Buffer.isBuffer(data)) {
-            buf = data
-        } else if (data instanceof ArrayBuffer) {
-            buf = Buffer.from(data)
-        } else if (ArrayBuffer.isView(data)) {
-            buf = Buffer.from(data.buffer, data.byteOffset, data.byteLength)
-        } else if (data && typeof (data as Blob).arrayBuffer === "function") {
-            const ab = await (data as Blob).arrayBuffer()
-            buf = Buffer.from(ab)
-        } else {
-            return
-        }
+    async handle_binary_data(data: Uint8Array): Promise<void> {
+        const decoded = decode_transfer_frame(data)
+        if (!decoded) return
 
-        if (buf.length < TRANSFER_ID_BYTES) return
-        const transfer_id = buf.subarray(0, TRANSFER_ID_BYTES).toString("utf-8")
-        const chunk = buf.subarray(TRANSFER_ID_BYTES)
-
-        const push = this.active_pushes.get(transfer_id)
+        const push = this.active_pushes.get(decoded.transfer_id)
         if (push) {
-            push.hash.update(chunk)
-            await push.writer.write(chunk)
+            push.hash.update(decoded.payload)
+            await push.writer.write(decoded.payload)
         }
     }
 

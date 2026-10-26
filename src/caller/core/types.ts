@@ -19,4 +19,4 @@ export interface ExecOptions {
     signal?: AbortSignal
 }
 
-export type * from "@/transfer/types"
+export type * from "@/file/types"

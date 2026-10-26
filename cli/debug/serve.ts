@@ -85,12 +85,22 @@ async function run(): Promise<void> {
 
     console.log(`[debug:serve] Starting Cloudflare Worker Hub on http://${options.ip}:${options.port}...`)
 
+    const wrangler_env = {
+        ...process.env,
+        HOME: DEBUG_DIR,
+        FORCE_COLOR: "0",
+        WRANGLER_LOG: "none",
+        WRANGLER_HOME: path.join(DEBUG_DIR, "wrangler"),
+        XDG_CONFIG_HOME: path.join(DEBUG_DIR, "wrangler-config"),
+        XDG_DATA_HOME: path.join(DEBUG_DIR, "wrangler-data")
+    }
+
     const wrangler_child = spawn(
         "npx",
         ["wrangler", "dev", "--ip", options.ip, "--port", String(options.port), "--show-interactive-dev-session=false"],
         {
             cwd: repo_root,
-            env: { ...process.env, FORCE_COLOR: "0" }
+            env: wrangler_env
         }
     )
 

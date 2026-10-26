@@ -1,13 +1,19 @@
 import { DurableObject } from "cloudflare:workers"
 import {
-    TRANSFER_ID_BYTES,
     type AgentToHubMessage,
     type ExecRequestPayload,
     type FileMetadata,
     type HubToAgentMessage,
     type TaskExecMessage
 } from "@/protocol"
-import type { ActivePull, ActivePush, ActiveTask, AgentSession } from "./types"
+import {
+    ChannelDomain,
+    TRANSFER_ID_BYTES,
+    decode_transfer_frame,
+    encode_transfer_frame,
+    extract_forward_session_id
+} from "@/transport"
+import type { ActiveForwardSession, ActivePull, ActivePush, ActiveTask, AgentSession } from "./types"
 import { extract_token, get_cors_headers } from "./utils"
 
 export class RexecHub extends DurableObject {
@@ -15,6 +21,7 @@ export class RexecHub extends DurableObject {
     private active_tasks: Map<string, ActiveTask> = new Map()
     private active_pulls: Map<string, ActivePull> = new Map()
     private active_pushes: Map<string, ActivePush> = new Map()
+    private active_forwards: Map<string, ActiveForwardSession> = new Map()
 
     constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
         super(ctx, env)
@@ -57,6 +64,10 @@ export class RexecHub extends DurableObject {
 
         if (url.pathname === "/ws" || url.pathname === "/ws/agent") {
             return this.handle_agent_ws(request, url)
+        }
+
+        if (url.pathname === "/ws/forward" || url.pathname === "/api/ws/forward") {
+            return this.handle_forward_ws(request, url)
         }
 
         if (url.pathname === "/exec" || url.pathname === "/api/exec") {
@@ -138,6 +149,7 @@ export class RexecHub extends DurableObject {
                 this.agents.delete(token)
                 this.abort_tasks_for_token(token, "Agent disconnected unexpectedly")
                 this.abort_transfers_for_token(token, "Agent disconnected unexpectedly")
+                this.abort_forwards_for_token(token, "Agent disconnected unexpectedly")
             }
         })
 
@@ -147,6 +159,7 @@ export class RexecHub extends DurableObject {
                 this.agents.delete(token)
                 this.abort_tasks_for_token(token, "Agent connection error")
                 this.abort_transfers_for_token(token, "Agent connection error")
+                this.abort_forwards_for_token(token, "Agent connection error")
             }
         })
 
@@ -210,6 +223,11 @@ export class RexecHub extends DurableObject {
                     push.reject_push(new Error(msg.error))
                     this.active_pushes.delete(msg.transfer_id)
                 }
+            } else if (msg.type === "forward:close" || msg.type === "forward:error") {
+                const forward = this.active_forwards.get(msg.session_id)
+                if (forward && forward.token === session.token && forward.caller_ws.readyState === WebSocket.OPEN) {
+                    forward.caller_ws.send(JSON.stringify(msg))
+                }
             } else if (msg.type === "register") {
                 if (msg.hostname) session.hostname = msg.hostname
                 if (msg.node_id) session.node_id = msg.node_id
@@ -222,14 +240,25 @@ export class RexecHub extends DurableObject {
     }
 
     private handle_agent_binary(session: AgentSession, bytes: Uint8Array): void {
-        if (bytes.length < TRANSFER_ID_BYTES) return
-        const id_bytes = bytes.subarray(0, TRANSFER_ID_BYTES)
-        const transfer_id = new TextDecoder().decode(id_bytes)
-        const raw_payload = bytes.subarray(TRANSFER_ID_BYTES)
+        if (bytes.length === 0) return
 
-        const pull = this.active_pulls.get(transfer_id)
+        if (bytes[0] === ChannelDomain.FORWARD) {
+            const session_id = extract_forward_session_id(bytes)
+            if (session_id) {
+                const forward = this.active_forwards.get(session_id)
+                if (forward && forward.token === session.token && forward.caller_ws.readyState === WebSocket.OPEN) {
+                    forward.caller_ws.send(bytes)
+                }
+            }
+            return
+        }
+
+        const decoded = decode_transfer_frame(bytes)
+        if (!decoded) return
+
+        const pull = this.active_pulls.get(decoded.transfer_id)
         if (pull && pull.token === session.token) {
-            pull.write_queue = pull.write_queue.then(() => pull.writer.write(raw_payload)).catch(() => {})
+            pull.write_queue = pull.write_queue.then(() => pull.writer.write(decoded.payload)).catch(() => {})
         }
     }
 
@@ -476,15 +505,12 @@ export class RexecHub extends DurableObject {
         })
 
         const reader = request.body.getReader()
-        const id_header = new TextEncoder().encode(transfer_id)
 
         try {
             while (true) {
                 const { done, value } = await reader.read()
                 if (done) break
-                const packet = new Uint8Array(id_header.length + value.length)
-                packet.set(id_header, 0)
-                packet.set(value, id_header.length)
+                const packet = encode_transfer_frame(transfer_id, value)
                 session.ws.send(packet)
             }
 
@@ -548,6 +574,112 @@ export class RexecHub extends DurableObject {
                 if (push.timeout_id) clearTimeout(push.timeout_id)
                 push.reject_push(new Error(reason))
                 this.active_pushes.delete(id)
+            }
+        }
+    }
+
+    private handle_forward_ws(request: Request, url: URL): Response {
+        if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+            return new Response("Expected WebSocket Upgrade", { status: 426, headers: get_cors_headers(request) })
+        }
+
+        const token = extract_token(request, url)
+        if (!token) {
+            return new Response("Missing authorization token", { status: 401, headers: get_cors_headers(request) })
+        }
+
+        const session = this.agents.get(token)
+        if (!session || session.ws.readyState !== WebSocket.OPEN) {
+            return new Response("No agent connected for this token", {
+                status: 503,
+                headers: get_cors_headers(request)
+            })
+        }
+
+        const remote_port = Number(url.searchParams.get("remote_port") || url.searchParams.get("port") || 0)
+        if (!remote_port) {
+            return new Response("Missing or invalid 'remote_port' query parameter", {
+                status: 400,
+                headers: get_cors_headers(request)
+            })
+        }
+
+        const session_id = crypto.randomUUID().replace(/-/g, "").slice(0, 16)
+        const web_socket_pair = new WebSocketPair()
+        const [client, server] = Object.values(web_socket_pair)
+        server.accept()
+
+        const forward_session: ActiveForwardSession = {
+            session_id,
+            token,
+            caller_ws: server,
+            agent_ws: session.ws,
+            remote_port
+        }
+        this.active_forwards.set(session_id, forward_session)
+
+        // Notify caller of session readiness and assigned session_id
+        server.send(JSON.stringify({ type: "forward:ready", session_id, remote_port }))
+
+        server.addEventListener("message", (event) => {
+            if (typeof event.data === "string") {
+                try {
+                    const msg = JSON.parse(event.data) as Record<string, unknown>
+                    if (msg.type === "ping") {
+                        server.send(JSON.stringify({ type: "pong" }))
+                        return
+                    }
+                    msg.session_id = session_id
+                    if (msg.type === "forward:open" && !msg.remote_port) {
+                        msg.remote_port = remote_port
+                    }
+                    if (session.ws.readyState === WebSocket.OPEN) {
+                        session.ws.send(JSON.stringify(msg))
+                    }
+                } catch {
+                    // Ignore malformed message
+                }
+            } else {
+                // Binary forward frame from caller -> forward directly to agent
+                let bytes: Uint8Array
+                if (event.data instanceof ArrayBuffer) {
+                    bytes = new Uint8Array(event.data)
+                } else if (ArrayBuffer.isView(event.data)) {
+                    bytes = new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength)
+                } else {
+                    return
+                }
+                if (session.ws.readyState === WebSocket.OPEN) {
+                    session.ws.send(bytes)
+                }
+            }
+        })
+
+        const cleanup = () => {
+            const current = this.active_forwards.get(session_id)
+            if (current && current.caller_ws === server) {
+                this.active_forwards.delete(session_id)
+                if (session.ws.readyState === WebSocket.OPEN) {
+                    this.send_to_agent(session, { type: "forward:session_end", session_id })
+                }
+            }
+        }
+
+        server.addEventListener("close", cleanup)
+        server.addEventListener("error", cleanup)
+
+        return new Response(null, { status: 101, webSocket: client })
+    }
+
+    private abort_forwards_for_token(token: string, reason: string): void {
+        for (const [session_id, forward] of this.active_forwards) {
+            if (forward.token === token) {
+                try {
+                    forward.caller_ws.close(4503, reason)
+                } catch {
+                    // Ignore
+                }
+                this.active_forwards.delete(session_id)
             }
         }
     }

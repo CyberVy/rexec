@@ -2,8 +2,9 @@ import crypto from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
 import { RexecCaller } from "@/caller"
-import { create_node_sink, create_node_source } from "@/transfer/adapters/node"
+import { create_node_sink, create_node_source } from "@/file/adapters/node"
 import { parse_cli_args, print_usage } from "./args"
+import { run_port_forward } from "./forward"
 import { format_bytes, render_progress } from "./ui"
 
 async function handle_status(caller: RexecCaller): Promise<void> {
@@ -218,8 +219,47 @@ async function main(): Promise<void> {
         return
     }
 
+    if (parsed.subcommand === "forward") {
+        await handle_forward(caller, parsed.args[0], parsed.args[1])
+        return
+    }
+
     // Default or "run" subcommand
     await handle_exec(caller, parsed.args, parsed.cwd, parsed.timeout_ms)
+}
+
+async function handle_forward(caller: RexecCaller, port_arg: string | undefined, second_arg?: string): Promise<void> {
+    if (!port_arg) {
+        console.error("Error: Missing port configuration. Usage: rexec forward [local_port:]remote_port")
+        process.exit(1)
+    }
+
+    let local_port: number
+    let remote_port: number
+
+    if (port_arg.includes(":")) {
+        const parts = port_arg.split(":")
+        local_port = Number.parseInt(parts[0], 10)
+        remote_port = Number.parseInt(parts[1], 10)
+    } else if (second_arg) {
+        local_port = Number.parseInt(port_arg, 10)
+        remote_port = Number.parseInt(second_arg, 10)
+    } else {
+        local_port = Number.parseInt(port_arg, 10)
+        remote_port = local_port
+    }
+
+    if (!local_port || !remote_port || Number.isNaN(local_port) || Number.isNaN(remote_port)) {
+        console.error(`Error: Invalid port numbers: local=${local_port}, remote=${remote_port}`)
+        process.exit(1)
+    }
+
+    try {
+        await run_port_forward(caller, local_port, remote_port)
+    } catch (err) {
+        console.error(`[rexec forward error] ${(err as Error).message}`)
+        process.exit(1)
+    }
 }
 
 main().catch((err) => {

@@ -1,6 +1,6 @@
 export type StreamType = "stdout" | "stderr"
 
-export const TRANSFER_ID_BYTES = 16
+export { ChannelDomain, TRANSFER_ID_BYTES, FORWARD_HEADER_BYTES, TRANSFER_HEADER_BYTES } from "@/transport/framing"
 
 export interface FileMetadata {
     path: string
@@ -107,6 +107,35 @@ export interface TransferErrorMessage {
 }
 
 // ==========================================
+// Forward Domain Messages (Port Forwarding Signaling)
+// ==========================================
+export interface ForwardOpenMessage {
+    type: "forward:open"
+    session_id: string
+    conn_id: number
+    remote_port: number
+}
+
+export interface ForwardCloseMessage {
+    type: "forward:close"
+    session_id: string
+    conn_id: number
+    reason?: string
+}
+
+export interface ForwardErrorMessage {
+    type: "forward:error"
+    session_id: string
+    conn_id: number
+    error: string
+}
+
+export interface ForwardSessionEndMessage {
+    type: "forward:session_end"
+    session_id: string
+}
+
+// ==========================================
 // Message Unions
 // ==========================================
 export type AgentToHubMessage =
@@ -119,6 +148,8 @@ export type AgentToHubMessage =
     | FilePullEndMessage
     | FilePushEndMessage
     | TransferErrorMessage
+    | ForwardCloseMessage
+    | ForwardErrorMessage
 
 export type HubToAgentMessage =
     | HubRegisteredMessage
@@ -130,6 +161,9 @@ export type HubToAgentMessage =
     | FilePushStartMessage
     | FilePushEndMessage
     | TransferErrorMessage
+    | ForwardOpenMessage
+    | ForwardCloseMessage
+    | ForwardSessionEndMessage
 
 // ==========================================
 // HTTP Payload Contracts

@@ -1,5 +1,5 @@
 export interface ParsedCli {
-    subcommand: "status" | "pull" | "push" | "run"
+    subcommand: "status" | "pull" | "push" | "run" | "forward"
     hub_url: string
     token: string
     cwd?: string
@@ -15,6 +15,7 @@ export function print_usage(): void {
 Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
+  rexec forward [options] <port...>   Forward local port to remote agent port
   rexec pull [options] <remote> [loc] Download a file or directory from remote agent
   rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status
@@ -32,6 +33,8 @@ Options:
 Examples:
   rexec "nvidia-smi"
   rexec run python main.py --epochs 10
+  rexec forward 8080                 # Forward localhost:8080 -> agent:8080
+  rexec forward 9000:8000            # Forward localhost:9000 -> agent:8000
   rexec pull /content/loss.png ./loss.png
   rexec pull -r /content/sample_data ./sample_data
   rexec push ./dataset.zip /content/dataset.zip
@@ -105,6 +108,9 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
     const first_token = tokens[0]
     if (first_token === "status") {
         return { subcommand: "status", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+    }
+    if (first_token === "forward") {
+        return { subcommand: "forward", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
     }
     if (first_token === "pull") {
         return { subcommand: "pull", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
