@@ -83,7 +83,11 @@ export class TransferManager {
         })()
     }
 
-    public handle_push_start(msg: FilePushStartMessage, workspace: string, send: (msg: AgentToHubMessage) => void): void {
+    public handle_push_start(
+        msg: FilePushStartMessage,
+        workspace: string,
+        send: (msg: AgentToHubMessage) => void
+    ): void {
         const target_path = path.isAbsolute(msg.path) ? path.resolve(msg.path) : path.resolve(workspace, msg.path)
 
         console.log(

@@ -5,7 +5,7 @@ import { ForwardRelay } from "./forward_relay"
 import { TaskRelay } from "./task_relay"
 import { TransferRelay } from "./transfer_relay"
 import type { AgentSession } from "./types"
-import { extract_token, get_cors_headers, read_ws_bytes } from "./utils"
+import { accepted_token, extract_token, get_cors_headers, read_ws_bytes } from "./utils"
 
 export class RexecHub extends DurableObject {
     private agents: Map<string, AgentSession> = new Map()
@@ -27,30 +27,30 @@ export class RexecHub extends DurableObject {
     public override async fetch(request: Request): Promise<Response> {
         const url = new URL(request.url)
 
-        if (url.pathname === "/health" || url.pathname === "/api/health") {
+        if (url.pathname === "/health") {
             return this.handle_health(request, url)
         }
 
-        if (url.pathname === "/ws" || url.pathname === "/ws/agent") {
+        if (url.pathname === "/ws") {
             return this.handle_agent_ws(request, url)
         }
 
-        if (url.pathname === "/ws/forward" || url.pathname === "/api/ws/forward") {
+        if (url.pathname === "/ws/forward") {
             return this.forwards.handle_forward_ws(request, url)
         }
 
-        if (url.pathname === "/exec" || url.pathname === "/api/exec") {
+        if (url.pathname === "/exec") {
             if (request.method !== "POST") {
                 return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
             }
             return this.tasks.handle_exec_request(request, url)
         }
 
-        if (url.pathname === "/file/pull" || url.pathname === "/api/file/pull") {
+        if (url.pathname === "/file/pull") {
             return this.transfers.handle_pull_request(request, url)
         }
 
-        if (url.pathname === "/file/push" || url.pathname === "/api/file/push") {
+        if (url.pathname === "/file/push") {
             return this.transfers.handle_push_request(request, url)
         }
 
@@ -90,11 +90,7 @@ export class RexecHub extends DurableObject {
             return new Response("Expected WebSocket Upgrade", { status: 426, headers: get_cors_headers(request) })
         }
 
-        const token = extract_token(request, url)
-        if (!token) {
-            return new Response("Missing authorization token", { status: 401, headers: get_cors_headers(request) })
-        }
-
+        const token = accepted_token(request, url)
         const node_id = url.searchParams.get("node_id") || "unknown-node"
 
         const existing_session = this.agents.get(token)

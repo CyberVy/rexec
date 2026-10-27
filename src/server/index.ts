@@ -1,5 +1,5 @@
 import type { Env } from "./types"
-import { extract_token, get_cors_headers } from "./utils"
+import { get_cors_headers, missing_token_response } from "./utils"
 
 export { RexecHub } from "./hub"
 export * from "./types"
@@ -13,35 +13,9 @@ export default {
             })
         }
 
-        const url = new URL(request.url)
-
-        // Intercept unauthenticated agent registrations before reaching Durable Object
-        if (url.pathname === "/ws" || url.pathname === "/ws/agent") {
-            const token = extract_token(request, url)
-            if (!token) {
-                return new Response("Missing authorization token for agent registration", {
-                    status: 401,
-                    headers: get_cors_headers(request)
-                })
-            }
-        }
-
-        // Intercept unauthenticated exec or file transfer requests before reaching Durable Object
-        if (
-            url.pathname === "/exec" ||
-            url.pathname === "/api/exec" ||
-            url.pathname === "/file/pull" ||
-            url.pathname === "/api/file/pull" ||
-            url.pathname === "/file/push" ||
-            url.pathname === "/api/file/push"
-        ) {
-            const token = extract_token(request, url)
-            if (!token) {
-                return new Response("Missing authorization token", {
-                    status: 401,
-                    headers: get_cors_headers(request)
-                })
-            }
+        const missing = missing_token_response(request)
+        if (missing) {
+            return missing
         }
 
         const id = env.REXEC_HUB.idFromName("default")

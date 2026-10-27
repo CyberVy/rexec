@@ -1,6 +1,6 @@
 import type { ExecRequestPayload, HubToAgentMessage, TaskChunkMessage, TaskExitMessage } from "@/protocol"
 import type { AgentSession } from "./types"
-import { extract_token, get_cors_headers } from "./utils"
+import { accepted_token, get_cors_headers } from "./utils"
 
 interface ActiveTask {
     token: string
@@ -53,11 +53,7 @@ export class TaskRelay {
 
     public async handle_exec_request(request: Request, url: URL): Promise<Response> {
         const headers = get_cors_headers(request)
-        const token = extract_token(request, url)
-        if (!token) {
-            return new Response("Missing authorization token", { status: 401, headers })
-        }
-
+        const token = accepted_token(request, url)
         const session = this.get_open_agent(token)
         if (!session) {
             return Response.json(

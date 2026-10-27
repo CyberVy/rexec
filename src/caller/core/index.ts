@@ -65,7 +65,10 @@ export class RexecCaller {
      * Execute a remote command via SSE stream.
      * Returns the remote process exit code.
      */
-    public async exec(options: ExecOptions, on_chunk?: (stream: "stdout" | "stderr", data: string) => void): Promise<number> {
+    public async exec(
+        options: ExecOptions,
+        on_chunk?: (stream: "stdout" | "stderr", data: string) => void
+    ): Promise<number> {
         return exec_command(this.hub_url, this.token, options, on_chunk)
     }
 
