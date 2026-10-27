@@ -1,6 +1,6 @@
 import { exec_command } from "./exec"
 import { open_forward_tunnel, type ForwardTunnelClient } from "./forward"
-import { pull_http, push_http } from "@/transport/http"
+import { pull_http, push_http } from "./file"
 import type {
     CallerOptions,
     ExecOptions,

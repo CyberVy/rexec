@@ -1,8 +1,7 @@
 import type { FileSink, FileSource, PullOptions, PullResult, PushOptions, PushResult } from "@/file/types"
 
 /**
- * Universal Web Stream HTTP pull pipeline.
- * Fetches remote file/directory stream from Hub and pipes to FileSink.
+ * Fetches a remote file or directory from the Hub and pipes the body to a FileSink.
  */
 export async function pull_http(
     hub_url: string,
@@ -60,8 +59,7 @@ export async function pull_http(
 }
 
 /**
- * Universal Web Stream HTTP push pipeline.
- * Reads bytes from FileSource and streams via HTTP POST to Hub.
+ * Streams a FileSource to the Hub over HTTP POST.
  */
 export async function push_http(
     hub_url: string,
