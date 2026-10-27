@@ -2,10 +2,9 @@
 
 - `src/`: Core source code.
   - `protocol.ts`: Shared protocol types and message envelopes across Server, Agent, and Caller.
-  - `transport/`: Low-level network transport pipelines and wire framing.
+  - `transport/`: Shared byte channel. WebSocket connection and binary frame envelope. Payloads stay opaque.
     - `framing.ts`: Channel domain binary packet multiplexing (Transfer 0x01, Forward 0x02).
-    - `ws.ts`: Standard WebSocket client channel helper (`connect_hub_ws`).
-    - `http.ts`: Runtime-agnostic Web Streams HTTP pipelines (`pull_http`, `push_http`).
+    - `ws.ts`: WebSocket client channel helper (`HubWsClient`).
   - `file/`: File & directory filesystem archiving and streaming.
     - `types.ts`: Universal stream contracts (`FileSource`, `FileSink`, `ProgressInfo`).
     - `adapters/node.ts`: Node.js filesystem and streaming `tar` packaging adapter (`create_node_source`, `create_node_sink`).
@@ -15,7 +14,7 @@
     - `forward_manager.ts`: Multiplexed TCP socket forwarding manager (`ForwardManager`).
     - `transfer_manager.ts`: Multiplexed WebSocket transfer session management (`TransferManager`).
   - `caller/`: Calling client domain.
-    - `core/`: Universal calling SDK using 100% Web Standard APIs (`RexecCaller`, `exec_command`, `open_forward_tunnel`).
+    - `core/`: Universal calling SDK using 100% Web Standard APIs (`RexecCaller`, `exec_command`, `pull_http`, `push_http`, `open_forward_tunnel`).
     - `terminal/`: Local command-line interface client for terminal users (`rexec`).
 - `cli/`: Local developer tools and debug channel.
   - `debug/`: Black-box end-to-end debugging harness and automated test matrix.
