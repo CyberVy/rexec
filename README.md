@@ -62,16 +62,22 @@ npm run build
 npm link
 ```
 
-### 2. Deploy the Hub (Cloudflare Workers)
+### 2. Setup the Hub
 
-Deploy the relay server directly to Cloudflare Workers with zero configuration:
+You can connect to the official public Hub directly, or deploy your own relay server to Cloudflare Workers.
 
-```bash
-# Deploy to Cloudflare Workers
-npm run deploy
-```
+- **Public Hub**:
+  ```text
+  https://rexec.edgetool.workers.dev
+  ```
+  *(Ready to use out-of-the-box — no deployment required)*
 
-No environment variables or secrets are required at deployment time. All worker nodes are managed concurrently within a single Durable Object instance.
+- **Self-Hosted Hub (Cloudflare Workers)**:
+  Deploy your own isolated relay server with zero configuration:
+  ```bash
+  npm run deploy
+  ```
+  No environment variables or secrets are required at deployment time. All worker nodes are managed concurrently within a single Durable Object instance.
 
 ---
 
@@ -81,10 +87,13 @@ On your target machine (e.g., Google Colab, remote GPU VM, or container), run `r
 
 ```bash
 # Auto-generate a session token on startup
-npx rexec-agent --hub https://<your-worker>.workers.dev
+npx rexec-agent --hub <hub-url>
+
+# Quick test using the official public hub
+npx rexec-agent --hub https://rexec.edgetool.workers.dev
 
 # Or specify a custom static token
-npx rexec-agent --hub https://<your-worker>.workers.dev --token <custom-secret>
+npx rexec-agent --hub <hub-url> --token <custom-secret>
 ```
 
 When started without `--token`, `rexec-agent` automatically generates a secure session token and outputs ready-to-use local execution commands:
@@ -96,7 +105,11 @@ When started without `--token`, `rexec-agent` automatically generates a secure s
 ======================================================
 Session Token generated!
 To run commands from your local machine, use:
-  rexec --hub https://<your-worker>.workers.dev --token rexec_sec_e4b1a82f3c4d5e6f7a8b9c0d1e2f3a4b <command...>
+  rexec --hub <hub-url> --token rexec_sec_e4b1a82f3c4d5e6f7a8b9c0d1e2f3a4b <command...>
+
+Or set environment variables:
+  export REXEC_HUB=<hub-url>
+  export REXEC_TOKEN=rexec_sec_e4b1a82f3c4d5e6f7a8b9c0d1e2f3a4b
 ======================================================
 ```
 
@@ -107,7 +120,7 @@ To run commands from your local machine, use:
 On your local machine, set your environment variables (e.g., in `~/.bashrc` or `~/.zshrc`):
 
 ```bash
-export REXEC_HUB=https://<your-worker>.workers.dev
+export REXEC_HUB=<hub-url>
 export REXEC_TOKEN=<your-secret-token>
 ```
 
