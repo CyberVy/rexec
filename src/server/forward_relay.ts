@@ -1,7 +1,7 @@
 import type { ForwardCloseMessage, ForwardErrorMessage, HubToAgentMessage } from "@/protocol"
 import { extract_forward_session_id } from "@/transport"
 import type { AgentSession } from "./types"
-import { extract_token, get_cors_headers, read_ws_bytes } from "./utils"
+import { accepted_token, get_cors_headers, read_ws_bytes } from "./utils"
 
 interface ActiveForwardSession {
     session_id: string
@@ -41,11 +41,7 @@ export class ForwardRelay {
             return new Response("Expected WebSocket Upgrade", { status: 426, headers: get_cors_headers(request) })
         }
 
-        const token = extract_token(request, url)
-        if (!token) {
-            return new Response("Missing authorization token", { status: 401, headers: get_cors_headers(request) })
-        }
-
+        const token = accepted_token(request, url)
         const session = this.get_open_agent(token)
         if (!session) {
             return new Response("No agent connected for this token", {

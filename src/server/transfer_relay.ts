@@ -8,7 +8,7 @@ import type {
 } from "@/protocol"
 import { TRANSFER_ID_BYTES, decode_transfer_frame, encode_transfer_frame } from "@/transport"
 import type { AgentSession } from "./types"
-import { extract_token, get_cors_headers } from "./utils"
+import { accepted_token, get_cors_headers } from "./utils"
 
 interface ActivePull {
     token: string
@@ -99,11 +99,7 @@ export class TransferRelay {
 
     public async handle_pull_request(request: Request, url: URL): Promise<Response> {
         const headers = get_cors_headers(request)
-        const token = extract_token(request, url)
-        if (!token) {
-            return new Response("Missing authorization token", { status: 401, headers })
-        }
-
+        const token = accepted_token(request, url)
         const session = this.get_open_agent(token)
         if (!session) {
             return Response.json(
@@ -199,11 +195,7 @@ export class TransferRelay {
             return new Response("Method Not Allowed", { status: 405, headers })
         }
 
-        const token = extract_token(request, url)
-        if (!token) {
-            return new Response("Missing authorization token", { status: 401, headers })
-        }
-
+        const token = accepted_token(request, url)
         const session = this.get_open_agent(token)
         if (!session) {
             return Response.json(

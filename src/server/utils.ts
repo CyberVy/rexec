@@ -8,6 +8,30 @@ export function get_cors_headers(request?: Request): Record<string, string> {
     }
 }
 
+const AUTHENTICATED_PATHS = new Set(["/ws", "/exec", "/file/pull", "/file/push", "/ws/forward"])
+
+export function missing_token_response(request: Request): Response | null {
+    const url = new URL(request.url)
+    if (!AUTHENTICATED_PATHS.has(url.pathname)) {
+        return null
+    }
+    if (extract_token(request, url)) {
+        return null
+    }
+    return new Response("Missing authorization token", {
+        status: 401,
+        headers: get_cors_headers(request)
+    })
+}
+
+export function accepted_token(request: Request, url: URL): string {
+    const token = extract_token(request, url)
+    if (!token) {
+        throw new Error("Missing authorization token")
+    }
+    return token
+}
+
 export function extract_token(request: Request, url: URL): string | null {
     const query_token = url.searchParams.get("token")
     const auth_header = request.headers.get("Authorization")
