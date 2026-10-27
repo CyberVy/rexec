@@ -61,45 +61,45 @@ export function build_ws_url(
  * connection timeout, and reconnect resilience. Shared by Agent and Caller.
  */
 export class HubWsClient {
-    readonly options: HubWsClientOptions
+    public readonly options: HubWsClientOptions
     private ws: WebSocket | null = null
     private is_destroyed = false
     private heartbeat_timer: ReturnType<typeof setInterval> | null = null
     private reconnect_timer: ReturnType<typeof setTimeout> | null = null
 
-    constructor(options: HubWsClientOptions) {
+    public constructor(options: HubWsClientOptions) {
         this.options = options
         if (options.signal) {
             options.signal.addEventListener("abort", () => this.close(1000, "Aborted by signal"), { once: true })
         }
     }
 
-    get readyState(): number {
+    public get readyState(): number {
         return this.ws ? this.ws.readyState : WebSocket.CLOSED
     }
 
-    get is_open(): boolean {
+    public get is_open(): boolean {
         return this.ws !== null && this.ws.readyState === WebSocket.OPEN
     }
 
-    async connect(): Promise<void> {
+    public async connect(): Promise<void> {
         if (this.is_destroyed) return
         return this.establish_connection(true)
     }
 
-    send_json(data: unknown): void {
+    public send_json(data: unknown): void {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify(data))
         }
     }
 
-    send_binary(data: Uint8Array): void {
+    public send_binary(data: Uint8Array): void {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(data)
         }
     }
 
-    close(code = 1000, reason = "Client closed"): void {
+    public close(code = 1000, reason = "Client closed"): void {
         this.is_destroyed = true
         this.stop_heartbeat()
         this.clear_reconnect()

@@ -18,3 +18,17 @@ export function extract_token(request: Request, url: URL): string | null {
     const token = query_token?.trim() || bearer_token?.trim()
     return token || null
 }
+
+export function read_ws_bytes(data: unknown, on_bytes: (bytes: Uint8Array) => void): void {
+    if (data instanceof ArrayBuffer) {
+        on_bytes(new Uint8Array(data))
+        return
+    }
+    if (ArrayBuffer.isView(data)) {
+        on_bytes(new Uint8Array(data.buffer, data.byteOffset, data.byteLength))
+        return
+    }
+    if (data && typeof (data as Blob).arrayBuffer === "function") {
+        void (data as Blob).arrayBuffer().then((ab) => on_bytes(new Uint8Array(ab)))
+    }
+}

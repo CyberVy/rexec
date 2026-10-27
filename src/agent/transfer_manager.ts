@@ -16,7 +16,7 @@ export class TransferManager {
         }
     > = new Map()
 
-    handle_pull_start(
+    public handle_pull_start(
         msg: FilePullStartMessage,
         workspace: string,
         send: (msg: AgentToHubMessage) => void,
@@ -83,7 +83,7 @@ export class TransferManager {
         })()
     }
 
-    handle_push_start(msg: FilePushStartMessage, workspace: string, send: (msg: AgentToHubMessage) => void): void {
+    public handle_push_start(msg: FilePushStartMessage, workspace: string, send: (msg: AgentToHubMessage) => void): void {
         const target_path = path.isAbsolute(msg.path) ? path.resolve(msg.path) : path.resolve(workspace, msg.path)
 
         console.log(
@@ -104,7 +104,7 @@ export class TransferManager {
         }
     }
 
-    async handle_binary_data(data: Uint8Array): Promise<void> {
+    public async handle_binary_data(data: Uint8Array): Promise<void> {
         const decoded = decode_transfer_frame(data)
         if (!decoded) return
 
@@ -115,7 +115,7 @@ export class TransferManager {
         }
     }
 
-    async handle_push_end(transfer_id: string, send: (msg: AgentToHubMessage) => void): Promise<void> {
+    public async handle_push_end(transfer_id: string, send: (msg: AgentToHubMessage) => void): Promise<void> {
         const push = this.active_pushes.get(transfer_id)
         if (!push) return
 
@@ -142,7 +142,7 @@ export class TransferManager {
         }
     }
 
-    handle_transfer_error(msg: TransferErrorMessage): void {
+    public handle_transfer_error(msg: TransferErrorMessage): void {
         const pull = this.active_pulls.get(msg.transfer_id)
         if (pull) {
             pull.source.cleanup?.()
@@ -155,7 +155,7 @@ export class TransferManager {
         }
     }
 
-    abort_all(): void {
+    public abort_all(): void {
         for (const [, pull] of this.active_pulls) {
             pull.source.cleanup?.()
         }

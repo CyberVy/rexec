@@ -15,11 +15,11 @@ export class RexecAgent {
     private forwards = new ForwardManager()
     private is_shutting_down = false
 
-    constructor(options: AgentOptions) {
+    public constructor(options: AgentOptions) {
         this.options = options
     }
 
-    start(): void {
+    public start(): void {
         console.log(`[rexec-agent] Connecting to hub at ${this.options.hub_url}...`)
 
         this.client = new HubWsClient({

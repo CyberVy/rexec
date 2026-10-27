@@ -5,7 +5,7 @@ import type { AgentToHubMessage, TaskExecMessage, TaskKillMessage } from "@/prot
 export class TaskManager {
     private running_tasks: Map<string, ChildProcess> = new Map()
 
-    execute(msg: TaskExecMessage, base_workspace: string, send: (msg: AgentToHubMessage) => void): void {
+    public execute(msg: TaskExecMessage, base_workspace: string, send: (msg: AgentToHubMessage) => void): void {
         const { task_id, cmd, cwd, env } = msg
         const task_cwd = cwd ? path.resolve(base_workspace, cwd) : base_workspace
         const task_env = { ...process.env, ...env }
@@ -69,7 +69,7 @@ export class TaskManager {
         })
     }
 
-    kill(msg: TaskKillMessage): void {
+    public kill(msg: TaskKillMessage): void {
         const child = this.running_tasks.get(msg.task_id)
         if (child) {
             console.log(`[rexec-agent] Killing task ${msg.task_id.slice(0, 8)} with signal ${msg.signal || "SIGINT"}`)
@@ -77,7 +77,7 @@ export class TaskManager {
         }
     }
 
-    abort_all(): void {
+    public abort_all(): void {
         for (const [task_id, child] of this.running_tasks) {
             console.log(`[rexec-agent] Terminating running task ${task_id.slice(0, 8)}`)
             child.kill("SIGTERM")
