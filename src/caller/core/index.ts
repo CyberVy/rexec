@@ -33,10 +33,10 @@ export function format_http_url(url_str: string): string {
  * Runs in Browsers, Node.js, Cloudflare Workers, Deno, and Bun.
  */
 export class RexecCaller {
-    readonly hub_url: string
-    readonly token: string
+    public readonly hub_url: string
+    public readonly token: string
 
-    constructor(options: CallerOptions) {
+    public constructor(options: CallerOptions) {
         this.hub_url = format_http_url(options.hub_url)
         this.token = options.token.trim()
     }
@@ -44,7 +44,7 @@ export class RexecCaller {
     /**
      * Query Hub health and check whether an agent is connected.
      */
-    async get_status(signal?: AbortSignal): Promise<HubStatus> {
+    public async get_status(signal?: AbortSignal): Promise<HubStatus> {
         const url = new URL(this.hub_url)
         url.pathname = "/health"
         if (this.token) {
@@ -65,28 +65,28 @@ export class RexecCaller {
      * Execute a remote command via SSE stream.
      * Returns the remote process exit code.
      */
-    async exec(options: ExecOptions, on_chunk?: (stream: "stdout" | "stderr", data: string) => void): Promise<number> {
+    public async exec(options: ExecOptions, on_chunk?: (stream: "stdout" | "stderr", data: string) => void): Promise<number> {
         return exec_command(this.hub_url, this.token, options, on_chunk)
     }
 
     /**
      * Pull (download) a remote file or directory into a TransferSink.
      */
-    async pull(remote_path: string, sink: TransferSink, options?: PullOptions): Promise<PullResult> {
+    public async pull(remote_path: string, sink: TransferSink, options?: PullOptions): Promise<PullResult> {
         return pull_http(this.hub_url, this.token, remote_path, sink, options)
     }
 
     /**
      * Push (upload) a TransferSource to the remote agent.
      */
-    async push(source: TransferSource, remote_path: string, options?: PushOptions): Promise<PushResult> {
+    public async push(source: TransferSource, remote_path: string, options?: PushOptions): Promise<PushResult> {
         return push_http(this.hub_url, this.token, source, remote_path, options)
     }
 
     /**
      * Open a multiplexed port forwarding tunnel to a remote agent port.
      */
-    async forward(
+    public async forward(
         remote_port: number,
         options?: { signal?: AbortSignal; timeout_ms?: number }
     ): Promise<ForwardTunnelClient> {

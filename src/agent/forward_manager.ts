@@ -10,7 +10,7 @@ interface ConnectionInfo {
 export class ForwardManager {
     private active_connections: Map<number, ConnectionInfo> = new Map()
 
-    handle_open(
+    public handle_open(
         msg: ForwardOpenMessage,
         send_json: (msg: AgentToHubMessage) => void,
         send_binary: (packet: Uint8Array) => void
@@ -52,14 +52,14 @@ export class ForwardManager {
         })
     }
 
-    handle_data(conn_id: number, payload: Uint8Array): void {
+    public handle_data(conn_id: number, payload: Uint8Array): void {
         const info = this.active_connections.get(conn_id)
         if (info && !info.socket.destroyed) {
             info.socket.write(payload)
         }
     }
 
-    handle_close(msg: ForwardCloseMessage): void {
+    public handle_close(msg: ForwardCloseMessage): void {
         const info = this.active_connections.get(msg.conn_id)
         if (info) {
             info.socket.destroy()
@@ -67,7 +67,7 @@ export class ForwardManager {
         }
     }
 
-    handle_session_end(msg: ForwardSessionEndMessage): void {
+    public handle_session_end(msg: ForwardSessionEndMessage): void {
         for (const [conn_id, info] of this.active_connections.entries()) {
             if (info.session_id === msg.session_id) {
                 info.socket.destroy()
@@ -76,7 +76,7 @@ export class ForwardManager {
         }
     }
 
-    abort_all(): void {
+    public abort_all(): void {
         for (const [, info] of this.active_connections) {
             info.socket.destroy()
         }
