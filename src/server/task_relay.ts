@@ -31,13 +31,13 @@ export class TaskRelay {
     }
 
     public on_agent_message(session: AgentSession, msg: TaskChunkMessage | TaskExitMessage): void {
-        if (msg.type === "chunk" || msg.type === "task:chunk") {
+        if (msg.type === "task:chunk") {
             const task = this.active_tasks.get(msg.task_id)
             if (task && task.token === session.token) {
                 const payload = JSON.stringify({ stream: msg.stream, data: msg.data })
                 this.write_to_task(task, `event: chunk\ndata: ${payload}\n\n`)
             }
-        } else if (msg.type === "exit" || msg.type === "task:exit") {
+        } else if (msg.type === "task:exit") {
             const task = this.active_tasks.get(msg.task_id)
             if (task && task.token === session.token) {
                 if (task.timeout_id) clearTimeout(task.timeout_id)

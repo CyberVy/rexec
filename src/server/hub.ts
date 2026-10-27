@@ -152,7 +152,7 @@ export class RexecHub extends DurableObject {
     private handle_agent_message(session: AgentSession, data: string): void {
         try {
             const msg = JSON.parse(data) as AgentToHubMessage
-            if (msg.type === "chunk" || msg.type === "task:chunk" || msg.type === "exit" || msg.type === "task:exit") {
+            if (msg.type === "task:chunk" || msg.type === "task:exit") {
                 this.tasks.on_agent_message(session, msg)
             } else if (
                 msg.type === "file:pull_meta" ||

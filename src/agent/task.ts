@@ -22,7 +22,7 @@ export class TaskManager {
 
         child.stdout?.on("data", (chunk: Buffer) => {
             send({
-                type: "chunk",
+                type: "task:chunk",
                 task_id,
                 stream: "stdout",
                 data: chunk.toString("utf-8")
@@ -31,7 +31,7 @@ export class TaskManager {
 
         child.stderr?.on("data", (chunk: Buffer) => {
             send({
-                type: "chunk",
+                type: "task:chunk",
                 task_id,
                 stream: "stderr",
                 data: chunk.toString("utf-8")
@@ -44,7 +44,7 @@ export class TaskManager {
             )
             this.running_tasks.delete(task_id)
             send({
-                type: "exit",
+                type: "task:exit",
                 task_id,
                 code,
                 signal
@@ -54,13 +54,13 @@ export class TaskManager {
         child.on("error", (err) => {
             console.error(`[rexec-agent] [task:${task_id.slice(0, 8)}] Spawn error:`, err)
             send({
-                type: "chunk",
+                type: "task:chunk",
                 task_id,
                 stream: "stderr",
                 data: `rexec: failed to spawn process: ${err.message}\n`
             })
             send({
-                type: "exit",
+                type: "task:exit",
                 task_id,
                 code: 1,
                 signal: null

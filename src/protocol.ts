@@ -36,7 +36,7 @@ export interface PongMessage {
 // Task Domain Messages (Remote Execution)
 // ==========================================
 export interface TaskExecMessage {
-    type: "task:exec" | "exec"
+    type: "task:exec"
     task_id: string
     cmd: string
     cwd?: string
@@ -44,21 +44,21 @@ export interface TaskExecMessage {
 }
 
 export interface TaskChunkMessage {
-    type: "task:chunk" | "chunk"
+    type: "task:chunk"
     task_id: string
     stream: StreamType
     data: string
 }
 
 export interface TaskExitMessage {
-    type: "task:exit" | "exit"
+    type: "task:exit"
     task_id: string
     code: number | null
     signal?: string | null
 }
 
 export interface TaskKillMessage {
-    type: "task:kill" | "kill"
+    type: "task:kill"
     task_id: string
     signal?: string
 }
