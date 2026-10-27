@@ -103,9 +103,9 @@ Or set environment variables:
     private handle_message(raw_data: string): void {
         try {
             const msg = JSON.parse(raw_data) as HubToAgentMessage
-            if (msg.type === "task:exec" || msg.type === "exec") {
+            if (msg.type === "task:exec") {
                 this.tasks.execute(msg, this.options.workspace, (m) => this.send(m))
-            } else if (msg.type === "task:kill" || msg.type === "kill") {
+            } else if (msg.type === "task:kill") {
                 this.tasks.kill(msg)
             } else if (msg.type === "file:pull_start") {
                 this.transfers.handle_pull_start(
