@@ -6,12 +6,7 @@ export interface HubWsClientOptions {
     reconnect?: boolean
     reconnect_delay_ms?: number
     heartbeat_interval_ms?: number
-    /**
-     * How long to wait for any inbound frame after a ping before the socket is
-     * declared dead. Defaults to `heartbeat_interval_ms`. One missed pong is
-     * enough: WebSocket runs on TCP, so a missing pong means the path is dead,
-     * not that a datagram was lost.
-     */
+    /** Silence after a ping before the socket is dropped. Defaults to the ping interval. */
     heartbeat_timeout_ms?: number
     timeout_ms?: number
     signal?: AbortSignal
@@ -25,10 +20,6 @@ export interface HubWsClientOptions {
 
 export type ConnectWsOptions = HubWsClientOptions
 
-const DEFAULT_HEARTBEAT_INTERVAL_MS = 20_000
-const DEFAULT_RECONNECT_DELAY_MS = 3_000
-const DEFAULT_CONNECT_TIMEOUT_MS = 10_000
-const MAX_PONG_BUFFER_DEFERRALS = 3
 const HEARTBEAT_CLOSE_CODE = 4000
 const HEARTBEAT_CLOSE_REASON = "heartbeat pong timeout"
 
@@ -74,42 +65,28 @@ function make_close_event(code: number, reason: string): CloseEvent {
     const ctor = (globalThis as unknown as { CloseEvent?: new (type: string, init?: CloseEventInit) => CloseEvent })
         .CloseEvent
     if (ctor) return new ctor("close", { code, reason, wasClean: false })
-    // Node's global WebSocket dispatches CloseEvent, but the constructor is not global.
+    // Node dispatches CloseEvent from WebSocket, but the constructor is not global.
     return { code, reason, wasClean: false } as CloseEvent
 }
 
-function is_pong_message(data: string): boolean {
-    if (data === '{"type":"pong"}') return true
-    if (data.length > 80 || !data.includes('"pong"')) return false
-    try {
-        return (JSON.parse(data) as { type?: unknown }).type === "pong"
-    } catch {
-        return false
-    }
-}
-
 /**
- * Node's global WebSocket (undici) only emits `close` when the TCP socket
- * closes. `WebSocket.close()` sends a close frame and then waits forever if a
- * proxy ACKs the frame but never finishes the TCP close. Destroy the
- * underlying socket so a half-open session cannot pin the client in CLOSING.
+ * Node's WebSocket emits `close` only after TCP ends. `close()` alone stays in
+ * CLOSING forever when a proxy ACKs the frame and never finishes the socket.
  */
 function terminate_websocket(ws: WebSocket): void {
     try {
-        const symbols = Object.getOwnPropertySymbols(ws)
-        for (const symbol of symbols) {
+        for (const symbol of Object.getOwnPropertySymbols(ws)) {
             if (symbol.description !== "response") continue
             const response = (ws as unknown as Record<symbol, { socket?: { destroy?: () => void } } | undefined>)[
                 symbol
             ]
-            const socket = response?.socket
-            if (socket && typeof socket.destroy === "function") {
-                socket.destroy()
+            if (typeof response?.socket?.destroy === "function") {
+                response.socket.destroy()
                 return
             }
         }
     } catch {
-        // Fall through to the standard close.
+        // Fall through to close().
     }
     try {
         ws.close(HEARTBEAT_CLOSE_CODE, HEARTBEAT_CLOSE_REASON)
@@ -119,8 +96,8 @@ function terminate_websocket(ws: WebSocket): void {
 }
 
 /**
- * Unified WebSocket client with heartbeat, dead-connection detection,
- * connection timeout, and reconnect. Shared by Agent and Caller.
+ * Industrial-grade unified WebSocket client with automatic heartbeat,
+ * connection timeout, and reconnect resilience. Shared by Agent and Caller.
  */
 export class HubWsClient {
     readonly options: HubWsClientOptions
@@ -128,7 +105,6 @@ export class HubWsClient {
     private readonly retired = new WeakSet<WebSocket>()
     private is_destroyed = false
     private awaiting_pong = false
-    private pong_deferrals = 0
     private heartbeat_timer: ReturnType<typeof setInterval> | null = null
     private reconnect_timer: ReturnType<typeof setTimeout> | null = null
     private pong_timer: ReturnType<typeof setTimeout> | null = null
@@ -169,24 +145,14 @@ export class HubWsClient {
         this.is_destroyed = true
         this.stop_heartbeat()
         this.clear_reconnect()
-        const ws = this.ws
-        this.ws = null
-        if (ws) {
+        if (this.ws) {
             try {
-                ws.close(code, reason)
+                this.ws.close(code, reason)
             } catch {
                 // Ignore
             }
+            this.ws = null
         }
-    }
-
-    private heartbeat_interval_ms(): number {
-        return this.options.heartbeat_interval_ms ?? DEFAULT_HEARTBEAT_INTERVAL_MS
-    }
-
-    private heartbeat_timeout_ms(): number {
-        const timeout = this.options.heartbeat_timeout_ms ?? this.heartbeat_interval_ms()
-        return timeout > 0 ? timeout : this.heartbeat_interval_ms()
     }
 
     private clear_reconnect(): void {
@@ -205,19 +171,33 @@ export class HubWsClient {
 
     private note_activity(): void {
         this.awaiting_pong = false
-        this.pong_deferrals = 0
         this.clear_pong_timer()
     }
 
     private start_heartbeat(): void {
         this.stop_heartbeat()
-        const interval = this.heartbeat_interval_ms()
+        const interval = this.options.heartbeat_interval_ms ?? 20000
         if (interval <= 0) return
-        this.send_ping()
-        if (this.is_destroyed || !this.ws) return
         this.heartbeat_timer = setInterval(() => {
-            this.send_ping()
+            if (!this.is_open || this.is_destroyed) return
+            if (this.awaiting_pong) {
+                this.fail_connection()
+                return
+            }
+            this.awaiting_pong = true
+            this.send_json({ type: "ping" })
+            this.arm_pong_timer()
         }, interval)
+    }
+
+    private arm_pong_timer(): void {
+        this.clear_pong_timer()
+        const timeout = this.options.heartbeat_timeout_ms ?? this.options.heartbeat_interval_ms ?? 20000
+        if (timeout <= 0) return
+        this.pong_timer = setTimeout(() => {
+            this.pong_timer = null
+            if (this.awaiting_pong && !this.is_destroyed) this.fail_connection()
+        }, timeout)
     }
 
     private stop_heartbeat(): void {
@@ -227,50 +207,13 @@ export class HubWsClient {
         }
         this.clear_pong_timer()
         this.awaiting_pong = false
-        this.pong_deferrals = 0
-    }
-
-    private send_ping(): void {
-        if (this.is_destroyed || !this.is_open) return
-        if (this.awaiting_pong) return
-        this.awaiting_pong = true
-        this.pong_deferrals = 0
-        try {
-            this.send_json({ type: "ping" })
-        } catch {
-            this.fail_connection("heartbeat ping failed")
-            return
-        }
-        this.arm_pong_timer()
-    }
-
-    private arm_pong_timer(): void {
-        this.clear_pong_timer()
-        const timeout = this.heartbeat_timeout_ms()
-        if (timeout <= 0) return
-        this.pong_timer = setTimeout(() => {
-            this.pong_timer = null
-            this.on_pong_timeout()
-        }, timeout)
-    }
-
-    private on_pong_timeout(): void {
-        if (!this.awaiting_pong || this.is_destroyed) return
-        // A ping queued behind a large send has not reached the peer yet.
-        // Keep waiting while the kernel buffer is still draining, but not forever.
-        if (this.ws && this.ws.bufferedAmount > 0 && this.pong_deferrals < MAX_PONG_BUFFER_DEFERRALS) {
-            this.pong_deferrals++
-            this.arm_pong_timer()
-            return
-        }
-        this.fail_connection(HEARTBEAT_CLOSE_REASON)
     }
 
     private schedule_reconnect(): void {
         if (this.is_destroyed || this.options.reconnect === false) return
         if (this.reconnect_timer) return
 
-        const delay = this.options.reconnect_delay_ms ?? DEFAULT_RECONNECT_DELAY_MS
+        const delay = this.options.reconnect_delay_ms ?? 3000
         this.reconnect_timer = setTimeout(() => {
             this.reconnect_timer = null
             if (!this.is_destroyed) {
@@ -280,19 +223,18 @@ export class HubWsClient {
     }
 
     /**
-     * Drop the current socket and reconnect without waiting for a TCP close
-     * that may never arrive. Close events from the abandoned socket are ignored.
+     * A missing pong means the path is dead even if TCP still looks established.
+     * Drop the socket and reconnect without waiting for a close event.
      */
-    private fail_connection(reason: string): void {
+    private fail_connection(): void {
         if (this.is_destroyed) return
         const ws = this.ws
-        if (!ws) return
+        if (!ws || this.retired.has(ws)) return
         this.retired.add(ws)
         this.ws = null
         this.stop_heartbeat()
         terminate_websocket(ws)
-        const event = make_close_event(HEARTBEAT_CLOSE_CODE, reason)
-        const should_reconnect = this.options.on_close?.(event)
+        const should_reconnect = this.options.on_close?.(make_close_event(HEARTBEAT_CLOSE_CODE, HEARTBEAT_CLOSE_REASON))
         if (should_reconnect !== false && !this.is_destroyed && this.options.reconnect !== false) {
             this.schedule_reconnect()
         }
@@ -302,7 +244,8 @@ export class HubWsClient {
         if (this.is_destroyed) return
 
         const url = build_ws_url(this.options.hub_url, this.options.path, this.options.token, this.options.query_params)
-        const timeout_ms = this.options.timeout_ms ?? DEFAULT_CONNECT_TIMEOUT_MS
+
+        const timeout_ms = this.options.timeout_ms ?? 10000
 
         return new Promise<void>((resolve, reject) => {
             let timer: ReturnType<typeof setTimeout> | null = null
@@ -314,31 +257,25 @@ export class HubWsClient {
                 this.ws = ws
             } catch (err) {
                 if (is_initial) {
-                    reject(err instanceof Error ? err : new Error(String(err)))
+                    reject(err)
                 } else {
                     this.schedule_reconnect()
                 }
                 return
             }
 
-            const is_current = (): boolean => this.ws === ws && !this.retired.has(ws) && !this.is_destroyed
-
             const on_open = () => {
-                if (!is_current()) return
-                if (timer) {
-                    clearTimeout(timer)
-                    timer = null
-                }
+                if (this.ws !== ws || this.retired.has(ws)) return
+                if (timer) clearTimeout(timer)
                 this.start_heartbeat()
                 this.options.on_open?.(this)
                 resolve()
             }
 
             const on_error = (event: Event) => {
-                if (!is_current()) return
+                if (this.retired.has(ws)) return
                 if (timer && is_initial) {
                     clearTimeout(timer)
-                    timer = null
                     reject(new Error(`WebSocket connection to '${this.options.path}' failed`))
                 }
                 this.options.on_error?.(event)
@@ -346,17 +283,9 @@ export class HubWsClient {
 
             const on_close = (event: CloseEvent) => {
                 if (this.retired.has(ws)) return
-                // A newer socket is already current. This close belongs to a previous attempt
-                // that was not explicitly retired (it should have been). Ignore it so it cannot
-                // stop the live heartbeat or exit the process on a stale 1000.
                 if (this.ws !== null && this.ws !== ws) return
-                if (this.ws === ws) this.ws = null
-                const closed_before_open = timer !== null && is_initial
-                if (timer) {
+                if (timer && is_initial) {
                     clearTimeout(timer)
-                    timer = null
-                }
-                if (closed_before_open) {
                     reject(
                         new Error(
                             `WebSocket closed before ready (code: ${event.code}, reason: ${event.reason || "none"})`
@@ -374,53 +303,41 @@ export class HubWsClient {
             ws.addEventListener("error", on_error)
             ws.addEventListener("close", on_close)
 
-            ws.addEventListener("message", (event: MessageEvent) => {
-                if (!is_current()) return
-                void this.handle_message(ws, event)
+            ws.addEventListener("message", async (event: MessageEvent) => {
+                if (this.ws !== ws || this.retired.has(ws)) return
+                this.note_activity()
+                if (typeof event.data === "string") {
+                    if (event.data === '{"type":"pong"}') return
+                    this.options.on_message?.(event.data)
+                } else {
+                    let bytes: Uint8Array
+                    if (event.data instanceof ArrayBuffer) {
+                        bytes = new Uint8Array(event.data)
+                    } else if (ArrayBuffer.isView(event.data)) {
+                        bytes = new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength)
+                    } else if (event.data && typeof (event.data as Blob).arrayBuffer === "function") {
+                        const ab = await (event.data as Blob).arrayBuffer()
+                        if (this.ws !== ws || this.retired.has(ws)) return
+                        bytes = new Uint8Array(ab)
+                    } else {
+                        return
+                    }
+                    this.options.on_binary?.(bytes)
+                }
             })
 
             if (is_initial) {
                 timer = setTimeout(() => {
-                    if (timer === null || this.ws !== ws || this.retired.has(ws)) return
                     timer = null
-                    this.retired.add(ws)
-                    this.ws = null
-                    this.stop_heartbeat()
                     try {
                         ws.close(1000, "Connection timeout")
                     } catch {
                         // Ignore
                     }
                     reject(new Error(`WebSocket connection to '${this.options.path}' timed out after ${timeout_ms}ms`))
-                    this.schedule_reconnect()
                 }, timeout_ms)
             }
         })
-    }
-
-    private async handle_message(ws: WebSocket, event: MessageEvent): Promise<void> {
-        if (this.ws !== ws || this.is_destroyed) return
-        this.note_activity()
-
-        if (typeof event.data === "string") {
-            if (is_pong_message(event.data)) return
-            this.options.on_message?.(event.data)
-            return
-        }
-
-        let bytes: Uint8Array
-        if (event.data instanceof ArrayBuffer) {
-            bytes = new Uint8Array(event.data)
-        } else if (ArrayBuffer.isView(event.data)) {
-            bytes = new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength)
-        } else if (event.data && typeof (event.data as Blob).arrayBuffer === "function") {
-            const ab = await (event.data as Blob).arrayBuffer()
-            if (this.ws !== ws || this.is_destroyed) return
-            bytes = new Uint8Array(ab)
-        } else {
-            return
-        }
-        this.options.on_binary?.(bytes)
     }
 }
 

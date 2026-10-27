@@ -7,14 +7,6 @@ import { TaskManager } from "./task"
 import { TransferManager } from "./transfer_manager"
 import type { AgentOptions } from "./types"
 
-function env_ms(name: string): number | undefined {
-    const raw = process.env[name]
-    if (raw === undefined || raw.trim() === "") return undefined
-    const value = Number(raw)
-    if (!Number.isFinite(value) || value < 0) return undefined
-    return value
-}
-
 export class RexecAgent {
     private options: AgentOptions
     private client: HubWsClient | null = null
@@ -36,9 +28,8 @@ export class RexecAgent {
             token: this.options.token,
             query_params: { node_id: this.options.node_id },
             reconnect: true,
-            reconnect_delay_ms: env_ms("REXEC_RECONNECT_DELAY_MS"),
-            heartbeat_interval_ms: env_ms("REXEC_HEARTBEAT_INTERVAL_MS"),
-            heartbeat_timeout_ms: env_ms("REXEC_HEARTBEAT_TIMEOUT_MS"),
+            reconnect_delay_ms: 3000,
+            heartbeat_interval_ms: 20000,
             on_open: () => {
                 console.log(`[rexec-agent] Connected to hub. Node ID: ${this.options.node_id}`)
                 console.log(`[rexec-agent] Workspace: ${this.options.workspace}`)
@@ -67,10 +58,6 @@ Or set environment variables:
             on_message: (data) => this.handle_message(data),
             on_binary: (bytes) => this.handle_binary(bytes),
             on_close: (event) => {
-                // 1000 is a deliberate close (local shutdown, or this live socket lost
-                // the token to another agent). Heartbeat death uses 4000 and reconnects.
-                // Closes for a socket that this client has already replaced are not
-                // delivered here, so a half-open session cannot exit the process.
                 if (event.code === 1000) {
                     console.log(`[rexec-agent] Connection closed (${event.reason || "normal"}).`)
                     process.exit(0)

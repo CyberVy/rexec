@@ -35,9 +35,6 @@ export interface AgentSession {
     hostname?: string
     ws: WebSocket
     connected_at: number
-    last_seen: number
-    silence_armed_at: number
-    silence_timer?: ReturnType<typeof setTimeout>
 }
 
 export interface ActiveForwardSession {

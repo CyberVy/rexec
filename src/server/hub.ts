@@ -16,10 +16,6 @@ import {
 import type { ActiveForwardSession, ActivePull, ActivePush, ActiveTask, AgentSession } from "./types"
 import { extract_token, get_cors_headers } from "./utils"
 
-/** Drop an agent socket that has gone silent. The client pings every 20s. */
-const AGENT_SILENCE_TIMEOUT_MS = 90_000
-const AGENT_SILENCE_REARM_MS = 15_000
-
 export class RexecHub extends DurableObject {
     private agents: Map<string, AgentSession> = new Map()
     private active_tasks: Map<string, ActiveTask> = new Map()
@@ -49,8 +45,7 @@ export class RexecHub extends DurableObject {
                         status: "ok",
                         agent_connected: is_connected,
                         node_id: session?.node_id,
-                        active_tasks: tasks_for_token,
-                        last_seen_age_ms: session ? Date.now() - session.last_seen : undefined
+                        active_tasks: tasks_for_token
                     },
                     { headers }
                 )
@@ -120,20 +115,15 @@ export class RexecHub extends DurableObject {
 
         server.accept()
 
-        const now = Date.now()
         const session: AgentSession = {
             token,
             node_id,
             ws: server,
-            connected_at: now,
-            last_seen: now,
-            silence_armed_at: 0
+            connected_at: Date.now()
         }
         this.agents.set(token, session)
-        this.note_agent_activity(session)
 
         server.addEventListener("message", async (event) => {
-            this.note_agent_activity(session)
             if (typeof event.data === "string") {
                 this.handle_agent_message(session, event.data)
             } else if (event.data instanceof ArrayBuffer) {
@@ -163,39 +153,11 @@ export class RexecHub extends DurableObject {
     private cleanup_agent_session(token: string, ws: WebSocket, reason: string): void {
         const current = this.agents.get(token)
         if (current && current.ws === ws) {
-            if (current.silence_timer !== undefined) {
-                clearTimeout(current.silence_timer)
-                current.silence_timer = undefined
-            }
             this.agents.delete(token)
             this.abort_tasks_for_token(token, reason)
             this.abort_transfers_for_token(token, reason)
             this.abort_forwards_for_token(token, reason)
         }
-    }
-
-    /**
-     * The agent->hub direction can die while `readyState` stays OPEN (the peer
-     * vanished and no TCP FIN/RST arrived). Forget the session if no frame
-     * arrives within `AGENT_SILENCE_TIMEOUT_MS` so `/health` does not stay Online.
-     */
-    private note_agent_activity(session: AgentSession): void {
-        const now = Date.now()
-        session.last_seen = now
-        if (session.silence_timer !== undefined && now - session.silence_armed_at < AGENT_SILENCE_REARM_MS) {
-            return
-        }
-        if (session.silence_timer !== undefined) clearTimeout(session.silence_timer)
-        session.silence_armed_at = now
-        session.silence_timer = setTimeout(() => {
-            session.silence_timer = undefined
-            try {
-                session.ws.close(4000, "agent heartbeat lost")
-            } catch {
-                // Ignore
-            }
-            this.cleanup_agent_session(session.token, session.ws, "Agent heartbeat lost")
-        }, AGENT_SILENCE_TIMEOUT_MS)
     }
 
     private handle_agent_message(session: AgentSession, data: string): void {

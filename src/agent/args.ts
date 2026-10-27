@@ -16,13 +16,6 @@ Options:
   --node-id <id>       Worker node identifier (default: hostname)
   -h, --help           Show this help message
 
-Environment:
-  REXEC_HUB                         Hub URL
-  REXEC_TOKEN                       Auth token
-  REXEC_HEARTBEAT_INTERVAL_MS       Ping interval (default 20000, 0 disables)
-  REXEC_HEARTBEAT_TIMEOUT_MS        Max silence after a ping before reconnect
-  REXEC_RECONNECT_DELAY_MS          Delay before reconnect (default 3000)
-
 Examples:
   rexec-agent --hub wss://hub.example.com
   rexec-agent --hub http://127.0.0.1:8787 --token my-custom-secret --workspace ./workspace

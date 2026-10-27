@@ -9,8 +9,6 @@ export interface HubStatus {
     node_id?: string
     active_tasks: number
     connected_agents?: number
-    /** Milliseconds since the hub last received a frame from this agent. */
-    last_seen_age_ms?: number
 }
 
 export interface ExecOptions {
