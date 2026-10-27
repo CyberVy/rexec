@@ -62,7 +62,7 @@ Or set environment variables:
                     console.log(`[rexec-agent] Connection closed (${event.reason || "normal"}).`)
                     process.exit(0)
                 }
-                console.warn(
+                console.log(
                     `[rexec-agent] Connection closed (code: ${event.code}, reason: ${event.reason || "none"}). Reconnecting...`
                 )
             },

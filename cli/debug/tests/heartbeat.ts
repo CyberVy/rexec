@@ -150,7 +150,129 @@ async function test_half_open_reconnects(): Promise<boolean> {
     }
 }
 
+async function test_close_frame_without_tcp_fin(): Promise<boolean> {
+    const test_name = "test:heartbeat_close_frame_without_tcp_fin"
+    const command = "peer sends close 1000 and holds TCP"
+    let connection_count = 0
+    const sockets = new Set<net.Socket>()
+    const closes: string[] = []
+
+    const server = net.createServer((socket) => {
+        connection_count++
+        const hold_after_close_frame = connection_count === 1
+        sockets.add(socket)
+        socket.on("close", () => sockets.delete(socket))
+        socket.on("error", () => {})
+        let buffer: Buffer = Buffer.alloc(0)
+        let upgraded = false
+        socket.on("data", (chunk: Buffer) => {
+            buffer = Buffer.concat([buffer, chunk])
+            if (!upgraded) {
+                const header_end = buffer.indexOf("\r\n\r\n")
+                if (header_end < 0) return
+                const key = buffer
+                    .subarray(0, header_end)
+                    .toString("latin1")
+                    .match(/Sec-WebSocket-Key:\s*(\S+)/i)?.[1]
+                if (!key) {
+                    socket.destroy()
+                    return
+                }
+                const accept = crypto
+                    .createHash("sha1")
+                    .update(key + WS_GUID)
+                    .digest("base64")
+                socket.write(
+                    "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n" +
+                        `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
+                )
+                buffer = Buffer.from(buffer.subarray(header_end + 4))
+                upgraded = true
+                if (hold_after_close_frame) {
+                    setTimeout(() => {
+                        if (!socket.destroyed) socket.write(Buffer.from([0x88, 0x02, 0x03, 0xe8]))
+                    }, 50)
+                }
+            }
+            if (hold_after_close_frame) {
+                buffer = Buffer.alloc(0)
+                return
+            }
+            buffer = consume_client_frames(buffer, (text) => {
+                if (text === '{"type":"ping"}') socket.write(encode_server_text('{"type":"pong"}'))
+            })
+        })
+    })
+
+    const port = await new Promise<number>((resolve, reject) => {
+        server.once("error", reject)
+        server.listen(0, "127.0.0.1", () => {
+            const address = server.address()
+            if (!address || typeof address === "string") reject(new Error("failed to bind"))
+            else resolve(address.port)
+        })
+    })
+
+    const client = new HubWsClient({
+        hub_url: `ws://127.0.0.1:${port}`,
+        path: "/ws",
+        token: "heartbeat",
+        heartbeat_interval_ms: 200,
+        heartbeat_timeout_ms: 300,
+        reconnect_delay_ms: 100,
+        reconnect: true,
+        on_close: (event) => {
+            closes.push(`${event.code}:${event.reason}`)
+        }
+    })
+
+    const finish = async () => {
+        client.close(1000, "test done")
+        for (const socket of sockets) socket.destroy()
+        await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+
+    try {
+        await client.connect()
+        const start = Date.now()
+        while (Date.now() - start < 3000 && !(connection_count >= 2 && client.is_open)) {
+            await new Promise((resolve) => setTimeout(resolve, 20))
+        }
+        await new Promise((resolve) => setTimeout(resolve, 800))
+        const passed =
+            closes.some((entry) => entry.includes("heartbeat pong timeout")) &&
+            connection_count === 2 &&
+            sockets.size === 1 &&
+            client.is_open
+        const details = `closes=${closes.join(",") || "none"} connections=${connection_count} open=${sockets.size}`
+        print_verdict(test_name, passed, details)
+        record_history({
+            test_name,
+            command,
+            verdict: passed ? "PASS" : "FAIL",
+            exit_code: passed ? 0 : 1,
+            duration_ms: Date.now() - start,
+            error_message: passed ? undefined : details
+        })
+        return passed
+    } catch (err) {
+        print_verdict(test_name, false, (err as Error).message)
+        record_history({
+            test_name,
+            command,
+            verdict: "FAIL",
+            exit_code: 1,
+            duration_ms: 0,
+            error_message: (err as Error).message
+        })
+        return false
+    } finally {
+        await finish()
+    }
+}
+
 test_half_open_reconnects()
+    .then((first) => test_close_frame_without_tcp_fin().then((second) => first && second))
     .then((passed) => process.exit(passed ? 0 : 1))
     .catch((err) => {
         console.error("[heartbeat test fatal]", err)

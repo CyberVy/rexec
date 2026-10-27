@@ -179,7 +179,16 @@ export class HubWsClient {
         const interval = this.options.heartbeat_interval_ms ?? 20000
         if (interval <= 0) return
         this.heartbeat_timer = setInterval(() => {
-            if (!this.is_open || this.is_destroyed) return
+            if (this.is_destroyed) return
+            const ws = this.ws
+            if (!ws || this.retired.has(ws)) return
+            // A WebSocket close frame moves readyState to CLOSING, but Node only
+            // emits `close` after TCP ends. A proxy can forward the frame and keep
+            // the socket. That is not an open connection.
+            if (ws.readyState !== WebSocket.OPEN) {
+                this.fail_connection()
+                return
+            }
             if (this.awaiting_pong) {
                 this.fail_connection()
                 return
