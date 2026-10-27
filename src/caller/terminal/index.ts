@@ -15,6 +15,9 @@ async function handle_status(caller: RexecCaller): Promise<void> {
             console.log(`Node ID: ${data.node_id}`)
         }
         console.log(`Agent Connected: ${data.agent_connected ? "YES (Online)" : "NO (Offline)"}`)
+        if (typeof data.last_seen_age_ms === "number") {
+            console.log(`Last Seen: ${Math.max(0, Math.round(data.last_seen_age_ms / 1000))}s ago`)
+        }
         console.log(`Active Tasks: ${data.active_tasks}`)
         process.exit(data.agent_connected ? 0 : 1)
     } catch (err) {

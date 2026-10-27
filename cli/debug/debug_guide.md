@@ -20,6 +20,7 @@ The debug channel does not import internal implementation details from `src/`. I
     - `env_cwd.ts`: Remote directory isolation and shell pipeline execution.
     - `abort.ts`: SIGINT abortion and remote child process termination.
     - `large_output.ts`: Streaming fidelity under high-volume chunked output.
+    - `heartbeat.ts`: Half-open WebSocket detection. A peer that swallows pings without closing TCP must be dropped and reconnected.
     - `run_all.ts`: Sequential test runner with aggregated pass/fail reporting.
 - `.debug/` (git ignored):
     - `config.json`: Live target info written by `serve.ts` (removed on exit).
@@ -46,6 +47,7 @@ npm run debug:test:basic
 npm run debug:test:env
 npm run debug:test:abort
 npm run debug:test:large
+npm run debug:test:heartbeat
 ```
 
 ## AI Agent Autonomous Troubleshooting Workflow
