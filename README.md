@@ -105,6 +105,17 @@ rexec-agent --hub https://rexec.edgetool.workers.dev
 rexec-agent --hub <hub-url> --token <custom-secret>
 ```
 
+The agent reconnects with the same hub, token, workspace, and node id when application pings go unanswered, or the socket sits in `CLOSING` (a proxy delivered a close frame but did not finish TCP). A local proxy can keep the process's TCP session looking open after the Hub has already dropped it. Liveness is the WebSocket pong. `GET /health` stays available for `rexec status` and other callers; the agent does not poll it.
+
+Timers are milliseconds. `0` disables that one check. Defaults are in parentheses.
+
+- `REXEC_HEARTBEAT_INTERVAL_MS` — application ping interval (`5000`)
+- `REXEC_HEARTBEAT_TIMEOUT_MS` — reconnect if no Hub frame arrives (`15000`, or 3× the ping interval when only the interval is set)
+- `REXEC_RECONNECT_DELAY_MS` — wait before the next attempt (`3000`)
+- `REXEC_CONNECT_TIMEOUT_MS` — handshake deadline for every attempt (`10000`)
+
+`rexec-agent --help` prints the same list.
+
 When started without `--token`, `rexec-agent` automatically generates a secure session token and outputs ready-to-use local execution commands:
 
 ```text
@@ -203,6 +214,8 @@ rexec forward 8080
 # Forward remote port 8000 to localhost:9000 (e.g., Gradio, ComfyUI, TensorBoard, Jupyter)
 rexec forward 9000:8000
 ```
+
+`rexec forward` already reconnects after a finished socket close and sends application pings. It does not drop a half-open tunnel unless idle recovery is enabled. In `open_forward_tunnel` / `HubWsClient`, set `heartbeat_timeout_ms` (for example `15000`, the agent idle default). Leave it unset for short-lived caller commands; they do not use this watchdog.
 
 ---
 

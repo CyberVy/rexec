@@ -16,6 +16,19 @@ Options:
   --node-id <id>       Worker node identifier (default: hostname)
   -h, --help           Show this help message
 
+Environment (milliseconds, 0 disables that check):
+  REXEC_HEARTBEAT_INTERVAL_MS   Application ping interval (default 5000)
+  REXEC_HEARTBEAT_TIMEOUT_MS    Reconnect when no hub frame arrives (default 15000,
+                                or 3x the ping interval when only the interval is set)
+  REXEC_RECONNECT_DELAY_MS      Delay before the next connection attempt (default 3000)
+  REXEC_CONNECT_TIMEOUT_MS      Handshake deadline for every attempt (default 10000)
+
+A half-open proxy socket can stay OPEN after the Hub has dropped the session.
+The agent treats an unanswered application ping as dead: if no Hub frame arrives
+within the idle timeout, or the socket sticks in CLOSING, it reconnects with the
+same hub, token, workspace, and node id. Hub GET /health is for callers and ops;
+the agent does not poll it.
+
 Examples:
   rexec-agent --hub wss://hub.example.com
   rexec-agent --hub http://127.0.0.1:8787 --token my-custom-secret --workspace ./workspace
