@@ -13,6 +13,7 @@ const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 const WORKER_LOG_FILE = path.join(DEBUG_DIR, "worker.jsonl")
 const AGENT_LOG_FILE = path.join(DEBUG_DIR, "agent.jsonl")
 const AGENT_BUNDLE = path.join(repo_root, "dist", "rexec-agent.mjs")
+const CLI_BUNDLE = path.join(repo_root, "dist", "rexec.mjs")
 const DEFAULT_PORT = 8787
 
 export const DEBUG_TOKEN = "rexec-debug-token"
@@ -58,13 +59,14 @@ async function run(): Promise<void> {
 
     fs.mkdirSync(DEBUG_DIR, { recursive: true })
 
-    if (!fs.existsSync(AGENT_BUNDLE)) {
-        console.log("[debug:serve] Building agent bundle first...")
-        const build_proc = spawn("npm", ["run", "build:agent"], { cwd: repo_root, stdio: "inherit" })
+    const dist_installer = path.join(repo_root, "dist", "install", "caller")
+    if (!fs.existsSync(AGENT_BUNDLE) || !fs.existsSync(CLI_BUNDLE) || !fs.existsSync(dist_installer)) {
+        console.log("[debug:serve] Building bundles and installers first...")
+        const build_proc = spawn("npm", ["run", "build"], { cwd: repo_root, stdio: "inherit" })
         await new Promise<void>((resolve, reject) => {
             build_proc.on("close", (code) => {
                 if (code === 0) resolve()
-                else reject(new Error(`Failed to build agent bundle (exit code ${code})`))
+                else reject(new Error(`Failed to build bundles (exit code ${code})`))
             })
         })
     }

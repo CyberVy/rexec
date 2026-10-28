@@ -3,6 +3,7 @@ main = "src/server/index.ts"
 compatibility_date = "2025-10-12"
 workers_dev = true
 preview_urls = true
+assets = { directory = "./dist" }
 
 [[durable_objects.bindings]]
 name = "REXEC_HUB"

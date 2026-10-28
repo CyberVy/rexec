@@ -52,17 +52,19 @@ flowchart LR
 
 ## Getting Started
 
-### 1. Install
+### 1. Install Local CLI (`rexec`)
+
+Install the `rexec` command-line tool on your local machine with a single command (requires Node.js 20+):
 
 ```bash
-git clone https://github.com/CyberVy/rexec.git
-cd rexec
-npm install
-npm run build
-npm link
+curl -fsSL https://rexec.edgetool.workers.dev/install/caller | bash
 ```
 
-### 2. Setup the Hub
+*(This automatically downloads the standalone client to `~/.local/bin/rexec` or `/usr/local/bin/rexec` and sets executable permissions).*
+
+---
+
+### 2. Setup the Hub (optional)
 
 You can connect to the official public Hub directly, or deploy your own relay server to Cloudflare Workers.
 
@@ -77,23 +79,30 @@ You can connect to the official public Hub directly, or deploy your own relay se
   ```bash
   npm run deploy
   ```
-  No environment variables or secrets are required at deployment time. All worker nodes are managed concurrently within a single Durable Object instance.
+  No environment variables or secrets are required at deployment time. Static distribution assets (`/install/*`, `/agent`, and standalone bundles) are bundled and deployed automatically.
 
 ---
 
 ### 3. Start the Remote Agent (`rexec-agent`)
 
-On your target machine (e.g., Google Colab, remote GPU VM, or container), run `rexec-agent`:
+On your target machine (e.g., Google Colab, remote GPU VM, or container), install and start `rexec-agent`:
+
+#### Install `rexec-agent`
+
+```bash
+curl -fsSL https://rexec.edgetool.workers.dev/install/agent | bash
+```
+
+*(This automatically installs the standalone daemon to `~/.local/bin/rexec-agent` or `/usr/local/bin/rexec-agent`).*
+
+#### Run the Daemon
 
 ```bash
 # Auto-generate a session token on startup
-npx rexec-agent --hub <hub-url>
-
-# Quick test using the official public hub
-npx rexec-agent --hub https://rexec.edgetool.workers.dev
+rexec-agent --hub https://rexec.edgetool.workers.dev
 
 # Or specify a custom static token
-npx rexec-agent --hub <hub-url> --token <custom-secret>
+rexec-agent --hub <hub-url> --token <custom-secret>
 ```
 
 When started without `--token`, `rexec-agent` automatically generates a secure session token and outputs ready-to-use local execution commands:

@@ -11,10 +11,11 @@
   "scripts": {
     "build:agent": "esbuild src/agent/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/rexec-agent.mjs --banner:js=\"#!/usr/bin/env -S node --experimental-websocket\"",
     "build:cli": "esbuild src/caller/terminal/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/rexec.mjs --banner:js=\"#!/usr/bin/env node\"",
-    "build": "npm run build:agent && npm run build:cli",
+    "build:installers": "sh scripts/build_installers.sh",
+    "build": "npm run build:agent && npm run build:cli && npm run build:installers",
     "dev": "npm run debug:serve",
     "dev:worker": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "npm run build && wrangler deploy",
     "debug:serve": "tsx cli/debug/serve.ts",
     "debug:test": "tsx cli/debug/tests/run_all.ts",
     "debug:test:basic": "tsx cli/debug/tests/basic.ts",
