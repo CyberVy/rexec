@@ -1,11 +1,24 @@
+import { WsLifecycle } from "@/transport/lifecycle"
+
 export interface HubWsClientOptions {
     hub_url: string
     path: string
     token: string
     query_params?: Record<string, string | number>
+    /**
+     * Reconnect after the socket dies. Default true.
+     * Idle recovery stays off until `heartbeat_timeout_ms` is set.
+     */
     reconnect?: boolean
     reconnect_delay_ms?: number
+    /** Application ping interval. Default 20000. `0` disables pings. */
     heartbeat_interval_ms?: number
+    /**
+     * Drop the socket when no inbound frame arrives for this long, then reconnect.
+     * Default `0` (off), so short-lived and forward sessions keep their previous behavior.
+     * Set for example `15000` on a long-lived forward to self-heal a half-open tunnel.
+     */
+    heartbeat_timeout_ms?: number
     timeout_ms?: number
     signal?: AbortSignal
 
@@ -57,191 +70,53 @@ export function build_ws_url(
 }
 
 /**
- * Industrial-grade unified WebSocket client with automatic heartbeat,
- * connection timeout, and reconnect resilience. Shared by Agent and Caller.
+ * Caller WebSocket. Frames go through `WsLifecycle`.
+ * Ping defaults on; idle drop stays off unless `heartbeat_timeout_ms` is set.
  */
 export class HubWsClient {
     public readonly options: HubWsClientOptions
-    private ws: WebSocket | null = null
-    private is_destroyed = false
-    private heartbeat_timer: ReturnType<typeof setInterval> | null = null
-    private reconnect_timer: ReturnType<typeof setTimeout> | null = null
+    private readonly life: WsLifecycle
 
     public constructor(options: HubWsClientOptions) {
         this.options = options
-        if (options.signal) {
-            options.signal.addEventListener("abort", () => this.close(1000, "Aborted by signal"), { once: true })
-        }
+        this.life = new WsLifecycle({
+            url: build_ws_url(options.hub_url, options.path, options.token, options.query_params),
+            reconnect: options.reconnect !== false,
+            reconnect_delay_ms: options.reconnect_delay_ms ?? 3000,
+            ping_interval_ms: options.heartbeat_interval_ms ?? 20000,
+            idle_timeout_ms: options.heartbeat_timeout_ms ?? 0,
+            connect_timeout_ms: options.timeout_ms ?? 10000,
+            signal: options.signal,
+            on_open: () => options.on_open?.(this),
+            on_message: (data) => options.on_message?.(data),
+            on_binary: (bytes) => options.on_binary?.(bytes),
+            on_error: (event) => options.on_error?.(event),
+            on_close: (event) => options.on_close?.(event)
+        })
     }
 
     public get readyState(): number {
-        return this.ws ? this.ws.readyState : WebSocket.CLOSED
+        return this.life.readyState
     }
 
     public get is_open(): boolean {
-        return this.ws !== null && this.ws.readyState === WebSocket.OPEN
+        return this.life.is_open
     }
 
-    public async connect(): Promise<void> {
-        if (this.is_destroyed) return
-        return this.establish_connection(true)
+    public connect(): Promise<void> {
+        return this.life.start()
     }
 
     public send_json(data: unknown): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(data))
-        }
+        this.life.send_json(data)
     }
 
     public send_binary(data: Uint8Array): void {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(data)
-        }
+        this.life.send_binary(data)
     }
 
     public close(code = 1000, reason = "Client closed"): void {
-        this.is_destroyed = true
-        this.stop_heartbeat()
-        this.clear_reconnect()
-        if (this.ws) {
-            try {
-                this.ws.close(code, reason)
-            } catch {
-                // Ignore
-            }
-            this.ws = null
-        }
-    }
-
-    private clear_reconnect(): void {
-        if (this.reconnect_timer) {
-            clearTimeout(this.reconnect_timer)
-            this.reconnect_timer = null
-        }
-    }
-
-    private start_heartbeat(): void {
-        this.stop_heartbeat()
-        const interval = this.options.heartbeat_interval_ms ?? 20000
-        if (interval <= 0) return
-        this.heartbeat_timer = setInterval(() => {
-            if (this.is_open) {
-                this.send_json({ type: "ping" })
-            }
-        }, interval)
-    }
-
-    private stop_heartbeat(): void {
-        if (this.heartbeat_timer) {
-            clearInterval(this.heartbeat_timer)
-            this.heartbeat_timer = null
-        }
-    }
-
-    private schedule_reconnect(): void {
-        if (this.is_destroyed || this.options.reconnect === false) return
-        if (this.reconnect_timer) return
-
-        const delay = this.options.reconnect_delay_ms ?? 3000
-        this.reconnect_timer = setTimeout(() => {
-            this.reconnect_timer = null
-            if (!this.is_destroyed) {
-                void this.establish_connection(false).catch(() => {})
-            }
-        }, delay)
-    }
-
-    private async establish_connection(is_initial: boolean): Promise<void> {
-        if (this.is_destroyed) return
-
-        const url = build_ws_url(this.options.hub_url, this.options.path, this.options.token, this.options.query_params)
-
-        const timeout_ms = this.options.timeout_ms ?? 10000
-
-        return new Promise<void>((resolve, reject) => {
-            let timer: ReturnType<typeof setTimeout> | null = null
-            let ws: WebSocket
-
-            try {
-                ws = new WebSocket(url)
-                ws.binaryType = "arraybuffer"
-                this.ws = ws
-            } catch (err) {
-                if (is_initial) {
-                    reject(err)
-                } else {
-                    this.schedule_reconnect()
-                }
-                return
-            }
-
-            const on_open = () => {
-                if (timer) clearTimeout(timer)
-                this.start_heartbeat()
-                this.options.on_open?.(this)
-                resolve()
-            }
-
-            const on_error = (event: Event) => {
-                if (timer && is_initial) {
-                    clearTimeout(timer)
-                    reject(new Error(`WebSocket connection to '${this.options.path}' failed`))
-                }
-                this.options.on_error?.(event)
-            }
-
-            const on_close = (event: CloseEvent) => {
-                if (timer && is_initial) {
-                    clearTimeout(timer)
-                    reject(
-                        new Error(
-                            `WebSocket closed before ready (code: ${event.code}, reason: ${event.reason || "none"})`
-                        )
-                    )
-                }
-                this.stop_heartbeat()
-                const should_reconnect = this.options.on_close?.(event)
-                if (should_reconnect !== false && !this.is_destroyed && this.options.reconnect !== false) {
-                    this.schedule_reconnect()
-                }
-            }
-
-            ws.addEventListener("open", on_open)
-            ws.addEventListener("error", on_error)
-            ws.addEventListener("close", on_close)
-
-            ws.addEventListener("message", async (event: MessageEvent) => {
-                if (typeof event.data === "string") {
-                    if (event.data === '{"type":"pong"}') return
-                    this.options.on_message?.(event.data)
-                } else {
-                    let bytes: Uint8Array
-                    if (event.data instanceof ArrayBuffer) {
-                        bytes = new Uint8Array(event.data)
-                    } else if (ArrayBuffer.isView(event.data)) {
-                        bytes = new Uint8Array(event.data.buffer, event.data.byteOffset, event.data.byteLength)
-                    } else if (event.data && typeof (event.data as Blob).arrayBuffer === "function") {
-                        const ab = await (event.data as Blob).arrayBuffer()
-                        bytes = new Uint8Array(ab)
-                    } else {
-                        return
-                    }
-                    this.options.on_binary?.(bytes)
-                }
-            })
-
-            if (is_initial) {
-                timer = setTimeout(() => {
-                    timer = null
-                    try {
-                        ws.close(1000, "Connection timeout")
-                    } catch {
-                        // Ignore
-                    }
-                    reject(new Error(`WebSocket connection to '${this.options.path}' timed out after ${timeout_ms}ms`))
-                }, timeout_ms)
-            }
-        })
+        this.life.stop(code, reason)
     }
 }
 

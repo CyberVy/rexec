@@ -1,15 +1,28 @@
 import os from "node:os"
 import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
-import { ChannelDomain, decode_forward_frame, HubWsClient } from "@/transport"
+import { WsLifecycle } from "@/transport/lifecycle"
+import { ChannelDomain, decode_forward_frame, build_ws_url } from "@/transport"
 import { parse_args } from "./args"
 import { ForwardManager } from "./forward_manager"
 import { TaskManager } from "./task"
 import { TransferManager } from "./transfer_manager"
 import type { AgentOptions } from "./types"
 
+const REPLACED_REASON = "Replaced by new connection"
+const DEFAULT_PING_INTERVAL_MS = 5000
+const DEFAULT_IDLE_TIMEOUT_MS = 15000
+
+function env_ms(name: string, fallback: number): number {
+    const raw = process.env[name]
+    if (raw === undefined || raw.trim() === "") return fallback
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value < 0) return fallback
+    return value
+}
+
 export class RexecAgent {
     private options: AgentOptions
-    private client: HubWsClient | null = null
+    private life: WsLifecycle | null = null
     private tasks = new TaskManager()
     private transfers = new TransferManager()
     private forwards = new ForwardManager()
@@ -22,14 +35,19 @@ export class RexecAgent {
     public start(): void {
         console.log(`[rexec-agent] Connecting to hub at ${this.options.hub_url}...`)
 
-        this.client = new HubWsClient({
-            hub_url: this.options.hub_url,
-            path: "/ws",
-            token: this.options.token,
-            query_params: { node_id: this.options.node_id },
+        const ping_interval_ms = env_ms("REXEC_HEARTBEAT_INTERVAL_MS", DEFAULT_PING_INTERVAL_MS)
+        const idle_timeout_ms = env_ms(
+            "REXEC_HEARTBEAT_TIMEOUT_MS",
+            ping_interval_ms > 0 ? (ping_interval_ms * DEFAULT_IDLE_TIMEOUT_MS) / DEFAULT_PING_INTERVAL_MS : 0
+        )
+
+        this.life = new WsLifecycle({
+            url: build_ws_url(this.options.hub_url, "/ws", this.options.token, { node_id: this.options.node_id }),
             reconnect: true,
-            reconnect_delay_ms: 3000,
-            heartbeat_interval_ms: 20000,
+            reconnect_delay_ms: env_ms("REXEC_RECONNECT_DELAY_MS", 3000),
+            ping_interval_ms,
+            idle_timeout_ms,
+            connect_timeout_ms: env_ms("REXEC_CONNECT_TIMEOUT_MS", 10000),
             on_open: () => {
                 console.log(`[rexec-agent] Connected to hub. Node ID: ${this.options.node_id}`)
                 console.log(`[rexec-agent] Workspace: ${this.options.workspace}`)
@@ -57,21 +75,21 @@ Or set environment variables:
             },
             on_message: (data) => this.handle_message(data),
             on_binary: (bytes) => this.handle_binary(bytes),
-            on_close: (event) => {
-                if (event.code === 1000) {
-                    console.log(`[rexec-agent] Connection closed (${event.reason || "normal"}).`)
-                    process.exit(0)
-                }
-                console.warn(
-                    `[rexec-agent] Connection closed (code: ${event.code}, reason: ${event.reason || "none"}). Reconnecting...`
-                )
-            },
             on_error: (event) => {
                 console.error(`[rexec-agent] Connection error:`, event)
+            },
+            on_dead: (reason) => {
+                console.log(`[rexec-agent] Session dead (${reason}). Reconnecting.`)
+            },
+            on_close: (event) => {
+                if (event.code === 1000 && event.reason === REPLACED_REASON) {
+                    console.log(`[rexec-agent] Connection closed (${REPLACED_REASON}).`)
+                    process.exit(0)
+                }
             }
         })
 
-        void this.client.connect().catch((err) => {
+        void this.life.start().catch((err) => {
             console.error(`[rexec-agent] Initial connection attempt failed:`, (err as Error).message)
         })
 
@@ -80,11 +98,11 @@ Or set environment variables:
     }
 
     private send(msg: AgentToHubMessage): void {
-        this.client?.send_json(msg)
+        this.life?.send_json(msg)
     }
 
     private send_binary(packet: Uint8Array): void {
-        this.client?.send_binary(packet)
+        this.life?.send_binary(packet)
     }
 
     private handle_binary(bytes: Uint8Array): void {
@@ -147,7 +165,7 @@ Or set environment variables:
         this.transfers.abort_all()
         this.forwards.abort_all()
 
-        this.client?.close(1000, "Agent shutting down")
+        this.life?.stop(1000, "Agent shutting down")
         process.exit(0)
     }
 }

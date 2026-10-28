@@ -24,6 +24,7 @@
     "debug:test:large": "tsx cli/debug/tests/large_output.ts",
     "debug:test:transfer": "tsx cli/debug/tests/file_transfer.ts",
     "debug:test:forward": "tsx cli/debug/tests/forward.ts",
+    "debug:test:heartbeat": "tsx cli/debug/tests/heartbeat.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src cli --deny-warnings",
     "format": "oxfmt src cli",
