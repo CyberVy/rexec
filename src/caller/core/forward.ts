@@ -40,6 +40,7 @@ export async function open_forward_tunnel(options: ForwardClientOptions): Promis
         timeout_ms: options.timeout_ms ?? 10000,
         heartbeat_interval_ms: 20000,
         reconnect: true,
+        // Idle drop is off. Set heartbeat_timeout_ms (for example 15000) to RST a half-open tunnel.
         on_message(data) {
             try {
                 const msg = JSON.parse(data) as {
