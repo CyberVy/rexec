@@ -215,7 +215,7 @@ rexec forward 8080
 rexec forward 9000:8000
 ```
 
-`rexec forward` already reconnects after a finished socket close and sends application pings. It does not drop a half-open tunnel unless idle recovery is enabled. In `open_forward_tunnel` / `HubWsClient`, set `heartbeat_timeout_ms` (for example `15000`, the agent idle default). Leave it unset for short-lived caller commands; they do not use this watchdog.
+`rexec forward` already reconnects after a finished socket close and sends application pings. It does not drop a half-open tunnel unless idle recovery is enabled. In `open_forward_tunnel` / `WsClient`, set `idle_timeout_ms` (for example `15000`, the agent idle default). Leave it unset for short-lived caller commands; they do not use this watchdog.
 
 ---
 

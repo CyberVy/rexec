@@ -1,5 +1,5 @@
 import { decode_forward_frame, encode_forward_frame } from "@/transport/framing"
-import { HubWsClient } from "@/transport/ws"
+import { build_ws_url, WsClient } from "@/transport/ws"
 
 export interface ForwardClientOptions {
     hub_url: string
@@ -31,16 +31,14 @@ export async function open_forward_tunnel(options: ForwardClientOptions): Promis
         resolve_session = resolve
     })
 
-    const client = new HubWsClient({
-        hub_url: options.hub_url,
-        path: "/ws/forward",
-        token: options.token,
-        query_params: { remote_port: options.remote_port },
+    const client = new WsClient({
+        url: build_ws_url(options.hub_url, "/ws/forward", options.token, { remote_port: options.remote_port }),
         signal: options.signal,
-        timeout_ms: options.timeout_ms ?? 10000,
-        heartbeat_interval_ms: 20000,
+        connect_timeout_ms: options.timeout_ms ?? 10000,
+        ping_interval_ms: 20000,
+        idle_timeout_ms: 0,
         reconnect: true,
-        // Idle drop is off. Set heartbeat_timeout_ms (for example 15000) to RST a half-open tunnel.
+        // Idle drop is off. Set idle_timeout_ms (for example 15000) to RST a half-open tunnel.
         on_message(data) {
             try {
                 const msg = JSON.parse(data) as {

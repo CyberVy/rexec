@@ -1,7 +1,6 @@
 import os from "node:os"
 import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
-import { WsLifecycle } from "@/transport/lifecycle"
-import { ChannelDomain, decode_forward_frame, build_ws_url } from "@/transport"
+import { ChannelDomain, decode_forward_frame, build_ws_url, WsClient } from "@/transport"
 import { parse_args } from "./args"
 import { ForwardManager } from "./forward_manager"
 import { TaskManager } from "./task"
@@ -22,7 +21,7 @@ function env_ms(name: string, fallback: number): number {
 
 export class RexecAgent {
     private options: AgentOptions
-    private life: WsLifecycle | null = null
+    private client: WsClient | null = null
     private tasks = new TaskManager()
     private transfers = new TransferManager()
     private forwards = new ForwardManager()
@@ -41,7 +40,7 @@ export class RexecAgent {
             ping_interval_ms > 0 ? (ping_interval_ms * DEFAULT_IDLE_TIMEOUT_MS) / DEFAULT_PING_INTERVAL_MS : 0
         )
 
-        this.life = new WsLifecycle({
+        this.client = new WsClient({
             url: build_ws_url(this.options.hub_url, "/ws", this.options.token, { node_id: this.options.node_id }),
             reconnect: true,
             reconnect_delay_ms: env_ms("REXEC_RECONNECT_DELAY_MS", 3000),
@@ -89,7 +88,7 @@ Or set environment variables:
             }
         })
 
-        void this.life.start().catch((err) => {
+        void this.client.connect().catch((err) => {
             console.error(`[rexec-agent] Initial connection attempt failed:`, (err as Error).message)
         })
 
@@ -98,11 +97,11 @@ Or set environment variables:
     }
 
     private send(msg: AgentToHubMessage): void {
-        this.life?.send_json(msg)
+        this.client?.send_json(msg)
     }
 
     private send_binary(packet: Uint8Array): void {
-        this.life?.send_binary(packet)
+        this.client?.send_binary(packet)
     }
 
     private handle_binary(bytes: Uint8Array): void {
@@ -165,7 +164,7 @@ Or set environment variables:
         this.transfers.abort_all()
         this.forwards.abort_all()
 
-        this.life?.stop(1000, "Agent shutting down")
+        this.client?.close(1000, "Agent shutting down")
         process.exit(0)
     }
 }
