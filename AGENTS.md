@@ -4,7 +4,7 @@
   - `protocol.ts`: Shared protocol types and message envelopes across Server, Agent, and Caller.
   - `transport/`: Shared byte channel. WebSocket connection and binary frame envelope. Payloads stay opaque.
     - `framing.ts`: Channel domain binary packet multiplexing (Transfer 0x01, Forward 0x02).
-    - `ws.ts`: WebSocket client channel helper (`HubWsClient`).
+    - `ws.ts`: WebSocket client channel (`WsClient`).
   - `file/`: File & directory filesystem archiving and streaming.
     - `types.ts`: Universal stream contracts (`FileSource`, `FileSink`, `ProgressInfo`).
     - `adapters/node.ts`: Node.js filesystem and streaming `tar` packaging adapter (`create_node_source`, `create_node_sink`).

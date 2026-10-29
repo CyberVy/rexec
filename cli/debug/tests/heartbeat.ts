@@ -4,7 +4,7 @@ import type { AddressInfo, Socket } from "node:net"
 import path from "node:path"
 import { spawn, type ChildProcess } from "node:child_process"
 import { fileURLToPath } from "node:url"
-import { WsLifecycle } from "../../../src/transport/lifecycle"
+import { WsClient } from "../../../src/transport/ws"
 import { print_verdict, record_history } from "./helpers"
 
 const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -29,7 +29,8 @@ function encode_close(code: number, reason = ""): Buffer {
 
 function consume_client_frames(
     buffer: Buffer<ArrayBufferLike>,
-    on_text: (text: string) => void
+    on_text: (text: string) => void,
+    on_close?: () => void
 ): Buffer<ArrayBufferLike> {
     let offset = 0
     while (offset + 2 <= buffer.length) {
@@ -47,6 +48,8 @@ function consume_client_frames(
                 for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i % 4]
             }
             on_text(payload.toString("utf8"))
+        } else if (opcode === 0x8) {
+            on_close?.()
         }
         offset += frame_len
     }
@@ -106,15 +109,21 @@ async function listen_peer(mode: PeerMode): Promise<{ peer: Peer; port: number }
         let buffer: Buffer<ArrayBufferLike> = Buffer.alloc(0)
         socket.on("data", (chunk: Buffer) => {
             buffer = Buffer.concat([buffer, chunk])
-            buffer = consume_client_frames(buffer, (text) => {
-                if (mode !== "pong") return
-                try {
-                    const msg = JSON.parse(text) as { type?: string }
-                    if (msg.type === "ping") socket.write(encode_text('{"type":"pong"}'))
-                } catch {
-                    // Ignore the register frame.
+            buffer = consume_client_frames(
+                buffer,
+                (text) => {
+                    if (mode !== "pong") return
+                    try {
+                        const msg = JSON.parse(text) as { type?: string }
+                        if (msg.type === "ping") socket.write(encode_text('{"type":"pong"}'))
+                    } catch {
+                        // Ignore the register frame.
+                    }
+                },
+                () => {
+                    socket.end()
                 }
-            })
+            )
         })
     })
 
@@ -269,11 +278,11 @@ const CASES: HeartbeatCase[] = [
     }
 ]
 
-async function run_lifecycle_idle(): Promise<boolean> {
-    const test_name = "test:lifecycle_idle_timeout_reconnects"
+async function run_client_idle(): Promise<boolean> {
+    const test_name = "test:ws_client_idle_timeout_reconnects"
     const started = Date.now()
     const { peer, port } = await listen_peer("silent")
-    const life = new WsLifecycle({
+    const client = new WsClient({
         url: `ws://127.0.0.1:${port}/ws`,
         reconnect: true,
         reconnect_delay_ms: 50,
@@ -282,14 +291,14 @@ async function run_lifecycle_idle(): Promise<boolean> {
         connect_timeout_ms: 1000
     })
     try {
-        await life.start()
-        await wait_for(8000, () => life.is_open && peer.connections >= 2 && peer.ended >= 1)
-        const passed = life.is_open && peer.connections >= 2 && peer.ended >= 1
+        await client.connect()
+        await wait_for(8000, () => client.is_open && peer.connections >= 2 && peer.ended >= 1)
+        const passed = client.is_open && peer.connections >= 2 && peer.ended >= 1
         const details = `connections=${peer.connections} ended=${peer.ended}`
         print_verdict(test_name, passed, passed ? details : details)
         record_history({
             test_name,
-            command: "WsLifecycle silent",
+            command: "WsClient silent",
             verdict: passed ? "PASS" : "FAIL",
             exit_code: passed ? 0 : 1,
             duration_ms: Date.now() - started,
@@ -300,7 +309,7 @@ async function run_lifecycle_idle(): Promise<boolean> {
         print_verdict(test_name, false, (err as Error).message)
         record_history({
             test_name,
-            command: "WsLifecycle silent",
+            command: "WsClient silent",
             verdict: "FAIL",
             exit_code: 1,
             duration_ms: Date.now() - started,
@@ -308,13 +317,13 @@ async function run_lifecycle_idle(): Promise<boolean> {
         })
         return false
     } finally {
-        life.stop()
+        client.close()
         await peer.close()
     }
 }
 
 async function main(): Promise<boolean> {
-    let passed = await run_lifecycle_idle()
+    let passed = await run_client_idle()
     for (const entry of CASES) {
         const ok = await run_case(entry.name, entry.mode, entry.env, entry.pass, entry.hold_ms ?? 0)
         passed = passed && ok
