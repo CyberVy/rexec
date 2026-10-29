@@ -12,7 +12,8 @@ const TEST_FILES = [
     "large_output.ts",
     "file_transfer.ts",
     "forward.ts",
-    "heartbeat.ts"
+    "heartbeat.ts",
+    "vscode_extension.ts"
 ]
 
 async function run_test_suite(file_name: string): Promise<boolean> {

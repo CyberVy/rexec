@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Rexec Extension",
+            "type": "extensionHost",
+            "request": "launch",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode"
+            ],
+            "outFiles": [
+                "${workspaceFolder}/extensions/vscode/dist/**/*.js"
+            ],
+            "preLaunchTask": "build:vscode"
+        }
+    ]
+}

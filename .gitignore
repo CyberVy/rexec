@@ -6,4 +6,5 @@ dist
 .env
 .debug
 .local
+*.vsix
 draft/
