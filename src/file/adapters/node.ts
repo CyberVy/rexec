@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
-import { Readable, Writable } from "node:stream"
+import { Readable } from "node:stream"
 import type { FileSink, FileSource } from "../types"
 
 /**
@@ -104,8 +104,40 @@ export function create_node_sink(target_path: string, is_directory: boolean): Fi
             }
         })
 
+        const stream = new WritableStream<Uint8Array>({
+            write(chunk) {
+                if (tar_proc.killed || tar_exit_code !== null) {
+                    if (tar_exit_code === 0) return
+                    throw new Error(tar_stderr || `tar exit code ${tar_exit_code}`)
+                }
+                return new Promise<void>((resolve, reject) => {
+                    if (!tar_proc.stdin?.writable) {
+                        if (tar_exit_code === 0) return resolve()
+                        return reject(new Error(tar_stderr || "tar stdin is not writable"))
+                    }
+                    tar_proc.stdin.write(chunk, (err) => {
+                        if (err) {
+                            if (tar_exit_code === 0) return resolve()
+                            return reject(err)
+                        }
+                        resolve()
+                    })
+                })
+            },
+            close() {
+                if (!tar_proc.killed && tar_proc.stdin?.writable) {
+                    tar_proc.stdin.end()
+                }
+            },
+            abort() {
+                if (!tar_proc.killed) {
+                    tar_proc.kill("SIGTERM")
+                }
+            }
+        })
+
         return {
-            stream: Writable.toWeb(tar_proc.stdin) as WritableStream<Uint8Array>,
+            stream,
             wait_for_finish: async () => {
                 if (!tar_proc.killed && tar_proc.stdin?.writable) {
                     tar_proc.stdin.end()
@@ -155,8 +187,31 @@ export function create_node_sink(target_path: string, is_directory: boolean): Fi
         }
     })
 
+    const stream = new WritableStream<Uint8Array>({
+        write(chunk) {
+            if (stream_error) throw stream_error
+            return new Promise<void>((resolve, reject) => {
+                if (!write_stream.writable) {
+                    return reject(stream_error || new Error("File write stream is not writable"))
+                }
+                write_stream.write(chunk, (err) => {
+                    if (err) return reject(err)
+                    resolve()
+                })
+            })
+        },
+        close() {
+            if (!write_stream.destroyed && write_stream.writable) {
+                write_stream.end()
+            }
+        },
+        abort(reason) {
+            write_stream.destroy(reason instanceof Error ? reason : undefined)
+        }
+    })
+
     return {
-        stream: Writable.toWeb(write_stream) as WritableStream<Uint8Array>,
+        stream,
         wait_for_finish: async () => {
             if (stream_error) throw stream_error
             if (is_finished) return

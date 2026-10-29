@@ -13,6 +13,7 @@ export class TransferManager {
             sink: FileSink
             writer: WritableStreamDefaultWriter<Uint8Array>
             hash: crypto.Hash
+            write_queue: Promise<void>
         }
     > = new Map()
 
@@ -98,7 +99,12 @@ export class TransferManager {
             const sink = create_node_sink(target_path, Boolean(msg.recursive))
             const writer = sink.stream.getWriter()
             const hash = crypto.createHash("sha256")
-            this.active_pushes.set(msg.transfer_id, { sink, writer, hash })
+            this.active_pushes.set(msg.transfer_id, {
+                sink,
+                writer,
+                hash,
+                write_queue: Promise.resolve()
+            })
         } catch (err) {
             send({
                 type: "transfer:error",
@@ -115,7 +121,8 @@ export class TransferManager {
         const push = this.active_pushes.get(decoded.transfer_id)
         if (push) {
             push.hash.update(decoded.payload)
-            await push.writer.write(decoded.payload)
+            push.write_queue = push.write_queue.then(() => push.writer.write(decoded.payload))
+            await push.write_queue
         }
     }
 
@@ -124,7 +131,14 @@ export class TransferManager {
         if (!push) return
 
         try {
-            await push.writer.close()
+            await push.write_queue
+            try {
+                await push.writer.close()
+            } catch (err) {
+                if (!(err instanceof Error && err.message.includes("WritableStream is closed"))) {
+                    throw err
+                }
+            }
             await push.sink.wait_for_finish()
             const sha256 = push.hash.digest("hex")
             console.log(`[rexec-agent] [push:${transfer_id.slice(0, 8)}] Completed (sha256: ${sha256.slice(0, 8)})`)
@@ -154,6 +168,7 @@ export class TransferManager {
         }
         const push = this.active_pushes.get(msg.transfer_id)
         if (push) {
+            push.writer.abort(new Error(msg.error)).catch(() => {})
             push.sink.cleanup?.()
             this.active_pushes.delete(msg.transfer_id)
         }
@@ -166,6 +181,7 @@ export class TransferManager {
         this.active_pulls.clear()
 
         for (const [, push] of this.active_pushes) {
+            push.writer.abort(new Error("Agent shutting down")).catch(() => {})
             push.sink.cleanup?.()
         }
         this.active_pushes.clear()
