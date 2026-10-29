@@ -18,6 +18,8 @@
     - `terminal/`: Local command-line interface client for terminal users (`rexec`).
 - `cli/`: Local developer tools and debug channel.
   - `debug/`: Black-box end-to-end debugging harness and automated test matrix.
+- `extensions/`: Editor integrations.
+  - `vscode/`: Visual Studio Code extension for Agent status, port forwarding, and terminal.
 - `dist/`: Standalone build distribution outputs and binary entries (`rexec`, `rexec-agent`).
 
 ## Naming Conventions

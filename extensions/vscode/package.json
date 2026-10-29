@@ -1,0 +1,101 @@
+{
+  "name": "rexec-vscode",
+  "displayName": "Rexec",
+  "description": "Remote execution engine: agent status monitoring, terminal, and port forwarding for VS Code",
+  "version": "0.1.0",
+  "publisher": "rexec",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CyberVy/rexec.git"
+  },
+  "keywords": [
+    "remote",
+    "remote-execution",
+    "colab",
+    "agent",
+    "port-forwarding"
+  ],
+  "categories": [
+    "Other",
+    "Debuggers"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "rexec.refresh",
+        "title": "Refresh Agent Status",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.showMenu",
+        "title": "Show Actions Menu",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.switchServer",
+        "title": "Switch Remote Server...",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.addServer",
+        "title": "Add Remote Server...",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.manageServers",
+        "title": "Manage Remote Servers...",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.openTerminal",
+        "title": "Open Rexec Terminal",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.forwardPort",
+        "title": "Forward Remote Port...",
+        "category": "Rexec"
+      },
+      {
+        "command": "rexec.stopForward",
+        "title": "Stop Port Forwarding...",
+        "category": "Rexec"
+      }
+    ],
+    "configuration": {
+      "title": "Rexec",
+      "properties": {
+        "rexec.hubUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Rexec Hub URL (e.g. https://hub.example.com or http://localhost:8787). If omitted, falls back to workspace .env or REXEC_HUB environment variable."
+        },
+        "rexec.token": {
+          "type": "string",
+          "default": "",
+          "description": "Rexec Auth Token. If omitted, falls back to workspace .env or REXEC_TOKEN environment variable."
+        },
+        "rexec.refreshInterval": {
+          "type": "number",
+          "default": 15,
+          "minimum": 5,
+          "maximum": 120,
+          "description": "Polling interval in seconds for Agent health checks (automatically pauses when VS Code window is unfocused)."
+        },
+        "rexec.autoDetectEnv": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically detect REXEC_HUB and REXEC_TOKEN from workspace .env file or environment variables if not configured in VS Code settings."
+        }
+      }
+    }
+  }
+}
