@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers"
 import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
 import { ChannelDomain } from "@/transport"
 import { ForwardRelay } from "./forward_relay"
+import { PtyRelay } from "./pty_relay"
 import { TaskRelay } from "./task_relay"
 import { TransferRelay } from "./transfer_relay"
 import type { AgentSession } from "./types"
@@ -12,6 +13,7 @@ export class RexecHub extends DurableObject {
     private tasks: TaskRelay
     private transfers: TransferRelay
     private forwards: ForwardRelay
+    private ptys: PtyRelay
 
     public constructor(ctx: DurableObjectState, env: Record<string, unknown>) {
         super(ctx, env)
@@ -22,6 +24,7 @@ export class RexecHub extends DurableObject {
         this.tasks = new TaskRelay(send, get_open_agent)
         this.transfers = new TransferRelay(send, get_open_agent)
         this.forwards = new ForwardRelay(send, get_open_agent)
+        this.ptys = new PtyRelay(send, get_open_agent)
     }
 
     public override async fetch(request: Request): Promise<Response> {
@@ -37,6 +40,10 @@ export class RexecHub extends DurableObject {
 
         if (url.pathname === "/ws/forward") {
             return this.forwards.handle_forward_ws(request, url)
+        }
+
+        if (url.pathname === "/ws/pty") {
+            return this.ptys.handle_pty_ws(request, url)
         }
 
         if (url.pathname === "/exec") {
@@ -142,6 +149,7 @@ export class RexecHub extends DurableObject {
             this.tasks.abort_for_token(token, reason)
             this.transfers.abort_for_token(token, reason)
             this.forwards.abort_for_token(token, reason)
+            this.ptys.abort_for_token(token, reason)
         }
     }
 
@@ -159,6 +167,8 @@ export class RexecHub extends DurableObject {
                 this.transfers.on_agent_message(session, msg)
             } else if (msg.type === "forward:close" || msg.type === "forward:error") {
                 this.forwards.on_agent_message(session, msg)
+            } else if (msg.type === "pty:exit" || msg.type === "pty:error") {
+                this.ptys.on_agent_message(session, msg)
             } else if (msg.type === "register") {
                 if (msg.hostname) session.hostname = msg.hostname
                 if (msg.node_id) session.node_id = msg.node_id
@@ -175,6 +185,11 @@ export class RexecHub extends DurableObject {
 
         if (bytes[0] === ChannelDomain.FORWARD) {
             this.forwards.relay_agent_binary(session, bytes)
+            return
+        }
+
+        if (bytes[0] === ChannelDomain.PTY) {
+            this.ptys.relay_agent_binary(session, bytes)
             return
         }
 

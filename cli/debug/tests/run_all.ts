@@ -12,6 +12,7 @@ const TEST_FILES = [
     "large_output.ts",
     "file_transfer.ts",
     "forward.ts",
+    "tty.ts",
     "heartbeat.ts",
     "vscode_extension.ts"
 ]
