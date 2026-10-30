@@ -136,6 +136,45 @@ export interface ForwardSessionEndMessage {
 }
 
 // ==========================================
+// PTY Domain Messages (Interactive Terminal)
+// ==========================================
+export interface PtyOpenMessage {
+    type: "pty:open"
+    session_id: string
+    file: string
+    args?: string[]
+    cwd?: string
+    cols: number
+    rows: number
+    term?: string
+}
+
+export interface PtyResizeMessage {
+    type: "pty:resize"
+    session_id: string
+    cols: number
+    rows: number
+}
+
+export interface PtyCloseMessage {
+    type: "pty:close"
+    session_id: string
+}
+
+export interface PtyExitMessage {
+    type: "pty:exit"
+    session_id: string
+    code: number
+    signal: number
+}
+
+export interface PtyErrorMessage {
+    type: "pty:error"
+    session_id: string
+    error: string
+}
+
+// ==========================================
 // Message Unions
 // ==========================================
 export type AgentToHubMessage =
@@ -150,6 +189,8 @@ export type AgentToHubMessage =
     | TransferErrorMessage
     | ForwardCloseMessage
     | ForwardErrorMessage
+    | PtyExitMessage
+    | PtyErrorMessage
 
 export type HubToAgentMessage =
     | HubRegisteredMessage
@@ -164,6 +205,9 @@ export type HubToAgentMessage =
     | ForwardOpenMessage
     | ForwardCloseMessage
     | ForwardSessionEndMessage
+    | PtyOpenMessage
+    | PtyResizeMessage
+    | PtyCloseMessage
 
 // ==========================================
 // HTTP Payload Contracts

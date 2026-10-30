@@ -26,6 +26,7 @@
     "debug:test:large": "tsx cli/debug/tests/large_output.ts",
     "debug:test:transfer": "tsx cli/debug/tests/file_transfer.ts",
     "debug:test:forward": "tsx cli/debug/tests/forward.ts",
+    "debug:test:tty": "tsx cli/debug/tests/tty.ts",
     "debug:test:heartbeat": "tsx cli/debug/tests/heartbeat.ts",
     "debug:test:vscode": "tsx cli/debug/tests/vscode_extension.ts",
     "test": "npm run debug:test",

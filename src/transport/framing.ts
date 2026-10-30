@@ -1,12 +1,14 @@
 export const enum ChannelDomain {
     TRANSFER = 0x01,
-    FORWARD = 0x02
+    FORWARD = 0x02,
+    PTY = 0x03
 }
 
 export const TRANSFER_ID_BYTES = 16
 export const SESSION_ID_BYTES = 16
 export const FORWARD_HEADER_BYTES = 1 + SESSION_ID_BYTES + 4 // 21 bytes (1B domain + 16B session_id + 4B uint32 conn_id)
 export const TRANSFER_HEADER_BYTES = 1 + TRANSFER_ID_BYTES // 17 bytes (1B domain + 16B transfer_id)
+export const PTY_HEADER_BYTES = 1 + SESSION_ID_BYTES // 17 bytes (1B domain + 16B session_id)
 
 /**
  * Encodes a file transfer binary chunk with domain prefix and 16-byte transfer_id.
@@ -81,6 +83,41 @@ export function decode_forward_frame(
  */
 export function extract_forward_session_id(bytes: Uint8Array): string | null {
     if (bytes.length < FORWARD_HEADER_BYTES || bytes[0] !== ChannelDomain.FORWARD) {
+        return null
+    }
+    return new TextDecoder().decode(bytes.subarray(1, 1 + SESSION_ID_BYTES))
+}
+
+/**
+ * Encodes a PTY byte chunk.
+ * Frame structure: [0x03] [session_id (16B)] [payload]
+ */
+export function encode_pty_frame(session_id: string, payload: Uint8Array): Uint8Array {
+    const frame = new Uint8Array(PTY_HEADER_BYTES + payload.byteLength)
+    frame[0] = ChannelDomain.PTY
+    const id_bytes = new TextEncoder().encode(session_id)
+    frame.set(id_bytes.subarray(0, SESSION_ID_BYTES), 1)
+    frame.set(payload, PTY_HEADER_BYTES)
+    return frame
+}
+
+/**
+ * Decodes a PTY byte chunk.
+ */
+export function decode_pty_frame(bytes: Uint8Array): { session_id: string; payload: Uint8Array } | null {
+    if (bytes.length < PTY_HEADER_BYTES || bytes[0] !== ChannelDomain.PTY) {
+        return null
+    }
+    const session_id = new TextDecoder().decode(bytes.subarray(1, 1 + SESSION_ID_BYTES))
+    const payload = bytes.subarray(PTY_HEADER_BYTES)
+    return { session_id, payload }
+}
+
+/**
+ * Extracts session_id from a PTY frame without slicing the full payload.
+ */
+export function extract_pty_session_id(bytes: Uint8Array): string | null {
+    if (bytes.length < PTY_HEADER_BYTES || bytes[0] !== ChannelDomain.PTY) {
         return null
     }
     return new TextDecoder().decode(bytes.subarray(1, 1 + SESSION_ID_BYTES))

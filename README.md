@@ -15,6 +15,7 @@ Ultra-lightweight edge-routed remote execution engine.
   - **Hub** (Cloudflare Worker & Durable Object): Edge routing and streaming relay between callers and worker nodes.
   - **Agent** (`rexec-agent`): Remote daemon running on target worker nodes that maintains a persistent WebSocket connection and manages child process lifecycles.
 - **Real-Time Streaming & Process Fidelity**: Chunked execution output streamed via WebSocket and Server-Sent Events (SSE). Clean process termination and signal forwarding on `Ctrl+C` (SIGINT).
+- **Interactive PTY**: `rexec tty` runs a remote command in a pseudoterminal and attaches your local terminal. The agent downloads the native binding on the first session.
 - **Full-Duplex Port Forwarding**: Multiplexed TCP tunneling over WebSocket (`rexec forward [local_port:]remote_port`), seamlessly routing local ports to remote web services (Jupyter, Gradio, ComfyUI, TensorBoard) without public IP or inbound firewalls.
 - **Streaming File & Directory Transfers**: Bi-directional file and directory transfers powered by WHATWG Web Streams and streaming `tar` pipelines with real-time transfer progress bars.
 
@@ -180,6 +181,18 @@ rexec "cat /proc/cpuinfo | grep 'model name' | head -n 1"
 rexec -- pull origin main
 ```
 
+#### Interactive Terminal
+
+`rexec tty` executes the command directly (argv, not a shell string) with a PTY, and attaches the terminal you opened locally. Keystrokes, including Ctrl-C, go to the remote process. Window resizes are forwarded.
+
+```bash
+rexec tty codex
+rexec tty bash
+rexec tty bash -lc "htop"
+```
+
+The first session makes the agent download `node-pty`'s `pty.node` into `~/.cache/rexec`. Linux and macOS (x64 and arm64) are supported. `/exec` is unchanged and still runs one-shot commands without a PTY.
+
 #### Transfer Files and Directories
 
 ```bash
@@ -228,6 +241,7 @@ Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
   rexec forward [options] <port...>   Forward local port to remote agent port
+  rexec tty [options] <command...>    Run an interactive command in a remote PTY
   rexec pull [options] <remote> [loc] Download a file or directory from remote agent
   rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status

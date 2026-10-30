@@ -1,6 +1,7 @@
 import { exec_command } from "./exec"
 import { open_forward_tunnel, type ForwardTunnelClient } from "./forward"
 import { pull_http, push_http } from "./file"
+import { open_pty_session, type PtyClient } from "./pty"
 import type {
     CallerOptions,
     ExecOptions,
@@ -9,12 +10,14 @@ import type {
     PullResult,
     PushOptions,
     PushResult,
+    PtyOptions,
     TransferSink,
     TransferSource
 } from "./types"
 
 export * from "./types"
 export * from "./forward"
+export * from "./pty"
 
 export function format_http_url(url_str: string): string {
     let http_url = url_str.trim()
@@ -99,6 +102,24 @@ export class RexecCaller {
             remote_port,
             signal: options?.signal,
             timeout_ms: options?.timeout_ms
+        })
+    }
+
+    /**
+     * Open an interactive PTY session on the remote agent.
+     * The returned client carries raw terminal bytes until the process exits.
+     */
+    public async open_pty(options: PtyOptions): Promise<PtyClient> {
+        return open_pty_session({
+            hub_url: this.hub_url,
+            token: this.token,
+            file: options.file,
+            args: options.args,
+            cwd: options.cwd,
+            cols: options.cols,
+            rows: options.rows,
+            term: options.term,
+            signal: options.signal
         })
     }
 }

@@ -1,8 +1,9 @@
 import os from "node:os"
 import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
-import { ChannelDomain, decode_forward_frame, build_ws_url, WsClient } from "@/transport"
+import { ChannelDomain, decode_forward_frame, decode_pty_frame, build_ws_url, WsClient } from "@/transport"
 import { parse_args } from "./args"
 import { ForwardManager } from "./forward_manager"
+import { PtyManager } from "./pty_manager"
 import { TaskManager } from "./task"
 import { TransferManager } from "./transfer_manager"
 import type { AgentOptions } from "./types"
@@ -25,6 +26,7 @@ export class RexecAgent {
     private tasks = new TaskManager()
     private transfers = new TransferManager()
     private forwards = new ForwardManager()
+    private ptys = new PtyManager()
     private is_shutting_down = false
 
     public constructor(options: AgentOptions) {
@@ -112,6 +114,11 @@ Or set environment variables:
             if (decoded) {
                 this.forwards.handle_data(decoded.conn_id, decoded.payload)
             }
+        } else if (bytes[0] === ChannelDomain.PTY) {
+            const decoded = decode_pty_frame(bytes)
+            if (decoded) {
+                this.ptys.write(decoded.session_id, decoded.payload)
+            }
         } else {
             void this.transfers.handle_binary_data(bytes)
         }
@@ -147,6 +154,17 @@ Or set environment variables:
                 this.forwards.handle_close(msg)
             } else if (msg.type === "forward:session_end") {
                 this.forwards.handle_session_end(msg)
+            } else if (msg.type === "pty:open") {
+                this.ptys.open(
+                    msg,
+                    this.options.workspace,
+                    (m) => this.send(m),
+                    (bin) => this.send_binary(bin)
+                )
+            } else if (msg.type === "pty:resize") {
+                this.ptys.resize(msg)
+            } else if (msg.type === "pty:close") {
+                this.ptys.close(msg)
             } else if (msg.type === "registered") {
                 console.log(`[rexec-agent] Registration confirmed by hub. Ready for commands.`)
             }
@@ -163,6 +181,7 @@ Or set environment variables:
         this.tasks.abort_all()
         this.transfers.abort_all()
         this.forwards.abort_all()
+        this.ptys.abort_all()
 
         this.client?.close(1000, "Agent shutting down")
         process.exit(0)

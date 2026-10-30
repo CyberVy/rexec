@@ -8,7 +8,7 @@ export function get_cors_headers(request?: Request): Record<string, string> {
     }
 }
 
-const AUTHENTICATED_PATHS = new Set(["/ws", "/exec", "/file/pull", "/file/push", "/ws/forward"])
+const AUTHENTICATED_PATHS = new Set(["/ws", "/exec", "/file/pull", "/file/push", "/ws/forward", "/ws/pty"])
 
 export function missing_token_response(request: Request): Response | null {
     const url = new URL(request.url)

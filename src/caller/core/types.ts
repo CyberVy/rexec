@@ -11,6 +11,16 @@ export interface HubStatus {
     connected_agents?: number
 }
 
+export interface PtyOptions {
+    file: string
+    args?: string[]
+    cwd?: string
+    cols?: number
+    rows?: number
+    term?: string
+    signal?: AbortSignal
+}
+
 export interface ExecOptions {
     cmd: string
     cwd?: string

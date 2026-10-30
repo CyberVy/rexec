@@ -5,6 +5,7 @@ import { RexecCaller } from "@/caller"
 import { create_node_sink, create_node_source } from "@/file/adapters/node"
 import { parse_cli_args, print_usage } from "./args"
 import { run_port_forward } from "./forward"
+import { run_tty } from "./tty"
 import { format_bytes, render_progress } from "./ui"
 
 async function handle_status(caller: RexecCaller): Promise<void> {
@@ -224,8 +225,29 @@ async function main(): Promise<void> {
         return
     }
 
+    if (parsed.subcommand === "tty") {
+        await handle_tty(caller, parsed.args, parsed.cwd)
+        return
+    }
+
     // Default or "run" subcommand
     await handle_exec(caller, parsed.args, parsed.cwd, parsed.timeout_ms)
+}
+
+async function handle_tty(caller: RexecCaller, command_parts: string[], cwd?: string): Promise<void> {
+    const file = command_parts[0]
+    if (!file) {
+        console.error("Error: Missing command. Usage: rexec tty <command...>")
+        process.exit(1)
+    }
+
+    try {
+        const exit_code = await run_tty(caller, file, command_parts.slice(1), cwd)
+        process.exit(exit_code)
+    } catch (err) {
+        console.error(`[rexec tty error] ${(err as Error).message}`)
+        process.exit(1)
+    }
 }
 
 async function handle_forward(caller: RexecCaller, port_arg: string | undefined, second_arg?: string): Promise<void> {
