@@ -1,0 +1,14 @@
+{
+    "editor.defaultFormatter": "oxc.oxc-vscode",
+    "editor.formatOnSave": true,
+    "[javascript]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "oxc.oxc-vscode"
+    },
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.patterns": {
+        "package.json": "package-lock.json, tsconfig.json, tsconfig.*.json, vite.config.ts, postcss.config.*, .oxlintrc.json, .oxfmtrc.json, oxlint.rules.*, wrangler.toml"
+    }
+}
