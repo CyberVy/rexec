@@ -22,6 +22,8 @@ Environment (milliseconds, 0 disables that check):
                                 or 3x the ping interval when only the interval is set)
   REXEC_RECONNECT_DELAY_MS      Delay before the next connection attempt (default 3000)
   REXEC_CONNECT_TIMEOUT_MS      Handshake deadline for every attempt (default 10000)
+  REXEC_PTY_BASE_URL            Prebuild URL used the first time a PTY session starts
+  REXEC_PTY_CACHE               Directory for the cached pty.node (default ~/.cache/rexec)
 
 A half-open proxy socket can stay OPEN after the Hub has dropped the session.
 The agent treats an unanswered application ping as dead: if no Hub frame arrives
