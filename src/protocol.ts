@@ -187,6 +187,29 @@ export interface PtyErrorMessage {
     error: string
 }
 
+export interface PtySessionInfo {
+    session_id: string
+    status: "attached" | "detached"
+    command: string
+    cwd?: string
+    started_at: number
+    detached_at?: number
+    orphan_ttl_ms: number
+    remaining_ttl_ms?: number
+    buffered_bytes: number
+}
+
+export interface PtyListReqMessage {
+    type: "pty:list_req"
+    req_id: string
+}
+
+export interface PtyListResMessage {
+    type: "pty:list_res"
+    req_id: string
+    sessions: PtySessionInfo[]
+}
+
 // ==========================================
 // Message Unions
 // ==========================================
@@ -204,6 +227,7 @@ export type AgentToHubMessage =
     | ForwardErrorMessage
     | PtyExitMessage
     | PtyErrorMessage
+    | PtyListResMessage
 
 export type HubToAgentMessage =
     | HubRegisteredMessage
@@ -223,6 +247,7 @@ export type HubToAgentMessage =
     | PtyCloseMessage
     | PtyDetachMessage
     | PtyAttachMessage
+    | PtyListReqMessage
 
 // ==========================================
 // HTTP Payload Contracts

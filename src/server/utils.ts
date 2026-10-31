@@ -42,7 +42,9 @@ const AUTHENTICATED_PATHS = new Set([
     "/file/pull",
     "/file/push",
     "/ws/forward",
-    "/ws/pty"
+    "/ws/pty",
+    "/pty/list",
+    "/pty/kill"
 ])
 
 export function missing_token_response(request: Request): Response | null {

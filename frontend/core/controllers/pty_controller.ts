@@ -1,6 +1,6 @@
 import { BaseController } from "@/infra/base_controller"
 import { create_logger } from "@/infra/logger"
-import type { PtyClient } from "@rexec/caller/core"
+import type { PtyClient, PtySessionInfo } from "@rexec/caller/core"
 import { session_controller } from "./session_controller"
 
 const logger = create_logger("PtyController")
@@ -14,6 +14,8 @@ export interface PtyState {
     error: string | null
     cols: number
     rows: number
+    sessions: PtySessionInfo[]
+    is_listing: boolean
 }
 
 interface ConnectOptions {
@@ -43,13 +45,62 @@ export class PtyController extends BaseController<PtyState> {
             exit_code: null,
             error: null,
             cols: 80,
-            rows: 24
+            rows: 24,
+            sessions: [],
+            is_listing: false
         }
     }
 
     public on_data(cb: (data: Uint8Array) => void): () => void {
         this.data_listeners.add(cb)
         return () => this.data_listeners.delete(cb)
+    }
+
+    public async refresh_sessions(): Promise<PtySessionInfo[]> {
+        const caller = session_controller.get_caller()
+        this.update_state({ is_listing: true })
+        this.dispatchEvent(new Event("change"))
+        try {
+            const sessions = await caller.list_ptys()
+            this.update_state({ sessions, is_listing: false })
+            this.dispatchEvent(new Event("change"))
+            return sessions
+        } catch (err) {
+            logger.warn("Failed to list PTY sessions", err)
+            this.update_state({ is_listing: false })
+            this.dispatchEvent(new Event("change"))
+            return []
+        }
+    }
+
+    public async kill_session(session_id: string): Promise<void> {
+        const caller = session_controller.get_caller()
+        try {
+            await caller.kill_pty(session_id)
+        } catch (err) {
+            logger.error("Failed to kill PTY session", err)
+        }
+        if (session_id === this.state.session_id) {
+            this.disconnect()
+        }
+        await this.refresh_sessions()
+    }
+
+    public async switch_session(session_id: string): Promise<void> {
+        if (this.client) {
+            this.client.detach()
+            this.client = null
+        }
+        await this.connect({ ...this.last_options, session_id })
+    }
+
+    public async new_session(): Promise<void> {
+        if (this.client) {
+            this.client.detach()
+            this.client = null
+        }
+        this.update_state({ session_id: null })
+        await this.connect({ ...this.last_options, session_id: undefined })
     }
 
     public async connect(options?: ConnectOptions): Promise<void> {
@@ -102,6 +153,9 @@ export class PtyController extends BaseController<PtyState> {
             this.dispatchEvent(new Event("change"))
             this.dispatchEvent(new Event("ready"))
 
+            // Refresh sessions in background
+            void this.refresh_sessions()
+
             pty_client.on_data((bytes) => {
                 for (const listener of this.data_listeners) {
                     listener(bytes)
@@ -118,6 +172,7 @@ export class PtyController extends BaseController<PtyState> {
                     })
                     this.dispatchEvent(new Event("change"))
                     this.dispatchEvent(new Event("exit"))
+                    void this.refresh_sessions()
                 })
                 .catch((err) => {
                     const message = err instanceof Error ? err.message : String(err)
@@ -134,6 +189,7 @@ export class PtyController extends BaseController<PtyState> {
                         this.dispatchEvent(new Event("change"))
                         this.dispatchEvent(new Event("exit"))
                     }
+                    void this.refresh_sessions()
                 })
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err)
@@ -149,6 +205,7 @@ export class PtyController extends BaseController<PtyState> {
                 })
                 this.dispatchEvent(new Event("change"))
             }
+            void this.refresh_sessions()
         }
     }
 
@@ -203,6 +260,7 @@ export class PtyController extends BaseController<PtyState> {
             session_id: null
         })
         this.dispatchEvent(new Event("change"))
+        void this.refresh_sessions()
     }
 }
 

@@ -32,3 +32,4 @@ export interface ExecOptions {
 }
 
 export type * from "@/file/types"
+export type { PtySessionInfo } from "@/protocol"
