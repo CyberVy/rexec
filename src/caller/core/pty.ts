@@ -4,12 +4,14 @@ import { build_ws_url, WsClient } from "@/transport/ws"
 export interface PtyClientOptions {
     hub_url: string
     token: string
-    file: string
+    session_id?: string
+    file?: string
     args?: string[]
     cwd?: string
     cols?: number
     rows?: number
     term?: string
+    orphan_ttl_ms?: number
     signal?: AbortSignal
 }
 
@@ -23,6 +25,7 @@ export interface PtyClient {
     send(data: Uint8Array): void
     resize(cols: number, rows: number): void
     on_data(callback: (data: Uint8Array) => void): void
+    detach(): void
     close(): void
     readonly exited: Promise<PtyExitStatus>
 }
@@ -51,8 +54,11 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
         else resolve_exit(result)
     }
 
+    const base_url = build_ws_url(options.hub_url, "/ws/pty", options.token)
+    const ws_url = options.session_id ? `${base_url}&session_id=${encodeURIComponent(options.session_id)}` : base_url
+
     const client = new WsClient({
-        url: build_ws_url(options.hub_url, "/ws/pty", options.token),
+        url: ws_url,
         signal: options.signal,
         reconnect: false,
         reset_on_close: true,
@@ -108,16 +114,26 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
             clearTimeout(ready_timer)
         }
 
-        client.send_json({
-            type: "pty:open",
-            session_id,
-            file: options.file,
-            args: options.args ?? [],
-            cwd: options.cwd,
-            cols: options.cols && options.cols > 0 ? options.cols : 80,
-            rows: options.rows && options.rows > 0 ? options.rows : 24,
-            term: options.term
-        })
+        if (options.session_id) {
+            client.send_json({
+                type: "pty:attach",
+                session_id,
+                cols: options.cols && options.cols > 0 ? options.cols : 80,
+                rows: options.rows && options.rows > 0 ? options.rows : 24
+            })
+        } else {
+            client.send_json({
+                type: "pty:open",
+                session_id,
+                file: options.file || "/bin/bash",
+                args: options.args ?? [],
+                cwd: options.cwd,
+                cols: options.cols && options.cols > 0 ? options.cols : 80,
+                rows: options.rows && options.rows > 0 ? options.rows : 24,
+                term: options.term,
+                orphan_ttl_ms: options.orphan_ttl_ms
+            })
+        }
 
         return {
             session_id,
@@ -130,7 +146,15 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
             on_data(callback) {
                 data_handler = callback
             },
+            detach() {
+                client.close(1000, "PTY client detached")
+            },
             close() {
+                try {
+                    client.send_json({ type: "pty:close", session_id })
+                } catch {
+                    // Ignore send error
+                }
                 client.close(1000, "PTY client closed")
             },
             exited

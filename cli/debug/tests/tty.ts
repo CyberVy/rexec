@@ -89,6 +89,78 @@ async function run(): Promise<void> {
         }
         console.log("✓ input and resize")
 
+        console.log("[test:tty] Checking detach, RingBuffer buffering and re-attach...")
+        const session1 = await caller.open_pty({
+            file: "sh",
+            args: ["-c", "echo 'INITIAL_LINE'; sleep 0.6; echo 'DISCONNECTED_LINE'; sleep 0.6; echo 'FINAL_LINE'"],
+            cols: 80,
+            rows: 24,
+            orphan_ttl_ms: 10000
+        })
+        let s1_output = ""
+        session1.on_data((data) => {
+            s1_output += Buffer.from(data).toString("utf-8")
+        })
+
+        await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error("Timeout waiting for INITIAL_LINE")), 5000)
+            const check = setInterval(() => {
+                if (s1_output.includes("INITIAL_LINE")) {
+                    clearTimeout(timer)
+                    clearInterval(check)
+                    resolve()
+                }
+            }, 100)
+        })
+
+        const saved_session_id = session1.session_id
+        session1.detach()
+
+        // Wait while disconnected so DISCONNECTED_LINE is emitted to RingBuffer
+        await new Promise((resolve) => setTimeout(resolve, 800))
+
+        console.log(`[test:tty] Re-attaching to session ${saved_session_id}...`)
+        const session2 = await caller.open_pty({
+            session_id: saved_session_id,
+            cols: 80,
+            rows: 24
+        })
+
+        let s2_output = ""
+        session2.on_data((data) => {
+            s2_output += Buffer.from(data).toString("utf-8")
+        })
+
+        const s2_status = await Promise.race([
+            session2.exited,
+            new Promise<never>((_, reject) => {
+                setTimeout(
+                    () =>
+                        reject(
+                            new Error(`timed out waiting for re-attached exit\ns2_output=${JSON.stringify(s2_output)}`)
+                        ),
+                    10000
+                )
+            })
+        ])
+        session2.close()
+
+        if (!s2_output.includes("INITIAL_LINE")) {
+            throw new Error(`Expected replayed INITIAL_LINE in re-attached session, got: ${JSON.stringify(s2_output)}`)
+        }
+        if (!s2_output.includes("DISCONNECTED_LINE")) {
+            throw new Error(
+                `Expected replayed DISCONNECTED_LINE in re-attached session, got: ${JSON.stringify(s2_output)}`
+            )
+        }
+        if (!s2_output.includes("FINAL_LINE")) {
+            throw new Error(`Expected FINAL_LINE in re-attached session, got: ${JSON.stringify(s2_output)}`)
+        }
+        if (s2_status.code !== 0) {
+            throw new Error(`Expected clean exit on re-attached session, got code=${s2_status.code}`)
+        }
+        console.log("✓ detach, ring buffer replay and re-attach passed")
+
         record_history({
             test_name: "tty",
             command: "rexec tty",

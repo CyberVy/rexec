@@ -147,6 +147,7 @@ export interface PtyOpenMessage {
     cols: number
     rows: number
     term?: string
+    orphan_ttl_ms?: number
 }
 
 export interface PtyResizeMessage {
@@ -159,6 +160,18 @@ export interface PtyResizeMessage {
 export interface PtyCloseMessage {
     type: "pty:close"
     session_id: string
+}
+
+export interface PtyDetachMessage {
+    type: "pty:detach"
+    session_id: string
+}
+
+export interface PtyAttachMessage {
+    type: "pty:attach"
+    session_id: string
+    cols?: number
+    rows?: number
 }
 
 export interface PtyExitMessage {
@@ -208,6 +221,8 @@ export type HubToAgentMessage =
     | PtyOpenMessage
     | PtyResizeMessage
     | PtyCloseMessage
+    | PtyDetachMessage
+    | PtyAttachMessage
 
 // ==========================================
 // HTTP Payload Contracts

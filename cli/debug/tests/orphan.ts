@@ -86,7 +86,8 @@ async function run(): Promise<void> {
                             file: "bash",
                             args: ["-c", ${JSON.stringify(`exec -a ${hold_marker} sleep 120 & wait`)}],
                             cols: 80,
-                            rows: 24
+                            rows: 24,
+                            orphan_ttl_ms: 1000
                         }))
                         console.log("HELD")
                     }

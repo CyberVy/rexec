@@ -1,18 +1,23 @@
 import path from "node:path"
-import type { AgentToHubMessage, PtyCloseMessage, PtyOpenMessage, PtyResizeMessage } from "@/protocol"
+import type { AgentToHubMessage, PtyAttachMessage, PtyCloseMessage, PtyOpenMessage, PtyResizeMessage } from "@/protocol"
 import { encode_pty_frame } from "@/transport"
 import { load_pty_binding, type PtyBinding } from "./pty_binding"
 import { PtyProcess } from "./pty_session"
+import { PtyRingBuffer } from "./ring_buffer"
 
 interface PtySlot {
-    closed: boolean
+    status: "attached" | "detached" | "closed"
     cols: number
     rows: number
     pending: Uint8Array[]
     process: PtyProcess | null
+    ring_buffer: PtyRingBuffer
+    orphan_ttl_ms: number
+    orphan_timer?: NodeJS.Timeout
 }
 
 const STRIPPED_ENV = ["TMUX", "TMUX_PANE", "STY", "WINDOW", "WINDOWID", "TERMCAP", "COLUMNS", "LINES"]
+const DEFAULT_ORPHAN_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
 export class PtyManager {
     private sessions: Map<string, PtySlot> = new Map()
@@ -26,20 +31,32 @@ export class PtyManager {
     ): void {
         const session_id = msg.session_id
         const existing = this.sessions.get(session_id)
-        if (existing?.closed) return
+        if (existing?.status === "closed") return
         if (existing?.process) {
             existing.process.kill()
         }
 
+        const orphan_ttl_ms =
+            msg.orphan_ttl_ms ??
+            (process.env.REXEC_PTY_ORPHAN_TTL_MS ? Number(process.env.REXEC_PTY_ORPHAN_TTL_MS) : DEFAULT_ORPHAN_TTL_MS)
+
         const slot: PtySlot = existing ?? {
-            closed: false,
+            status: "attached",
             cols: dimension(msg.cols, 80),
             rows: dimension(msg.rows, 24),
             pending: [],
-            process: null
+            process: null,
+            ring_buffer: new PtyRingBuffer(),
+            orphan_ttl_ms
         }
+        slot.status = "attached"
         slot.cols = dimension(msg.cols, slot.cols)
         slot.rows = dimension(msg.rows, slot.rows)
+        slot.orphan_ttl_ms = orphan_ttl_ms
+        if (slot.orphan_timer) {
+            clearTimeout(slot.orphan_timer)
+            slot.orphan_timer = undefined
+        }
         this.sessions.set(session_id, slot)
 
         const file = msg.file?.trim()
@@ -53,9 +70,65 @@ export class PtyManager {
         void this.spawn(session_id, slot, file, args, cwd, msg.term?.trim() || "xterm-256color", send, send_binary)
     }
 
+    public attach(
+        msg: PtyAttachMessage,
+        send: (msg: AgentToHubMessage) => void,
+        send_binary: (packet: Uint8Array) => void
+    ): void {
+        const session_id = msg.session_id
+        const slot = this.sessions.get(session_id)
+        if (!slot || slot.status === "closed") {
+            this.fail(session_id, "PTY session not found or expired", send)
+            return
+        }
+        if (slot.orphan_timer) {
+            clearTimeout(slot.orphan_timer)
+            slot.orphan_timer = undefined
+        }
+        slot.status = "attached"
+        console.log(
+            `[rexec-agent] [pty:${session_id.slice(0, 8)}] Attached. Replaying ${slot.ring_buffer.byte_length} bytes.`
+        )
+
+        if (msg.cols && msg.rows) {
+            this.resize({ type: "pty:resize", session_id, cols: msg.cols, rows: msg.rows })
+        }
+
+        // Replay buffered output
+        for (const chunk of slot.ring_buffer.get_chunks()) {
+            send_binary(encode_pty_frame(session_id, chunk))
+        }
+
+        // Flush any pending input
+        if (slot.pending.length > 0 && slot.process) {
+            const pending = slot.pending.splice(0)
+            for (const chunk of pending) {
+                slot.process.write(chunk)
+            }
+        }
+
+        // Trigger SIGWINCH to redraw application state
+        slot.process?.resize(slot.cols, slot.rows)
+    }
+
+    public detach(session_id: string): void {
+        const slot = this.sessions.get(session_id)
+        if (!slot || slot.status === "closed" || slot.status === "detached") return
+        slot.status = "detached"
+        console.log(
+            `[rexec-agent] [pty:${session_id.slice(0, 8)}] Detached. Starting orphan timer (${slot.orphan_ttl_ms}ms).`
+        )
+        if (slot.orphan_timer) clearTimeout(slot.orphan_timer)
+        slot.orphan_timer = setTimeout(() => {
+            console.log(`[rexec-agent] [pty:${session_id.slice(0, 8)}] Orphan TTL expired. Reaping process.`)
+            this.close({ type: "pty:close", session_id })
+        }, slot.orphan_ttl_ms)
+        slot.orphan_timer.unref?.()
+    }
+
     public write(session_id: string, payload: Uint8Array): void {
         const slot = this.sessions.get(session_id)
-        if (!slot || slot.closed || payload.byteLength === 0) return
+        if (!slot || slot.status === "closed" || payload.byteLength === 0) return
         if (slot.process) {
             slot.process.write(payload)
             return
@@ -65,7 +138,7 @@ export class PtyManager {
 
     public resize(msg: PtyResizeMessage): void {
         const slot = this.sessions.get(msg.session_id)
-        if (!slot || slot.closed) return
+        if (!slot || slot.status === "closed") return
         const cols = dimension(msg.cols, 0)
         const rows = dimension(msg.rows, 0)
         if (!cols || !rows) return
@@ -78,22 +151,33 @@ export class PtyManager {
         const slot = this.sessions.get(msg.session_id)
         if (!slot) {
             this.sessions.set(msg.session_id, {
-                closed: true,
+                status: "closed",
                 cols: 80,
                 rows: 24,
                 pending: [],
-                process: null
+                process: null,
+                ring_buffer: new PtyRingBuffer(),
+                orphan_ttl_ms: 0
             })
             return
         }
-        slot.closed = true
+        slot.status = "closed"
+        if (slot.orphan_timer) {
+            clearTimeout(slot.orphan_timer)
+            slot.orphan_timer = undefined
+        }
         slot.pending.length = 0
+        slot.ring_buffer.clear()
         slot.process?.kill()
+        this.sessions.delete(msg.session_id)
     }
 
     public abort_all(): void {
         for (const slot of this.sessions.values()) {
-            slot.closed = true
+            slot.status = "closed"
+            if (slot.orphan_timer) clearTimeout(slot.orphan_timer)
+            slot.pending.length = 0
+            slot.ring_buffer.clear()
             slot.process?.kill()
         }
         this.sessions.clear()
@@ -111,7 +195,7 @@ export class PtyManager {
     ): Promise<void> {
         try {
             this.binding ??= await load_pty_binding()
-            if (slot.closed) {
+            if (slot.status === "closed") {
                 this.sessions.delete(session_id)
                 return
             }
@@ -131,14 +215,19 @@ export class PtyManager {
                     helper_path: this.binding.helper_path
                 },
                 (data) => {
-                    if (!slot.closed) send_binary(encode_pty_frame(session_id, data))
+                    if (slot.status === "closed") return
+                    slot.ring_buffer.write(data)
+                    if (slot.status === "attached") {
+                        send_binary(encode_pty_frame(session_id, data))
+                    }
                 },
                 (status) => {
                     console.log(
                         `[rexec-agent] [pty:${session_id.slice(0, 8)}] Exited with code ${status.code}${status.signal ? ` (signal: ${status.signal})` : ""}`
                     )
+                    if (slot.orphan_timer) clearTimeout(slot.orphan_timer)
                     this.sessions.delete(session_id)
-                    if (!slot.closed) {
+                    if (slot.status !== "closed") {
                         send({
                             type: "pty:exit",
                             session_id,
@@ -148,11 +237,6 @@ export class PtyManager {
                     }
                 }
             )
-            if (slot.closed) {
-                proc.kill()
-                this.sessions.delete(session_id)
-                return
-            }
             slot.process = proc
             try {
                 proc.resize(slot.cols, slot.rows)
