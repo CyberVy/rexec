@@ -70,10 +70,23 @@ router.intercept(
 )
 
 // 2. Local Static Web Assets
-router.intercept((_request, url) => {
+const HUB_API_PREFIXES = ["/health", "/pty", "/exec", "/file", "/ws", "/api"]
+
+router.intercept((request, url) => {
     if (url.hostname !== location.hostname) return false
     if (url.href === location.href) return false
-    return ["/"].some((prefix) => url.pathname.startsWith(prefix))
+
+    // Bypass API requests carrying authorization headers or tokens
+    if (request.headers.has("Authorization") || url.searchParams.has("token")) {
+        return false
+    }
+
+    // Bypass dynamic Hub API paths
+    if (HUB_API_PREFIXES.some((prefix) => url.pathname.startsWith(prefix))) {
+        return false
+    }
+
+    return url.pathname.startsWith("/")
 }, handle_fetch_for_static_resource)
 
 router.listen()
