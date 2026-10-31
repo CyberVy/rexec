@@ -1,6 +1,6 @@
 {
   "name": "rexec",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ultra-lightweight edge-routed remote execution engine",
   "type": "module",
   "private": true,
@@ -21,8 +21,8 @@
     "build:caller-terminal": "esbuild src/caller/terminal/index.ts --bundle --platform=node --format=esm --target=esnext --outfile=dist/rexec.mjs --banner:js=\"#!/usr/bin/env node\"",
     "build:vscode": "esbuild extensions/vscode/src/index.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --minify --outfile=extensions/vscode/dist/extension.js",
     "package:vscode": "npm run build:vscode && cd extensions/vscode && vsce package --no-dependencies",
-    "install:vscode": "npm run build:vscode && mkdir -p ~/.vscode/extensions && ln -sfn \"$(pwd)/extensions/vscode\" ~/.vscode/extensions/rexec-vscode-0.1.0",
-    "uninstall:vscode": "rm -rf ~/.vscode/extensions/rexec-vscode-0.1.0",
+    "install:vscode": "npm run build:vscode && mkdir -p ~/.vscode/extensions && ln -sfn \"$(pwd)/extensions/vscode\" ~/.vscode/extensions/rexec-vscode",
+    "uninstall:vscode": "rm -rf ~/.vscode/extensions/rexec-vscode",
     "build:installers": "sh scripts/build_installers.sh",
     "build": "npm run build:agent && npm run build:caller-terminal && npm run build:vscode && npm run build:installers && npm run build:frontend",
     "deploy": "npm run build && wrangler deploy",
