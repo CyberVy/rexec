@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+        <title>rexec</title>
+        <meta name="description" content="Ultra-lightweight edge-routed remote execution engine" />
+        <meta property="og:title" content="rexec" />
+        <meta property="og:description" content="Ultra-lightweight edge-routed remote execution engine" />
+        <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="color-scheme" content="dark light" />
+        <style>
+            :root {
+                color-scheme: dark light;
+            }
+            html {
+                background-color: #ffffff;
+            }
+            @media (prefers-color-scheme: dark) {
+                html {
+                    background-color: #000000;
+                }
+            }
+        </style>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/favicon.ico" sizes="256x256" type="image/x-icon" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    </head>
+    <body class="antialiased">
+        <div id="root"></div>
+        <script type="module" src="./main.tsx"></script>
+    </body>
+</html>

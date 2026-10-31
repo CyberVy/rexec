@@ -8,3 +8,6 @@ dist
 .local
 *.vsix
 draft/
+target
+tsconfig.tsbuildinfo
+/buildServer.json

@@ -1,14 +1,35 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": [
+    "react",
     "typescript",
     "unicorn",
     "oxc"
+  ],
+  "jsPlugins": [
+    "./oxlint.rules.mjs"
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "src-tauri/src/inject.js",
+    "draft",
+    "extensions/vscode/dist"
   ],
   "categories": {
     "correctness": "warn"
   },
   "rules": {
-    "prefer-const": "error"
+    "prefer-const": "error",
+    "no-eval": "off",
+    "no-unused-vars": "off",
+    "react-hooks/exhaustive-deps": "off",
+    "react/set-state-in-effect": "off",
+    "local/no-emojis": "error",
+    "local/no-inline-svgs": "error",
+    "local/layering-restrictions": "error",
+    "local/naming-conventions": "error",
+    "local/no-sync-set-state-in-effect": "error",
+    "local/jsx-text-indent": "error"
   }
 }

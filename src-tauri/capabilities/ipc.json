@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ipc",
+  "description": "Allow the main window to use shared IPC permissions on local content and the trusted remote app URL.",
+  "windows": [
+    "main",
+    "popup-*"
+  ],
+  "remote": {
+    "urls": []
+  },
+  "permissions": [
+    "core:default",
+    "ipc"
+  ]
+}

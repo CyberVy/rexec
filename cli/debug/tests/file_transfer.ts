@@ -12,7 +12,7 @@ async function run_file_transfer_tests(): Promise<boolean> {
     const test_1 = "test:file_push_text"
     const local_text_file = path.join(tmp_test_dir, "test_input.txt")
     const remote_text_filename = "remote_test_input.txt"
-    const sample_text = "rexec file transfer test payload - line 1\nline 2 with utf8: 🚀 测试"
+    const sample_text = "rexec file transfer test payload - line 1\nline 2 with utf8: ★ 测试"
     fs.writeFileSync(local_text_file, sample_text, "utf-8")
 
     try {

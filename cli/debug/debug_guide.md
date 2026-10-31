@@ -1,7 +1,7 @@
 # Debug Channel Guide
 
 A stable, black-box debugging and end-to-end verification harness for `rexec`.
-It orchestrates a local Cloudflare Worker Hub (`wrangler dev`) and a local Node Agent (`dist/rexec-agent.mjs`), executes scenario-based test suites, and records structured diagnostics under `.debug/`.
+It orchestrates a local Cloudflare Worker Hub (`wrangler dev`) and a local Node Agent (`dist/rexec-agent.mjs`), executes scenario-based test suites, and records structured diagnostics under `.debug/engine/`.
 
 ## Architecture & Contract
 
@@ -14,7 +14,7 @@ The debug channel does not import internal implementation details from `src/`. I
 
 ## Directory Structure
 
-- `cli/debug/serve.ts`: Starts the local Worker Hub and local Agent, pipes logs to `.debug/*.jsonl`, and writes `.debug/config.json`.
+- `cli/debug/serve.ts`: Starts the local Worker Hub and local Agent, pipes logs to `.debug/engine/*.jsonl`, and writes `.debug/engine/config.json`.
 - `cli/debug/tests/`: Automated scenario tests:
     - `basic.ts`: Hub health check, stdout echo, and stderr non-zero exit code propagation.
     - `env_cwd.ts`: Remote directory isolation and shell pipeline execution.
@@ -22,7 +22,7 @@ The debug channel does not import internal implementation details from `src/`. I
     - `large_output.ts`: Streaming fidelity under high-volume chunked output.
     - `heartbeat.ts`: Shared transport lifecycle and the agent reconnect when pings go unanswered or a close frame leaves TCP open, and the agent exits on token takeover. Does not use the debug server.
     - `run_all.ts`: Sequential test runner with aggregated pass/fail reporting.
-- `.debug/` (git ignored):
+- `.debug/engine/` (git ignored):
     - `config.json`: Live target info written by `serve.ts` (removed on exit).
     - `worker.jsonl`: Cloudflare Worker Hub console logs.
     - `agent.jsonl`: Local Agent process logs.
@@ -55,7 +55,7 @@ npm run debug:test:heartbeat
 When a bug or regression occurs:
 
 1. Run `npm run debug:test` to identify failing test cases.
-2. Read `.debug/history.jsonl` to inspect the exact failure verdict and error details.
-3. Check `.debug/worker.jsonl` and `.debug/agent.jsonl` around the corresponding timestamp.
+2. Read `.debug/engine/history.jsonl` to inspect the exact failure verdict and error details.
+3. Check `.debug/engine/worker.jsonl` and `.debug/engine/agent.jsonl` around the corresponding timestamp.
 4. Modify source code in `src/`.
 5. Re-run `npm run debug:test` to confirm the fix with zero regressions.

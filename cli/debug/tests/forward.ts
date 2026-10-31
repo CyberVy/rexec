@@ -85,7 +85,7 @@ async function run(): Promise<void> {
         })
 
         console.log("\n======================================================")
-        console.log("🎉 ALL PORT FORWARD TESTS PASSED!")
+        console.log("ALL PORT FORWARD TESTS PASSED!")
         console.log("======================================================\n")
     } catch (err) {
         record_history({
