@@ -235,86 +235,98 @@ export function TerminalBlock() {
     return (
         <div className="flex flex-col h-dvh p-4 gap-2 pb-24 min-h-0">
             {/* Terminal Top Control Bar */}
-            <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5">
-                        <span
-                            className={`size-2 rounded-full ${
-                                pty_state.status === "connected"
-                                    ? "bg-emerald-500 animate-pulse"
-                                    : pty_state.status === "connecting"
-                                      ? "bg-amber-400 animate-ping"
-                                      : "bg-zinc-500"
-                            }`}
-                        />
-                        <span className="capitalize text-foreground font-medium">{pty_state.status}</span>
+            <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono shrink-0">
+                {/* Row 1: Status & Context */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span
+                                className={`size-2 rounded-full ${
+                                    pty_state.status === "connected"
+                                        ? "bg-emerald-500 animate-pulse"
+                                        : pty_state.status === "connecting"
+                                          ? "bg-amber-400 animate-ping"
+                                          : "bg-zinc-500"
+                                }`}
+                            />
+                            <span className="capitalize text-foreground font-medium">{pty_state.status}</span>
+                        </div>
+
+                        {/* Session Selector Capsule */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void pty_controller.refresh_sessions()
+                                set_is_sessions_modal_open(true)
+                            }}
+                            className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] truncate"
+                        >
+                            <span className="truncate">
+                                {pty_state.session_id
+                                    ? `Session: ${pty_state.session_id.slice(0, 8)}`
+                                    : `Sessions (${pty_state.sessions.length})`}
+                            </span>
+                            <ChevronDownIcon className="size-3 shrink-0" />
+                        </button>
                     </div>
 
-                    {/* Session Selector Capsule */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void pty_controller.refresh_sessions()
-                            set_is_sessions_modal_open(true)
-                        }}
-                        className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px]"
-                    >
-                        <span>
-                            {pty_state.session_id
-                                ? `Session: ${pty_state.session_id.slice(0, 8)}`
-                                : `Sessions (${pty_state.sessions.length})`}
-                        </span>
-                        <ChevronDownIcon className="size-3" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {pty_state.exit_code !== null && (
+                            <span className="text-[11px] text-amber-500">Exited with code {pty_state.exit_code}</span>
+                        )}
 
-                    {pty_state.exit_code !== null && (
-                        <span className="text-[11px] text-amber-500">Exited with code {pty_state.exit_code}</span>
-                    )}
-
-                    {pty_state.error && <span className="text-[11px] text-red-400">{pty_state.error}</span>}
+                        {pty_state.error && (
+                            <span className="text-[11px] text-red-400 truncate max-w-[140px]">{pty_state.error}</span>
+                        )}
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => set_is_accessory_bar_open((prev) => !prev)}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
-                            is_accessory_bar_open
-                                ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
-                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                        }`}
-                        title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
-                    >
-                        <KeyboardIcon className="size-3" />
-                        <span>Keys</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handle_clear}
-                        className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
-                    >
-                        Clear
-                    </button>
-
-                    {pty_state.status === "connected" || pty_state.status === "connecting" ? (
+                {/* Row 2: Action Controls */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-black/5 dark:border-white/5">
+                    <div className="flex items-center gap-1.5">
                         <button
                             type="button"
-                            onClick={handle_disconnect}
-                            className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-medium text-xs transition cursor-pointer"
+                            onClick={() => set_is_accessory_bar_open((prev) => !prev)}
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                                is_accessory_bar_open
+                                    ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                            }`}
+                            title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
                         >
-                            Disconnect
+                            <KeyboardIcon className="size-3" />
+                            <span>Keys</span>
                         </button>
-                    ) : (
+
                         <button
                             type="button"
-                            onClick={handle_connect}
-                            disabled={!session_state.agent_online && !session_state.is_checking}
-                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5 cursor-pointer"
+                            onClick={handle_clear}
+                            className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
                         >
-                            <RunIcon className="size-3" /> Connect Terminal
+                            Clear
                         </button>
-                    )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {pty_state.status === "connected" || pty_state.status === "connecting" ? (
+                            <button
+                                type="button"
+                                onClick={handle_disconnect}
+                                className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 text-white font-medium text-xs transition cursor-pointer"
+                            >
+                                Disconnect
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handle_connect}
+                                disabled={!session_state.agent_online && !session_state.is_checking}
+                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                                <RunIcon className="size-3" /> Connect Terminal
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
 
