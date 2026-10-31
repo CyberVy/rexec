@@ -8,7 +8,7 @@ import { stripVTControlCharacters } from "node:util"
 const script_dir = path.dirname(fileURLToPath(import.meta.url))
 const repo_root = path.resolve(script_dir, "../..")
 
-const DEBUG_DIR = path.join(repo_root, ".debug")
+const DEBUG_DIR = path.join(repo_root, ".debug", "engine")
 const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 const WORKER_LOG_FILE = path.join(DEBUG_DIR, "worker.jsonl")
 const AGENT_LOG_FILE = path.join(DEBUG_DIR, "agent.jsonl")
@@ -147,7 +147,7 @@ async function run(): Promise<void> {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config_payload, null, 2) + "\n")
 
     console.log(`\n======================================================`)
-    console.log(`🚀 [rexec debug channel ready]`)
+    console.log(`[rexec debug channel ready]`)
     console.log(`   Hub URL   : ${hub_http_url}`)
     console.log(`   Token     : ${DEBUG_TOKEN}`)
     console.log(`   Config    : ${CONFIG_FILE}`)

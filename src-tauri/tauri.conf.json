@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "rexec",
+  "version": "0.1.0",
+  "identifier": "com.edgetool.rexec",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5000",
+    "beforeDevCommand": "npx concurrently \"npm run dev:injection\" \"npm run dev\"",
+    "beforeBuildCommand": "npm run build:injection && npm run build"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "create": false,
+        "visible": false,
+        "url": "/native_entry",
+        "title": "rexec",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

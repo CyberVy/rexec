@@ -1,0 +1,11 @@
+[[permission]]
+identifier = "ipc"
+description = "Allows the trusted CMS web app to use native IPC commands."
+commands.allow = [
+  "fetch",
+  "create_child_webview",
+  "destroy_child_webview",
+  "set_window_layout",
+  "post_message_to_main",
+  "post_message_to_webview",
+]

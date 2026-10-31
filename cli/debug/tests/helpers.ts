@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 const script_dir = path.dirname(fileURLToPath(import.meta.url))
 export const repo_root = path.resolve(script_dir, "../../..")
-export const DEBUG_DIR = path.join(repo_root, ".debug")
+export const DEBUG_DIR = path.join(repo_root, ".debug", "engine")
 export const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
 export const HISTORY_FILE = path.join(DEBUG_DIR, "history.jsonl")
 export const CLI_BIN = path.join(repo_root, "dist", "rexec.mjs")

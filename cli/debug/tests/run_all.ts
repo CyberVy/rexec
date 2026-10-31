@@ -35,7 +35,7 @@ async function main(): Promise<void> {
     read_debug_config()
 
     console.log(`\n======================================================`)
-    console.log(`🧪 Running Rexec Automated Test Matrix`)
+    console.log(`Running Rexec Automated Test Matrix`)
     console.log(`======================================================\n`)
 
     let total_passed = 0
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
 
     console.log(`======================================================`)
     console.log(`Test Summary: ${total_passed} Passed, ${total_failed} Failed`)
-    console.log(`History Log : .debug/history.jsonl`)
+    console.log(`History Log : .debug/engine/history.jsonl`)
     console.log(`======================================================\n`)
 
     process.exit(total_failed === 0 ? 0 : 1)

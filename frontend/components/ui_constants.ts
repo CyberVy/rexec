@@ -1,0 +1,30 @@
+export const string_icons = {
+    back: "⇐",
+    forward: "⇒",
+    like: "♥︎",
+    left_arrow: "↢",
+    right_arrow: "↣",
+    up_triangle: "▲",
+    down_triangle: "▼",
+    close: "×",
+    menu: "≡",
+    share: "⤒",
+    history: "⎌",
+    reset: "↻",
+    success: "✓",
+    error: "✗",
+    true: "✓",
+    false: "✗",
+    info: "𝐢",
+    del: "∅",
+    setting: "⌘",
+    shot: "⌖",
+    left_double_arrow: "≪",
+    right_double_arrow: "≫",
+    left_dashed_arrow: "⇠",
+    right_dashed_arrow: "⇢",
+    expand: "⛶",
+    target: "⌖"
+}
+
+export const highlight = "text-orange-400 dark:text-orange-300"

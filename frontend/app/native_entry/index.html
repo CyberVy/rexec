@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+        <title>rexec</title>
+        <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
+        <meta name="color-scheme" content="dark light" />
+        <style>
+            :root {
+                color-scheme: dark light;
+            }
+            html {
+                background-color: #ffffff;
+            }
+            @media (prefers-color-scheme: dark) {
+                html {
+                    background-color: #000000;
+                }
+            }
+        </style>
+        <link rel="icon" href="/favicon.ico" sizes="256x256" type="image/x-icon" />
+    </head>
+    <body class="antialiased">
+        <div id="root"></div>
+        <script type="module" src="./main.tsx"></script>
+    </body>
+</html>

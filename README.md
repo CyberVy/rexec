@@ -279,7 +279,7 @@ Options:
 # Build standalone distributions (dist/rexec.mjs and dist/rexec-agent.mjs)
 npm run build
 
-# Start local black-box debug harness (Hub + Agent logging to .debug/)
+# Start local black-box debug harness (Hub + Agent logging to .debug/engine/)
 npm run debug:serve
 
 # Run automated end-to-end test matrix (in another terminal)

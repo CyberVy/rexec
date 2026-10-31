@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@utility no-scrollbar {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+:root {
+    overscroll-behavior-x: none;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
+    --background: #ffffff;
+    --foreground: #000000;
+    --font-sans: Arial, Helvetica, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --font-sans: var(--font-sans);
+    --font-mono: var(--font-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: #000000;
+        --foreground: #eeeeee;
+    }
+}
+
+html {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+}
+
+body {
+    padding: env(safe-area-inset-top) 0 0 0;
+    /**
+     * iOS WebKit Fixed Positioning Fix:
+     * When content height < 100% viewport,
+     * bottom-fixed elements float upward in fullscreen WebKit / PWA.
+     *
+     * Solution 1 (Legacy):
+     * `:root { min-height: calc(100% + env(safe-area-inset-top) + env(safe-area-inset-bottom)); }`
+     * Works, but causes unwanted overflow on short pages.
+     *
+     * Solution 2 (Modern, Recommended):
+     * `body { min-height: 100vh; }`
+     * Anchors fixed elements to the bottom edge with zero extra overscroll.
+     */
+    min-height: 100vh;
+}
+
+*::selection {
+    background-color: color-mix(in oklab, var(--foreground) 50%, transparent);
+}
+
+*:focus-visible {
+    outline: none;
+}

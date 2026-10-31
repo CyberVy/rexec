@@ -1,0 +1,28 @@
+.viewswitcher-toolbar {
+    transition:
+        transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toolbar-hidden.viewswitcher-toolbar-bottom {
+    transform: translate(0%, 150%) scale(0.9) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.toolbar-hidden.viewswitcher-toolbar-top {
+    transform: translate(0%, -150%) scale(0.9) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.viewswitcher-toolbar-top {
+    top: calc(
+        12px + env(safe-area-inset-top, 0px) + clamp(0px, env(safe-area-inset-top, 0px) * 999, 12px) -
+            var(--switcher-top-offset, 0px)
+    );
+}
+
+.viewswitcher-toolbar-bottom {
+    bottom: calc(12px + var(--switcher-bottom-offset, 0px));
+}
