@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
@@ -215,6 +215,22 @@ export function TerminalBlock() {
         }
     }
 
+    const handle_accessory_scroll_ref = useCallback((scroll_container: HTMLDivElement | null) => {
+        if (!scroll_container) return
+
+        const stop_touch_propagation = (e: TouchEvent) => {
+            e.stopPropagation()
+        }
+
+        scroll_container.addEventListener("touchstart", stop_touch_propagation, { passive: true })
+        scroll_container.addEventListener("touchmove", stop_touch_propagation, { passive: true })
+
+        return () => {
+            scroll_container.removeEventListener("touchstart", stop_touch_propagation)
+            scroll_container.removeEventListener("touchmove", stop_touch_propagation)
+        }
+    }, [])
+
     return (
         <div className="flex flex-col h-dvh p-4 gap-2 pb-24 min-h-0">
             {/* Terminal Top Control Bar */}
@@ -409,7 +425,10 @@ export function TerminalBlock() {
 
             {/* Accessory Virtual Keys Bar */}
             {is_accessory_bar_open && (
-                <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono">
+                <div
+                    ref={handle_accessory_scroll_ref}
+                    className="shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
+                >
                     {ACCESSORY_KEYS.map((key) => (
                         <button
                             key={key.label}
