@@ -24,7 +24,6 @@ export interface SessionState {
     active_agent_id: string
     agent_ids: string[]
     agents: Record<string, AgentRecord>
-    // Active agent snapshot properties for backwards compatibility
     hub_url: string
     token: string
     is_checking: boolean
@@ -38,7 +37,6 @@ export interface SessionState {
 const order_store = new LocalStorageMap<string[]>("rexec_orders")
 const agent_store = new LocalStorageMap<StoredAgentEntity>("rexec_agents")
 const active_store = new LocalStorageMap<string>("rexec_active_agent")
-const legacy_store = new LocalStorageMap<string>("rexec_session")
 
 export class SessionController extends BaseController<SessionState> {
     private check_timer: ReturnType<typeof setTimeout> | null = null
@@ -46,26 +44,7 @@ export class SessionController extends BaseController<SessionState> {
     constructor() {
         super()
 
-        let initial_hub = "http://localhost:8787"
-        let initial_token = "default-token"
-
-        if (typeof window !== "undefined") {
-            try {
-                const params = new URLSearchParams(window.location.search)
-                const query_hub = params.get("hub") || params.get("hub_url")
-                const query_token = params.get("token")
-
-                if (query_hub) initial_hub = query_hub
-                else initial_hub = legacy_store.get("hub_url") || initial_hub
-
-                if (query_token) initial_token = query_token
-                else initial_token = legacy_store.get("token") || initial_token
-            } catch {
-                // Ignore URL parsing errors
-            }
-        }
-
-        let agent_ids = order_store.get("agents") ?? []
+        const agent_ids = order_store.get("agents") ?? []
         const agents: Record<string, AgentRecord> = {}
 
         for (const id of agent_ids) {
@@ -82,62 +61,36 @@ export class SessionController extends BaseController<SessionState> {
             }
         }
 
-        // Migration or seed default agent if none exists
-        if (agent_ids.length === 0 || Object.keys(agents).length === 0) {
-            const default_id = "agent_default"
-            const default_agent: StoredAgentEntity = {
-                id: default_id,
-                name: "Default Node",
-                hub_url: initial_hub,
-                token: initial_token
-            }
-            agent_store.set(default_id, default_agent)
-            agent_ids = [default_id]
-            order_store.set("agents", agent_ids)
-            active_store.set("current", default_id)
-
-            agents[default_id] = {
-                ...default_agent,
-                is_online: false,
-                latency_ms: null,
-                is_checking: false,
-                last_checked_at: null,
-                error: null
-            }
+        const valid_ids = agent_ids.filter((id) => !!agents[id])
+        if (valid_ids.length !== agent_ids.length) {
+            order_store.set("agents", valid_ids)
         }
 
-        let active_id = active_store.get("current") || agent_ids[0]
+        let active_id = active_store.get("current") || (valid_ids[0] ?? "")
         if (!agents[active_id]) {
-            active_id = agent_ids[0]
+            active_id = valid_ids[0] ?? ""
             active_store.set("current", active_id)
         }
 
         const active_agent = agents[active_id]
         this._state = {
             active_agent_id: active_id,
-            agent_ids,
+            agent_ids: valid_ids,
             agents,
-            hub_url: active_agent.hub_url,
-            token: active_agent.token,
-            is_checking: false,
-            agent_online: false,
-            latency_ms: null,
-            error: null,
-            last_checked_at: null,
-            current_agent_id: active_agent.node_id || active_agent.id
+            ...this.sync_active_snapshot(active_agent)
         }
     }
 
-    private sync_active_snapshot(active_agent: AgentRecord): Partial<SessionState> {
+    private sync_active_snapshot(active_agent?: AgentRecord) {
         return {
-            hub_url: active_agent.hub_url,
-            token: active_agent.token,
-            is_checking: active_agent.is_checking,
-            agent_online: active_agent.is_online,
-            latency_ms: active_agent.latency_ms,
-            error: active_agent.error,
-            last_checked_at: active_agent.last_checked_at,
-            current_agent_id: active_agent.node_id || active_agent.id
+            hub_url: active_agent?.hub_url ?? "",
+            token: active_agent?.token ?? "",
+            is_checking: active_agent?.is_checking ?? false,
+            agent_online: active_agent?.is_online ?? false,
+            latency_ms: active_agent?.latency_ms ?? null,
+            error: active_agent?.error ?? null,
+            last_checked_at: active_agent?.last_checked_at ?? null,
+            current_agent_id: active_agent?.node_id || active_agent?.id
         }
     }
 
@@ -146,9 +99,6 @@ export class SessionController extends BaseController<SessionState> {
         if (!target || this.state.active_agent_id === id) return
 
         active_store.set("current", id)
-        legacy_store.set("hub_url", target.hub_url)
-        legacy_store.set("token", target.token)
-
         this.update_state({
             active_agent_id: id,
             ...this.sync_active_snapshot(target)
@@ -179,22 +129,28 @@ export class SessionController extends BaseController<SessionState> {
             error: null
         }
 
-        const next_agents = {
-            ...this.state.agents,
-            [id]: new_record
+        const next_agents = { ...this.state.agents, [id]: new_record }
+        const is_first = !this.state.active_agent_id
+        const next_active_id = is_first ? id : this.state.active_agent_id
+        if (is_first) {
+            active_store.set("current", id)
         }
 
         this.update_state({
+            active_agent_id: next_active_id,
             agent_ids: next_ids,
-            agents: next_agents
+            agents: next_agents,
+            ...(is_first ? this.sync_active_snapshot(new_record) : {})
         })
         this.dispatchEvent(new Event("change"))
+        if (is_first) {
+            this.dispatchEvent(new Event("status_change"))
+        }
         this.refresh_agent_status(id)
         return id
     }
 
     public remove_agent(id: string): boolean {
-        if (this.state.agent_ids.length <= 1) return false
         if (!this.state.agents[id]) return false
 
         agent_store.delete(id)
@@ -204,9 +160,9 @@ export class SessionController extends BaseController<SessionState> {
         const next_agents = { ...this.state.agents }
         delete next_agents[id]
 
-        let next_active_id = this.state.active_agent_id
-        if (next_active_id === id) {
-            next_active_id = next_ids[0]
+        const is_active = this.state.active_agent_id === id
+        const next_active_id = is_active ? (next_ids[0] ?? "") : this.state.active_agent_id
+        if (is_active) {
             active_store.set("current", next_active_id)
         }
 
@@ -241,16 +197,8 @@ export class SessionController extends BaseController<SessionState> {
             error: null
         }
 
-        const next_agents = {
-            ...this.state.agents,
-            [id]: updated_record
-        }
-
+        const next_agents = { ...this.state.agents, [id]: updated_record }
         const is_active = id === this.state.active_agent_id
-        if (is_active) {
-            legacy_store.set("hub_url", updated_stored.hub_url)
-            legacy_store.set("token", updated_stored.token)
-        }
 
         this.update_state({
             agents: next_agents,
@@ -261,11 +209,21 @@ export class SessionController extends BaseController<SessionState> {
     }
 
     public set_hub_url(url: string): void {
-        this.update_agent(this.state.active_agent_id, { hub_url: url })
+        const hub = url.trim()
+        if (!this.state.active_agent_id) {
+            if (hub) this.add_agent({ hub_url: hub, token: this.state.token })
+            return
+        }
+        this.update_agent(this.state.active_agent_id, { hub_url: hub })
     }
 
     public set_token(token: string): void {
-        this.update_agent(this.state.active_agent_id, { token })
+        const tok = token.trim()
+        if (!this.state.active_agent_id) {
+            if (this.state.hub_url) this.add_agent({ hub_url: this.state.hub_url, token: tok })
+            return
+        }
+        this.update_agent(this.state.active_agent_id, { token: tok })
     }
 
     public get_caller(agent_id?: string): RexecCaller {
@@ -278,6 +236,7 @@ export class SessionController extends BaseController<SessionState> {
     }
 
     public async refresh_agent_status(agent_id: string): Promise<HubStatus | null> {
+        if (!agent_id) return null
         const agent = this.state.agents[agent_id]
         if (!agent) return null
 
@@ -323,7 +282,6 @@ export class SessionController extends BaseController<SessionState> {
             const latency = Math.round(performance.now() - start_time)
             const resolved_node_id = status.node_id || agent.node_id
 
-            // Update stored node_id if discovered
             if (status.node_id && status.node_id !== agent.node_id) {
                 const stored = agent_store.get(agent_id)
                 if (stored) {
@@ -374,10 +332,12 @@ export class SessionController extends BaseController<SessionState> {
     }
 
     public async refresh_status(): Promise<HubStatus | null> {
+        if (!this.state.active_agent_id) return null
         return this.refresh_agent_status(this.state.active_agent_id)
     }
 
     public async refresh_all_agents(): Promise<void> {
+        if (this.state.agent_ids.length === 0) return
         await Promise.allSettled(this.state.agent_ids.map((id) => this.refresh_agent_status(id)))
     }
 
