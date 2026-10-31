@@ -113,12 +113,14 @@ export class RexecCaller {
         return open_pty_session({
             hub_url: this.hub_url,
             token: this.token,
+            session_id: options.session_id,
             file: options.file,
             args: options.args,
             cwd: options.cwd,
             cols: options.cols,
             rows: options.rows,
             term: options.term,
+            orphan_ttl_ms: options.orphan_ttl_ms,
             signal: options.signal
         })
     }

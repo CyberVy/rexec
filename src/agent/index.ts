@@ -81,10 +81,8 @@ Or set environment variables:
             },
             on_dead: (reason) => {
                 console.log(`[rexec-agent] Session dead (${reason}). Reconnecting.`)
-                if (!this.is_shutting_down) this.release_remote_work()
             },
             on_close: (event) => {
-                if (!this.is_shutting_down) this.release_remote_work()
                 if (event.code === 1000 && event.reason === REPLACED_REASON) {
                     console.log(`[rexec-agent] Connection closed (${REPLACED_REASON}).`)
                     process.exit(0)
@@ -163,6 +161,14 @@ Or set environment variables:
                     (m) => this.send(m),
                     (bin) => this.send_binary(bin)
                 )
+            } else if (msg.type === "pty:attach") {
+                this.ptys.attach(
+                    msg,
+                    (m) => this.send(m),
+                    (bin) => this.send_binary(bin)
+                )
+            } else if (msg.type === "pty:detach") {
+                this.ptys.detach(msg.session_id)
             } else if (msg.type === "pty:resize") {
                 this.ptys.resize(msg)
             } else if (msg.type === "pty:close") {

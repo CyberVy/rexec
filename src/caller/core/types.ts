@@ -12,12 +12,14 @@ export interface HubStatus {
 }
 
 export interface PtyOptions {
-    file: string
+    session_id?: string
+    file?: string
     args?: string[]
     cwd?: string
     cols?: number
     rows?: number
     term?: string
+    orphan_ttl_ms?: number
     signal?: AbortSignal
 }
 
