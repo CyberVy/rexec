@@ -2,7 +2,7 @@
   "name": "rexec-vscode",
   "displayName": "Rexec",
   "description": "Remote execution engine: agent status monitoring, terminal, and port forwarding for VS Code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "rexec",
   "engines": {
     "vscode": "^1.85.0"
