@@ -258,3 +258,36 @@ export function TrashIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_SIZ
         </svg>
     )
 }
+
+export function KeyboardIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_SIZE, ...props }: IconProps) {
+    return (
+        <svg
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            {...props}
+        >
+            <rect
+                x="2"
+                y="4"
+                width="20"
+                height="16"
+                rx="2"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <line x1="6" y1="8" x2="6.01" y2="8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="10" y1="8" x2="10.01" y2="8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="14" y1="8" x2="14.01" y2="8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="18" y1="8" x2="18.01" y2="8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="6" y1="12" x2="6.01" y2="12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="18" y1="12" x2="18.01" y2="12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="10" y1="12" x2="14" y2="12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <line x1="8" y1="16" x2="16" y2="16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
