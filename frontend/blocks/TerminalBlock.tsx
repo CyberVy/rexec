@@ -46,6 +46,11 @@ export function TerminalBlock() {
     const fit_addon_ref = useRef<FitAddon | null>(null)
     const [is_sessions_modal_open, set_is_sessions_modal_open] = useState(false)
     const [is_accessory_bar_open, set_is_accessory_bar_open] = useState(true)
+    const [command_input, set_command_input] = useState("")
+    const [command_history, set_command_history] = useState<string[]>([])
+    const [history_index, set_history_index] = useState(-1)
+    const command_draft_ref = useRef("")
+    const command_input_ref = useRef<HTMLInputElement>(null)
 
     const pty_state = useController(pty_controller, {
         events: ["change", "ready", "exit"]
@@ -160,6 +165,54 @@ export function TerminalBlock() {
 
     const handle_clear = () => {
         term_ref.current?.clear()
+    }
+
+    const handle_command_submit = (e: React.FormEvent) => {
+        e.preventDefault()
+        const trimmed = command_input
+        if (!trimmed) return
+        vibrate()
+        pty_controller.send(trimmed + "\n")
+        set_command_history((prev) => [trimmed, ...prev.filter((c) => c !== trimmed)].slice(0, 50))
+        set_history_index(-1)
+        command_draft_ref.current = ""
+        set_command_input("")
+    }
+
+    const handle_command_keydown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "ArrowUp") {
+            e.preventDefault()
+            if (command_history.length === 0) return
+            const next_index = Math.min(history_index + 1, command_history.length - 1)
+            if (history_index === -1) {
+                command_draft_ref.current = command_input
+            }
+            set_history_index(next_index)
+            set_command_input(command_history[next_index] ?? "")
+        } else if (e.key === "ArrowDown") {
+            e.preventDefault()
+            if (history_index <= 0) {
+                set_history_index(-1)
+                set_command_input(command_draft_ref.current)
+                return
+            }
+            const next_index = history_index - 1
+            set_history_index(next_index)
+            set_command_input(command_history[next_index] ?? "")
+        }
+    }
+
+    const handle_paste_event = (e: React.ClipboardEvent<HTMLInputElement>) => {
+        const text = e.clipboardData.getData("text")
+        if (text.includes("\n")) {
+            e.preventDefault()
+            vibrate()
+            if (term_ref.current) {
+                term_ref.current.paste(text)
+            } else {
+                pty_controller.send(text)
+            }
+        }
     }
 
     return (
@@ -318,6 +371,41 @@ export function TerminalBlock() {
                     </div>
                 )}
             </div>
+
+            {/* Native Command Input Bar */}
+            {pty_state.status === "connected" && (
+                <form
+                    onSubmit={handle_command_submit}
+                    className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
+                >
+                    <span className="text-muted-foreground select-none shrink-0 font-bold">$</span>
+                    <input
+                        ref={command_input_ref}
+                        type="text"
+                        value={command_input}
+                        onChange={(e) => {
+                            set_command_input(e.target.value)
+                            if (history_index !== -1) {
+                                set_history_index(-1)
+                            }
+                        }}
+                        onKeyDown={handle_command_keydown}
+                        onPaste={handle_paste_event}
+                        placeholder="Type command or paste..."
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        className="flex-1 bg-transparent border-none outline-hidden text-foreground placeholder:text-muted-foreground text-xs font-mono min-w-0"
+                    />
+                    <button
+                        type="submit"
+                        disabled={!command_input.trim()}
+                        className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer shrink-0 select-none hover:opacity-90 active:scale-95"
+                    >
+                        Send
+                    </button>
+                </form>
+            )}
 
             {/* Accessory Virtual Keys Bar */}
             {is_accessory_bar_open && (
