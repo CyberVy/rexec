@@ -9,13 +9,43 @@ import { FloatingModalContainer } from "@/components/composite/ModalContainer"
 import { CloseIcon, ChevronDownIcon } from "@/components/icons"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
-import { RunIcon, PlusIcon, TrashIcon, RefreshIcon } from "./icons"
+import { vibrate } from "@/infra/device.client"
+import { RunIcon, PlusIcon, TrashIcon, RefreshIcon, KeyboardIcon } from "./icons"
+
+interface AccessoryKey {
+    label: string
+    payload: string
+    title?: string
+}
+
+const ACCESSORY_KEYS: AccessoryKey[] = [
+    { label: "ESC", payload: "\x1b", title: "Escape" },
+    { label: "TAB", payload: "\t", title: "Tab" },
+    { label: "^C", payload: "\x03", title: "Interrupt (SIGINT)" },
+    { label: "←", payload: "\x1b[D", title: "Left" },
+    { label: "→", payload: "\x1b[C", title: "Right" },
+    { label: "↑", payload: "\x1b[A", title: "Up" },
+    { label: "↓", payload: "\x1b[B", title: "Down" },
+    { label: "^D", payload: "\x04", title: "EOF (Exit)" },
+    { label: "^Z", payload: "\x1a", title: "Suspend (SIGTSTP)" },
+    { label: "^L", payload: "\x0c", title: "Clear Screen" },
+    { label: "HOME", payload: "\x1b[H", title: "Line Start" },
+    { label: "END", payload: "\x1b[F", title: "Line End" },
+    { label: "PGUP", payload: "\x1b[5~", title: "Page Up" },
+    { label: "PGDN", payload: "\x1b[6~", title: "Page Down" },
+    { label: "|", payload: "|", title: "Pipe" },
+    { label: "~", payload: "~", title: "Tilde" },
+    { label: "/", payload: "/", title: "Slash" },
+    { label: "-", payload: "-", title: "Dash" },
+    { label: "_", payload: "_", title: "Underscore" }
+]
 
 export function TerminalBlock() {
     const container_ref = useRef<HTMLDivElement>(null)
     const term_ref = useRef<Terminal | null>(null)
     const fit_addon_ref = useRef<FitAddon | null>(null)
     const [is_sessions_modal_open, set_is_sessions_modal_open] = useState(false)
+    const [is_accessory_bar_open, set_is_accessory_bar_open] = useState(true)
 
     const pty_state = useController(pty_controller, {
         events: ["change", "ready", "exit"]
@@ -177,6 +207,20 @@ export function TerminalBlock() {
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
+                        onClick={() => set_is_accessory_bar_open((prev) => !prev)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                            is_accessory_bar_open
+                                ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
+                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                        }`}
+                        title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
+                    >
+                        <KeyboardIcon className="size-3" />
+                        <span>Keys</span>
+                    </button>
+
+                    <button
+                        type="button"
                         onClick={handle_clear}
                         className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
                     >
@@ -274,6 +318,27 @@ export function TerminalBlock() {
                     </div>
                 )}
             </div>
+
+            {/* Accessory Virtual Keys Bar */}
+            {is_accessory_bar_open && (
+                <div className="shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono">
+                    {ACCESSORY_KEYS.map((key) => (
+                        <button
+                            key={key.label}
+                            type="button"
+                            title={key.title}
+                            onPointerDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                                vibrate()
+                                pty_controller.send(key.payload)
+                            }}
+                            className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 active:scale-95 text-foreground font-medium transition cursor-pointer shrink-0 select-none"
+                        >
+                            {key.label}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {/* Sessions Management Modal */}
             {is_sessions_modal_open && (
