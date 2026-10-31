@@ -2,18 +2,20 @@ import { exec_command } from "./exec"
 import { open_forward_tunnel, type ForwardTunnelClient } from "./forward"
 import { pull_http, push_http } from "./file"
 import { open_pty_session, type PtyClient } from "./pty"
-import type {
-    CallerOptions,
-    ExecOptions,
-    HubStatus,
-    PullOptions,
-    PullResult,
-    PushOptions,
-    PushResult,
-    PtyOptions,
-    PtySessionInfo,
-    TransferSink,
-    TransferSource
+import {
+    HUB_ROUTES,
+    type CallerOptions,
+    type ExecOptions,
+    type HubStatus,
+    type PullOptions,
+    type PullResult,
+    type PushOptions,
+    type PushResult,
+    type PtyKillRequestPayload,
+    type PtyOptions,
+    type PtySessionInfo,
+    type TransferSink,
+    type TransferSource
 } from "./types"
 
 export * from "./types"
@@ -50,7 +52,7 @@ export class RexecCaller {
      */
     public async get_status(signal?: AbortSignal): Promise<HubStatus> {
         const url = new URL(this.hub_url)
-        url.pathname = "/health"
+        url.pathname = HUB_ROUTES.HEALTH.path
         if (this.token) {
             url.searchParams.set("token", this.token)
         }
@@ -130,7 +132,7 @@ export class RexecCaller {
      * List all active and detached PTY sessions on the remote agent.
      */
     public async list_ptys(): Promise<PtySessionInfo[]> {
-        const url = new URL("/pty/list", this.hub_url)
+        const url = new URL(HUB_ROUTES.PTY_LIST.path, this.hub_url)
         url.searchParams.set("token", this.token)
         try {
             const res = await fetch(url.toString())
@@ -145,12 +147,13 @@ export class RexecCaller {
      * Terminate and clean up a remote PTY session by session_id.
      */
     public async kill_pty(session_id: string): Promise<void> {
-        const url = new URL("/pty/kill", this.hub_url)
+        const url = new URL(HUB_ROUTES.PTY_KILL.path, this.hub_url)
         url.searchParams.set("token", this.token)
+        const payload: PtyKillRequestPayload = { session_id }
         await fetch(url.toString(), {
-            method: "POST",
+            method: HUB_ROUTES.PTY_KILL.method,
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_id })
+            body: JSON.stringify(payload)
         })
     }
 }

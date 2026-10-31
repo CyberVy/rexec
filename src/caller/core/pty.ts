@@ -1,3 +1,4 @@
+import { HUB_ROUTES } from "@/protocol"
 import { decode_pty_frame, encode_pty_frame } from "@/transport/framing"
 import { build_ws_url, WsClient } from "@/transport/ws"
 
@@ -54,7 +55,7 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
         else resolve_exit(result)
     }
 
-    const base_url = build_ws_url(options.hub_url, "/ws/pty", options.token)
+    const base_url = build_ws_url(options.hub_url, HUB_ROUTES.WS_PTY.path, options.token)
     const ws_url = options.session_id ? `${base_url}&session_id=${encodeURIComponent(options.session_id)}` : base_url
 
     const client = new WsClient({

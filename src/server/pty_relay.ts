@@ -1,4 +1,13 @@
-import type { HubToAgentMessage, PtyErrorMessage, PtyExitMessage, PtyListResMessage, PtySessionInfo } from "@/protocol"
+import type {
+    ApiErrorResponse,
+    HubToAgentMessage,
+    PtyErrorMessage,
+    PtyExitMessage,
+    PtyKillRequestPayload,
+    PtyKillResponse,
+    PtyListResMessage,
+    PtySessionInfo
+} from "@/protocol"
 import { extract_pty_session_id } from "@/transport"
 import type { AgentSession } from "./types"
 import { accepted_token, clear_idle_timer, get_cors_headers, read_ws_bytes, reset_idle_timer } from "./utils"
@@ -82,14 +91,16 @@ export class PtyRelay {
     public async handle_kill_request(request: Request, url: URL): Promise<Response> {
         const headers = get_cors_headers(request)
         const token = accepted_token(request, url)
-        let body: { session_id?: string }
+        let body: PtyKillRequestPayload
         try {
-            body = (await request.json()) as { session_id?: string }
+            body = (await request.json()) as PtyKillRequestPayload
         } catch {
-            return Response.json({ error: "Invalid JSON body" }, { status: 400, headers })
+            const error_res: ApiErrorResponse = { error: "Invalid JSON body" }
+            return Response.json(error_res, { status: 400, headers })
         }
         if (!body.session_id) {
-            return Response.json({ error: "Missing 'session_id' in request body" }, { status: 400, headers })
+            const error_res: ApiErrorResponse = { error: "Missing 'session_id' in request body" }
+            return Response.json(error_res, { status: 400, headers })
         }
 
         const session_id = body.session_id
@@ -98,7 +109,8 @@ export class PtyRelay {
         if (agent) {
             this.send(agent, { type: "pty:close", session_id })
         }
-        return Response.json({ status: "ok" }, { headers })
+        const success_res: PtyKillResponse = { status: "ok" }
+        return Response.json(success_res, { headers })
     }
 
     public handle_pty_ws(request: Request, url: URL): Response {

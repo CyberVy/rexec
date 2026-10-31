@@ -3,6 +3,7 @@
 import { router } from "@/sw/infra/router"
 import { handle_fetch_for_static_resource, update_static_resource_cache } from "@/sw/infra/static_cache"
 import { SERVICE_WORKER_API_PATH, type ServiceWorkerApiRequestEnvelope } from "@/infra"
+import { HUB_ROUTES } from "@/protocol"
 
 const sw = self as unknown as ServiceWorkerGlobalScope
 
@@ -70,7 +71,7 @@ router.intercept(
 )
 
 // 2. Local Static Web Assets
-const HUB_API_PREFIXES = ["/health", "/pty", "/exec", "/file", "/ws", "/api"]
+const HUB_API_PREFIXES: readonly string[] = [...Object.values(HUB_ROUTES).map((route) => route.path), "/api"]
 
 router.intercept((request, url) => {
     if (url.hostname !== location.hostname) return false

@@ -1,4 +1,12 @@
-import type { ExecRequestPayload, HubToAgentMessage, TaskChunkMessage, TaskExitMessage } from "@/protocol"
+import type {
+    ApiErrorResponse,
+    ExecKillRequestPayload,
+    ExecKillResponse,
+    ExecRequestPayload,
+    HubToAgentMessage,
+    TaskChunkMessage,
+    TaskExitMessage
+} from "@/protocol"
 import type { AgentSession } from "./types"
 import { accepted_token, get_cors_headers } from "./utils"
 
@@ -124,21 +132,25 @@ export class TaskRelay {
     public async handle_kill_request(request: Request, url: URL): Promise<Response> {
         const headers = get_cors_headers(request)
         const token = accepted_token(request, url)
-        let body: { task_id?: string }
+        let body: ExecKillRequestPayload
         try {
-            body = (await request.json()) as { task_id?: string }
+            body = (await request.json()) as ExecKillRequestPayload
         } catch {
-            return Response.json({ error: "Invalid JSON body" }, { status: 400, headers })
+            const error_res: ApiErrorResponse = { error: "Invalid JSON body" }
+            return Response.json(error_res, { status: 400, headers })
         }
         if (!body.task_id) {
-            return Response.json({ error: "Missing 'task_id' in request body" }, { status: 400, headers })
+            const error_res: ApiErrorResponse = { error: "Missing 'task_id' in request body" }
+            return Response.json(error_res, { status: 400, headers })
         }
         const task = this.active_tasks.get(body.task_id)
         if (task && task.token !== token) {
-            return Response.json({ error: "Task not found" }, { status: 404, headers })
+            const error_res: ApiErrorResponse = { error: "Task not found" }
+            return Response.json(error_res, { status: 404, headers })
         }
         this.finish_task(body.task_id)
-        return Response.json({ status: "ok" }, { headers })
+        const success_res: ExecKillResponse = { status: "ok" }
+        return Response.json(success_res, { headers })
     }
 
     public stop_on_agent(session: AgentSession): void {

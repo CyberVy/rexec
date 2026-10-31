@@ -1,3 +1,5 @@
+import { HUB_ROUTES } from "@/protocol"
+
 /** Caller sockets ping about every 20s. Past this, the caller is gone even if the socket never closed. */
 export const CALLER_IDLE_MS = 120_000
 
@@ -35,16 +37,16 @@ export function get_cors_headers(request?: Request): Record<string, string> {
     }
 }
 
-const AUTHENTICATED_PATHS = new Set([
-    "/ws",
-    "/exec",
-    "/exec/kill",
-    "/file/pull",
-    "/file/push",
-    "/ws/forward",
-    "/ws/pty",
-    "/pty/list",
-    "/pty/kill"
+const AUTHENTICATED_PATHS = new Set<string>([
+    HUB_ROUTES.WS.path,
+    HUB_ROUTES.EXEC.path,
+    HUB_ROUTES.EXEC_KILL.path,
+    HUB_ROUTES.FILE_PULL.path,
+    HUB_ROUTES.FILE_PUSH.path,
+    HUB_ROUTES.WS_FORWARD.path,
+    HUB_ROUTES.WS_PTY.path,
+    HUB_ROUTES.PTY_LIST.path,
+    HUB_ROUTES.PTY_KILL.path
 ])
 
 export function missing_token_response(request: Request): Response | null {
