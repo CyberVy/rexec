@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers"
-import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
+import { HUB_ROUTES, type AgentToHubMessage, type HubHealthResponse, type HubToAgentMessage } from "@/protocol"
 import { ChannelDomain } from "@/transport"
 import { ForwardRelay } from "./forward_relay"
 import { PtyRelay } from "./pty_relay"
@@ -30,52 +30,55 @@ export class RexecHub extends DurableObject {
     public override async fetch(request: Request): Promise<Response> {
         const url = new URL(request.url)
 
-        if (url.pathname === "/health") {
+        if (url.pathname === HUB_ROUTES.HEALTH.path) {
             return this.handle_health(request, url)
         }
 
-        if (url.pathname === "/ws") {
+        if (url.pathname === HUB_ROUTES.WS.path) {
             return this.handle_agent_ws(request, url)
         }
 
-        if (url.pathname === "/ws/forward") {
+        if (url.pathname === HUB_ROUTES.WS_FORWARD.path) {
             return this.forwards.handle_forward_ws(request, url)
         }
 
-        if (url.pathname === "/ws/pty") {
+        if (url.pathname === HUB_ROUTES.WS_PTY.path) {
             return this.ptys.handle_pty_ws(request, url)
         }
 
-        if (url.pathname === "/pty/list") {
+        if (url.pathname === HUB_ROUTES.PTY_LIST.path) {
             return this.ptys.handle_list_request(request, url)
         }
 
-        if (url.pathname === "/pty/kill") {
-            if (request.method !== "POST") {
+        if (url.pathname === HUB_ROUTES.PTY_KILL.path) {
+            if (request.method !== HUB_ROUTES.PTY_KILL.method) {
                 return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
             }
             return this.ptys.handle_kill_request(request, url)
         }
 
-        if (url.pathname === "/exec") {
-            if (request.method !== "POST") {
+        if (url.pathname === HUB_ROUTES.EXEC.path) {
+            if (request.method !== HUB_ROUTES.EXEC.method) {
                 return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
             }
             return this.tasks.handle_exec_request(request, url)
         }
 
-        if (url.pathname === "/exec/kill") {
-            if (request.method !== "POST") {
+        if (url.pathname === HUB_ROUTES.EXEC_KILL.path) {
+            if (request.method !== HUB_ROUTES.EXEC_KILL.method) {
                 return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
             }
             return this.tasks.handle_kill_request(request, url)
         }
 
-        if (url.pathname === "/file/pull") {
+        if (url.pathname === HUB_ROUTES.FILE_PULL.path) {
             return this.transfers.handle_pull_request(request, url)
         }
 
-        if (url.pathname === "/file/push") {
+        if (url.pathname === HUB_ROUTES.FILE_PUSH.path) {
+            if (request.method !== HUB_ROUTES.FILE_PUSH.method) {
+                return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
+            }
             return this.transfers.handle_push_request(request, url)
         }
 
@@ -88,26 +91,22 @@ export class RexecHub extends DurableObject {
         if (token) {
             const session = this.agents.get(token)
             const is_connected = session !== undefined && session.ws.readyState === WebSocket.OPEN
-            return Response.json(
-                {
-                    status: "ok",
-                    agent_connected: is_connected,
-                    node_id: session?.node_id,
-                    active_tasks: this.tasks.count_for(token)
-                },
-                { headers }
-            )
+            const response_body: HubHealthResponse = {
+                status: "ok",
+                agent_connected: is_connected,
+                node_id: session?.node_id,
+                active_tasks: this.tasks.count_for(token)
+            }
+            return Response.json(response_body, { headers })
         }
 
-        return Response.json(
-            {
-                status: "ok",
-                agent_connected: this.agents.size > 0,
-                connected_agents: this.agents.size,
-                active_tasks: this.tasks.size
-            },
-            { headers }
-        )
+        const response_body: HubHealthResponse = {
+            status: "ok",
+            agent_connected: this.agents.size > 0,
+            connected_agents: this.agents.size,
+            active_tasks: this.tasks.size
+        }
+        return Response.json(response_body, { headers })
     }
 
     private handle_agent_ws(request: Request, url: URL): Response {

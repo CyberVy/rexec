@@ -1,4 +1,5 @@
 import type { FileSink, FileSource, PullOptions, PullResult, PushOptions, PushResult } from "@/file/types"
+import { HUB_ROUTES, type ApiErrorResponse, type FilePushResponse } from "@/protocol"
 
 /**
  * Fetches a remote file or directory from the Hub and pipes the body to a FileSink.
@@ -11,7 +12,7 @@ export async function pull_http(
     options?: PullOptions
 ): Promise<PullResult> {
     const pull_url = new URL(hub_url)
-    pull_url.pathname = "/file/pull"
+    pull_url.pathname = HUB_ROUTES.FILE_PULL.path
     pull_url.searchParams.set("path", remote_path)
     pull_url.searchParams.set("token", token)
     if (options?.recursive) {
@@ -24,7 +25,7 @@ export async function pull_http(
     })
 
     if (!res.ok) {
-        const err_data = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string }
+        const err_data = (await res.json().catch(() => ({ error: res.statusText }))) as ApiErrorResponse
         throw new Error(err_data.error || res.statusText)
     }
 
@@ -69,7 +70,7 @@ export async function push_http(
     options?: PushOptions
 ): Promise<PushResult> {
     const push_url = new URL(hub_url)
-    push_url.pathname = "/file/push"
+    push_url.pathname = HUB_ROUTES.FILE_PUSH.path
     push_url.searchParams.set("path", remote_path)
     push_url.searchParams.set("token", token)
     if (source.is_directory) {
@@ -102,7 +103,7 @@ export async function push_http(
     let res: Response
     try {
         res = await fetch(push_url.toString(), {
-            method: "POST",
+            method: HUB_ROUTES.FILE_PUSH.method,
             headers,
             body: stream,
             // @ts-expect-error Node fetch requires duplex: 'half' for streaming request bodies
@@ -115,11 +116,11 @@ export async function push_http(
     }
 
     if (!res.ok) {
-        const err_data = (await res.json().catch(() => ({ error: res.statusText }))) as { error?: string }
+        const err_data = (await res.json().catch(() => ({ error: res.statusText }))) as ApiErrorResponse
         throw new Error(err_data.error || res.statusText)
     }
 
-    const result = (await res.json().catch(() => ({}))) as { sha256?: string }
+    const result = (await res.json().catch(() => ({}))) as Partial<FilePushResponse>
     return {
         transferred,
         is_directory: source.is_directory,

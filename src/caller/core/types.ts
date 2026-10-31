@@ -3,13 +3,22 @@ export interface CallerOptions {
     token: string
 }
 
-export interface HubStatus {
-    status: string
-    agent_connected: boolean
-    node_id?: string
-    active_tasks: number
-    connected_agents?: number
-}
+export { HUB_ROUTES } from "@/protocol"
+export type {
+    ApiErrorResponse,
+    ApiSuccessResponse,
+    ExecKillRequestPayload,
+    ExecKillResponse,
+    ExecRequestPayload,
+    FilePushResponse,
+    HubHealthResponse,
+    HubRouteKey,
+    HubRoutePath,
+    HubStatus,
+    PtyKillRequestPayload,
+    PtyKillResponse,
+    PtySessionInfo
+} from "@/protocol"
 
 export interface PtyOptions {
     session_id?: string
@@ -32,4 +41,3 @@ export interface ExecOptions {
 }
 
 export type * from "@/file/types"
-export type { PtySessionInfo } from "@/protocol"

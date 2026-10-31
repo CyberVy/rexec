@@ -1,3 +1,4 @@
+import { HUB_ROUTES } from "@/protocol"
 import { decode_forward_frame, encode_forward_frame } from "@/transport/framing"
 import { build_ws_url, WsClient } from "@/transport/ws"
 
@@ -32,7 +33,9 @@ export async function open_forward_tunnel(options: ForwardClientOptions): Promis
     })
 
     const client = new WsClient({
-        url: build_ws_url(options.hub_url, "/ws/forward", options.token, { remote_port: options.remote_port }),
+        url: build_ws_url(options.hub_url, HUB_ROUTES.WS_FORWARD.path, options.token, {
+            remote_port: options.remote_port
+        }),
         signal: options.signal,
         reset_on_close: true,
         connect_timeout_ms: options.timeout_ms ?? 10000,

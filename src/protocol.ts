@@ -250,13 +250,58 @@ export type HubToAgentMessage =
     | PtyListReqMessage
 
 // ==========================================
-// HTTP Payload Contracts
+// HTTP API Route Manifest & Registry (SSOT)
 // ==========================================
+export const HUB_ROUTES = {
+    HEALTH: { path: "/health", method: "GET" },
+    PTY_LIST: { path: "/pty/list", method: "GET" },
+    PTY_KILL: { path: "/pty/kill", method: "POST" },
+    EXEC: { path: "/exec", method: "POST" },
+    EXEC_KILL: { path: "/exec/kill", method: "POST" },
+    FILE_PULL: { path: "/file/pull", method: "GET" },
+    FILE_PUSH: { path: "/file/push", method: "POST" },
+    WS: { path: "/ws", method: "WS" },
+    WS_FORWARD: { path: "/ws/forward", method: "WS" },
+    WS_PTY: { path: "/ws/pty", method: "WS" }
+} as const
+
+export type HubRouteKey = keyof typeof HUB_ROUTES
+export type HubRoutePath = (typeof HUB_ROUTES)[HubRouteKey]["path"]
+
+// ==========================================
+// HTTP API Contracts (Hub Endpoints)
+// ==========================================
+
+export interface ApiSuccessResponse {
+    status: "ok"
+}
+
+export interface ApiErrorResponse {
+    error: string
+}
+
+// 1. /health
+export interface HubHealthResponse {
+    status: "ok"
+    agent_connected: boolean
+    active_tasks: number
+    node_id?: string
+    connected_agents?: number
+}
+
+export type HubStatus = HubHealthResponse
+
+// 2. /exec & /exec/kill
 export interface ExecRequestPayload {
     cmd: string
     cwd?: string
     env?: Record<string, string>
     timeout_ms?: number
+}
+
+export interface ExecStartEvent {
+    type: "start"
+    task_id: string
 }
 
 export interface SseChunkEvent {
@@ -273,4 +318,28 @@ export interface SseExitEvent {
 export interface SseErrorEvent {
     type: "error"
     message: string
+}
+
+export interface ExecKillRequestPayload {
+    task_id: string
+}
+
+export interface ExecKillResponse {
+    status: "ok"
+}
+
+// 3. /pty/kill (Note: /pty/list returns PtySessionInfo[])
+export interface PtyKillRequestPayload {
+    session_id: string
+}
+
+export interface PtyKillResponse {
+    status: "ok"
+}
+
+// 4. /file/push
+export interface FilePushResponse {
+    status: "ok"
+    size: number
+    sha256?: string
 }

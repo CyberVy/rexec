@@ -1,5 +1,5 @@
 import os from "node:os"
-import type { AgentToHubMessage, HubToAgentMessage } from "@/protocol"
+import { HUB_ROUTES, type AgentToHubMessage, type HubToAgentMessage } from "@/protocol"
 import { ChannelDomain, decode_forward_frame, decode_pty_frame, build_ws_url, WsClient } from "@/transport"
 import { parse_args } from "./args"
 import { ForwardManager } from "./forward_manager"
@@ -43,7 +43,9 @@ export class RexecAgent {
         )
 
         this.client = new WsClient({
-            url: build_ws_url(this.options.hub_url, "/ws", this.options.token, { node_id: this.options.node_id }),
+            url: build_ws_url(this.options.hub_url, HUB_ROUTES.WS.path, this.options.token, {
+                node_id: this.options.node_id
+            }),
             reconnect: true,
             reconnect_delay_ms: env_ms("REXEC_RECONNECT_DELAY_MS", 3000),
             ping_interval_ms,

@@ -3,6 +3,7 @@ import type {
     FilePullEndMessage,
     FilePullMetaMessage,
     FilePushEndMessage,
+    FilePushResponse,
     HubToAgentMessage,
     TransferErrorMessage
 } from "@/protocol"
@@ -264,7 +265,8 @@ export class TransferRelay {
             })
 
             const result = await push_promise
-            return Response.json({ status: "ok", size, sha256: result.sha256 }, { headers })
+            const response_body: FilePushResponse = { status: "ok", size, sha256: result.sha256 }
+            return Response.json(response_body, { headers })
         } catch (err) {
             clearTimeout(timeout_id)
             this.active_pushes.delete(transfer_id)

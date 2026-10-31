@@ -1,4 +1,4 @@
-import type { ExecRequestPayload } from "@/protocol"
+import { HUB_ROUTES, type ExecKillRequestPayload, type ExecRequestPayload } from "@/protocol"
 import type { ExecOptions } from "./types"
 
 export async function exec_command(
@@ -8,7 +8,7 @@ export async function exec_command(
     on_chunk?: (stream: "stdout" | "stderr", data: string) => void
 ): Promise<number> {
     const url = new URL(hub_url)
-    url.pathname = "/exec"
+    url.pathname = HUB_ROUTES.EXEC.path
 
     const payload: ExecRequestPayload = {
         cmd: options.cmd,
@@ -18,7 +18,7 @@ export async function exec_command(
     }
 
     const res = await fetch(url.toString(), {
-        method: "POST",
+        method: HUB_ROUTES.EXEC.method,
         headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json"
@@ -46,20 +46,21 @@ export async function exec_command(
     const kill_remote = (): void => {
         if (!task_id) return
         const kill_url = new URL(hub_url)
-        kill_url.pathname = "/exec/kill"
-        const payload = JSON.stringify({ task_id })
+        kill_url.pathname = HUB_ROUTES.EXEC_KILL.path
+        const payload: ExecKillRequestPayload = { task_id }
+        const payload_json = JSON.stringify(payload)
         if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
             const beacon_url = new URL(kill_url)
             beacon_url.searchParams.set("token", token)
-            navigator.sendBeacon(beacon_url, new Blob([payload], { type: "text/plain;charset=UTF-8" }))
+            navigator.sendBeacon(beacon_url, new Blob([payload_json], { type: "text/plain;charset=UTF-8" }))
         }
         void fetch(kill_url.toString(), {
-            method: "POST",
+            method: HUB_ROUTES.EXEC_KILL.method,
             headers: {
                 Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json"
             },
-            body: payload,
+            body: payload_json,
             keepalive: true
         }).catch(() => {})
     }
