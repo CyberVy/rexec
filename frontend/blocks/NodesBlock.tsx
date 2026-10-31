@@ -39,18 +39,6 @@ export function NodesBlock() {
         set_is_add_modal_open(false)
     }
 
-    const handle_copy_snippet = async () => {
-        if (!active_agent) return
-        const cmd = `rexec-agent --hub ${active_agent.hub_url} --token ${active_agent.token}`
-        try {
-            await navigator.clipboard.writeText(cmd)
-            set_copied(true)
-            setTimeout(() => set_copied(false), 1500)
-        } catch {
-            // Ignore clipboard errors
-        }
-    }
-
     const toggle_show_token = (id: string) => {
         set_show_tokens((prev) => ({ ...prev, [id]: !prev[id] }))
     }
@@ -216,38 +204,6 @@ export function NodesBlock() {
                     )
                 })}
             </div>
-
-            {/* Quick Run Command Snippet */}
-            {active_agent && (
-                <div className="p-3 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0 flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground font-mono">
-                        <span>Remote worker startup command:</span>
-                        <button
-                            type="button"
-                            onClick={handle_copy_snippet}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 bg-background hover:bg-black/5 dark:hover:bg-white/10 text-foreground transition cursor-pointer"
-                        >
-                            {copied ? (
-                                <>
-                                    <CheckIcon className="size-3" />
-                                    <span>Copied</span>
-                                </>
-                            ) : (
-                                <>
-                                    <CopyIcon className="size-3" />
-                                    <span>Copy</span>
-                                </>
-                            )}
-                        </button>
-                    </div>
-
-                    <div className="p-2 rounded-lg bg-black/10 dark:bg-black/40 border border-black/10 dark:border-white/5 font-mono text-xs text-foreground overflow-x-auto whitespace-nowrap">
-                        <code>
-                            rexec-agent --hub {active_agent.hub_url} --token {active_agent.token}
-                        </code>
-                    </div>
-                </div>
-            )}
 
             {/* Add Node Modal */}
             {is_add_modal_open && (
