@@ -161,6 +161,45 @@ async function run(): Promise<void> {
         }
         console.log("✓ detach, ring buffer replay and re-attach passed")
 
+        console.log("[test:tty] Checking list_ptys and kill_pty...")
+        const session3 = await caller.open_pty({
+            file: "sh",
+            args: ["-c", "echo 'SESSION3_READY'; sleep 60"],
+            orphan_ttl_ms: 10000
+        })
+        let s3_ready = false
+        session3.on_data((data) => {
+            if (Buffer.from(data).toString("utf-8").includes("SESSION3_READY")) {
+                s3_ready = true
+            }
+        })
+        const ready_timer = Date.now()
+        while (!s3_ready && Date.now() - ready_timer < 5000) {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+        }
+        if (!s3_ready) throw new Error("Timed out waiting for session3 to start")
+        session3.detach()
+
+        const list_before = await caller.list_ptys()
+        const found = list_before.find((s) => s.session_id === session3.session_id)
+        if (!found) {
+            throw new Error(`Expected session ${session3.session_id} in list_ptys, got: ${JSON.stringify(list_before)}`)
+        }
+        if (found.status !== "detached") {
+            throw new Error(`Expected status 'detached', got: ${found.status}`)
+        }
+
+        // Kill the session
+        await caller.kill_pty(session3.session_id)
+        await new Promise((resolve) => setTimeout(resolve, 400))
+
+        const list_after = await caller.list_ptys()
+        const still_exists = list_after.find((s) => s.session_id === session3.session_id)
+        if (still_exists) {
+            throw new Error(`Session ${session3.session_id} still exists after kill_pty`)
+        }
+        console.log("✓ list_ptys and kill_pty passed")
+
         record_history({
             test_name: "tty",
             command: "rexec tty",

@@ -46,6 +46,17 @@ export class RexecHub extends DurableObject {
             return this.ptys.handle_pty_ws(request, url)
         }
 
+        if (url.pathname === "/pty/list") {
+            return this.ptys.handle_list_request(request, url)
+        }
+
+        if (url.pathname === "/pty/kill") {
+            if (request.method !== "POST") {
+                return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
+            }
+            return this.ptys.handle_kill_request(request, url)
+        }
+
         if (url.pathname === "/exec") {
             if (request.method !== "POST") {
                 return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
@@ -180,7 +191,7 @@ export class RexecHub extends DurableObject {
                 this.transfers.on_agent_message(session, msg)
             } else if (msg.type === "forward:close" || msg.type === "forward:error") {
                 this.forwards.on_agent_message(session, msg)
-            } else if (msg.type === "pty:exit" || msg.type === "pty:error") {
+            } else if (msg.type === "pty:exit" || msg.type === "pty:error" || msg.type === "pty:list_res") {
                 this.ptys.on_agent_message(session, msg)
             } else if (msg.type === "register") {
                 if (msg.hostname) session.hostname = msg.hostname

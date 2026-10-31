@@ -11,6 +11,7 @@ import type {
     PushOptions,
     PushResult,
     PtyOptions,
+    PtySessionInfo,
     TransferSink,
     TransferSource
 } from "./types"
@@ -122,6 +123,34 @@ export class RexecCaller {
             term: options.term,
             orphan_ttl_ms: options.orphan_ttl_ms,
             signal: options.signal
+        })
+    }
+
+    /**
+     * List all active and detached PTY sessions on the remote agent.
+     */
+    public async list_ptys(): Promise<PtySessionInfo[]> {
+        const url = new URL("/pty/list", this.hub_url)
+        url.searchParams.set("token", this.token)
+        try {
+            const res = await fetch(url.toString())
+            if (!res.ok) return []
+            return (await res.json()) as PtySessionInfo[]
+        } catch {
+            return []
+        }
+    }
+
+    /**
+     * Terminate and clean up a remote PTY session by session_id.
+     */
+    public async kill_pty(session_id: string): Promise<void> {
+        const url = new URL("/pty/kill", this.hub_url)
+        url.searchParams.set("token", this.token)
+        await fetch(url.toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id })
         })
     }
 }

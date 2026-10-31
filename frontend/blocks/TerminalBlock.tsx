@@ -1,18 +1,21 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Terminal } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
 import { useController } from "@/components/hooks"
+import { FloatingModalContainer } from "@/components/composite/ModalContainer"
+import { CloseIcon, ChevronDownIcon } from "@/components/icons"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
-import { RunIcon } from "./icons"
+import { RunIcon, PlusIcon, TrashIcon, RefreshIcon } from "./icons"
 
 export function TerminalBlock() {
     const container_ref = useRef<HTMLDivElement>(null)
     const term_ref = useRef<Terminal | null>(null)
     const fit_addon_ref = useRef<FitAddon | null>(null)
+    const [is_sessions_modal_open, set_is_sessions_modal_open] = useState(false)
 
     const pty_state = useController(pty_controller, {
         events: ["change", "ready", "exit"]
@@ -21,6 +24,10 @@ export function TerminalBlock() {
     const session_state = useController(session_controller, {
         events: ["change", "status_change"]
     })
+
+    useEffect(() => {
+        void pty_controller.refresh_sessions()
+    }, [session_state.agent_online])
 
     useEffect(() => {
         if (!container_ref.current) return
@@ -114,7 +121,7 @@ export function TerminalBlock() {
     const handle_connect = () => {
         const cols = term_ref.current?.cols ?? 80
         const rows = term_ref.current?.rows ?? 24
-        pty_controller.connect({ cols, rows })
+        void pty_controller.connect({ cols, rows })
     }
 
     const handle_disconnect = () => {
@@ -143,11 +150,22 @@ export function TerminalBlock() {
                         <span className="capitalize text-foreground font-medium">{pty_state.status}</span>
                     </div>
 
-                    {pty_state.session_id && (
-                        <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                            Session: <span className="text-foreground">{pty_state.session_id.slice(0, 8)}</span>
+                    {/* Session Selector Capsule */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            void pty_controller.refresh_sessions()
+                            set_is_sessions_modal_open(true)
+                        }}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px]"
+                    >
+                        <span>
+                            {pty_state.session_id
+                                ? `Session: ${pty_state.session_id.slice(0, 8)}`
+                                : `Sessions (${pty_state.sessions.length})`}
                         </span>
-                    )}
+                        <ChevronDownIcon className="size-3" />
+                    </button>
 
                     {pty_state.exit_code !== null && (
                         <span className="text-[11px] text-amber-500">Exited with code {pty_state.exit_code}</span>
@@ -160,7 +178,7 @@ export function TerminalBlock() {
                     <button
                         type="button"
                         onClick={handle_clear}
-                        className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition"
+                        className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
                     >
                         Clear
                     </button>
@@ -169,7 +187,7 @@ export function TerminalBlock() {
                         <button
                             type="button"
                             onClick={handle_disconnect}
-                            className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-medium text-xs transition"
+                            className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white font-medium text-xs transition cursor-pointer"
                         >
                             Disconnect
                         </button>
@@ -178,7 +196,7 @@ export function TerminalBlock() {
                             type="button"
                             onClick={handle_connect}
                             disabled={!session_state.agent_online && !session_state.is_checking}
-                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5"
+                            className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                             <RunIcon className="size-3" /> Connect Terminal
                         </button>
@@ -191,20 +209,218 @@ export function TerminalBlock() {
                 <div ref={container_ref} className="absolute inset-2" />
 
                 {pty_state.status === "disconnected" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs gap-3 z-10">
-                        <div className="text-zinc-400 text-sm font-mono">Interactive Remote Terminal (PTY)</div>
-                        <button
-                            type="button"
-                            onClick={handle_connect}
-                            disabled={!session_state.agent_online}
-                            className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs font-mono transition shadow-lg flex items-center gap-2"
-                        >
-                            <RunIcon className="size-3" />
-                            {session_state.agent_online ? "Open Terminal Session" : "Waiting for Agent to Connect..."}
-                        </button>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
+                        <div className="text-zinc-300 text-sm font-mono font-medium">
+                            Interactive Remote Terminal (PTY)
+                        </div>
+
+                        {pty_state.sessions.filter((s) => s.status === "detached").length > 0 ? (
+                            <div className="flex flex-col items-center gap-2.5 max-w-sm w-full">
+                                <div className="text-xs text-zinc-400 font-mono">Available Detached Sessions:</div>
+                                <div className="w-full space-y-2">
+                                    {pty_state.sessions
+                                        .filter((s) => s.status === "detached")
+                                        .slice(0, 3)
+                                        .map((s) => (
+                                            <div
+                                                key={s.session_id}
+                                                className="p-2.5 rounded-lg border border-white/10 bg-white/5 flex items-center justify-between gap-2 font-mono text-xs"
+                                            >
+                                                <div className="flex items-center gap-2 truncate">
+                                                    <span className="size-2 rounded-full bg-amber-400 shrink-0" />
+                                                    <span className="text-zinc-200 font-medium truncate">
+                                                        {s.command || "shell"}
+                                                    </span>
+                                                    <span className="text-zinc-500 text-[11px]">
+                                                        ({s.session_id.slice(0, 6)})
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void pty_controller.connect({ session_id: s.session_id })
+                                                    }
+                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0 cursor-pointer transition"
+                                                >
+                                                    Resume
+                                                </button>
+                                            </div>
+                                        ))}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <button
+                                        type="button"
+                                        onClick={handle_connect}
+                                        disabled={!session_state.agent_online}
+                                        className="px-3.5 py-1.5 rounded-lg border border-white/20 hover:bg-white/10 text-zinc-200 font-medium text-xs font-mono transition cursor-pointer"
+                                    >
+                                        New Shell Session
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={handle_connect}
+                                disabled={!session_state.agent_online}
+                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs font-mono transition shadow-lg flex items-center gap-2 cursor-pointer"
+                            >
+                                <RunIcon className="size-3" />
+                                {session_state.agent_online
+                                    ? "Open Terminal Session"
+                                    : "Waiting for Agent to Connect..."}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
+
+            {/* Sessions Management Modal */}
+            {is_sessions_modal_open && (
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+                    onClick={() => set_is_sessions_modal_open(false)}
+                >
+                    <FloatingModalContainer
+                        className="w-full max-w-lg p-5 gap-3.5"
+                        on_escape={() => set_is_sessions_modal_open(false)}
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold text-sm font-mono">Terminal Sessions</span>
+                                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-muted-foreground">
+                                    {pty_state.sessions.length} Available
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => void pty_controller.refresh_sessions()}
+                                    disabled={pty_state.is_listing}
+                                    title="Refresh sessions"
+                                    className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                >
+                                    <RefreshIcon className={`size-3.5 ${pty_state.is_listing ? "animate-spin" : ""}`} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => set_is_sessions_modal_open(false)}
+                                    className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                >
+                                    <CloseIcon className="size-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* List */}
+                        <div className="max-h-72 overflow-y-auto space-y-2 pr-0.5 font-mono text-xs">
+                            {pty_state.sessions.length === 0 ? (
+                                <div className="py-8 text-center text-muted-foreground text-xs font-mono">
+                                    No active or detached sessions on remote agent.
+                                </div>
+                            ) : (
+                                pty_state.sessions.map((s) => {
+                                    const is_current =
+                                        s.session_id === pty_state.session_id && pty_state.status === "connected"
+                                    const time_left_min = Math.max(
+                                        0,
+                                        Math.ceil((s.remaining_ttl_ms ?? s.orphan_ttl_ms) / 60000)
+                                    )
+                                    return (
+                                        <div
+                                            key={s.session_id}
+                                            className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition ${
+                                                is_current
+                                                    ? "border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10"
+                                                    : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5"
+                                            }`}
+                                        >
+                                            <div className="flex flex-col gap-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className={`size-2 rounded-full shrink-0 ${
+                                                            s.status === "attached" ? "bg-emerald-500" : "bg-amber-400"
+                                                        }`}
+                                                    />
+                                                    <span className="font-bold text-foreground truncate">
+                                                        {s.command || "shell"}
+                                                    </span>
+                                                    <span className="text-[11px] text-muted-foreground">
+                                                        ({s.session_id.slice(0, 8)})
+                                                    </span>
+                                                    {is_current && (
+                                                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+                                                            Active
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                                                    <span className="capitalize">{s.status}</span>
+                                                    {s.status === "detached" && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>~{time_left_min}m TTL left</span>
+                                                        </>
+                                                    )}
+                                                    {s.buffered_bytes > 0 && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>
+                                                                {Math.round(s.buffered_bytes / 1024)} KB buffered
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {!is_current && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            void pty_controller.switch_session(s.session_id)
+                                                            set_is_sessions_modal_open(false)
+                                                        }}
+                                                        className="px-2.5 py-1 rounded-lg bg-foreground text-background font-medium text-xs transition hover:opacity-90 cursor-pointer"
+                                                    >
+                                                        Attach
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void pty_controller.kill_session(s.session_id)}
+                                                    title="Kill session process"
+                                                    className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 hover:bg-red-500/10 hover:text-red-400 text-muted-foreground transition cursor-pointer"
+                                                >
+                                                    <TrashIcon className="size-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )
+                                })
+                            )}
+                        </div>
+
+                        {/* Footer Action */}
+                        <div className="pt-2 border-t border-black/10 dark:border-white/10 flex items-center justify-between">
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                                Detached sessions keep running in background.
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void pty_controller.new_session()
+                                    set_is_sessions_modal_open(false)
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background font-medium text-xs font-mono transition hover:opacity-90 cursor-pointer"
+                            >
+                                <PlusIcon className="size-3" />
+                                <span>New Session</span>
+                            </button>
+                        </div>
+                    </FloatingModalContainer>
+                </div>
+            )}
         </div>
     )
 }

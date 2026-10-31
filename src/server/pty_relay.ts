@@ -1,4 +1,4 @@
-import type { HubToAgentMessage, PtyErrorMessage, PtyExitMessage } from "@/protocol"
+import type { HubToAgentMessage, PtyErrorMessage, PtyExitMessage, PtyListResMessage, PtySessionInfo } from "@/protocol"
 import { extract_pty_session_id } from "@/transport"
 import type { AgentSession } from "./types"
 import { accepted_token, clear_idle_timer, get_cors_headers, read_ws_bytes, reset_idle_timer } from "./utils"
@@ -12,13 +12,23 @@ interface ActivePtySession {
 export class PtyRelay {
     private active_sessions: Map<string, ActivePtySession> = new Map()
     private idle_timers: Map<string, ReturnType<typeof setTimeout>> = new Map()
+    private pending_list_requests: Map<string, (sessions: PtySessionInfo[]) => void> = new Map()
 
     public constructor(
         private readonly send: (session: AgentSession, msg: HubToAgentMessage) => void,
         private readonly get_open_agent: (token: string) => AgentSession | undefined
     ) {}
 
-    public on_agent_message(session: AgentSession, msg: PtyExitMessage | PtyErrorMessage): void {
+    public on_agent_message(session: AgentSession, msg: PtyExitMessage | PtyErrorMessage | PtyListResMessage): void {
+        if (msg.type === "pty:list_res") {
+            const resolver = this.pending_list_requests.get(msg.req_id)
+            if (resolver) {
+                this.pending_list_requests.delete(msg.req_id)
+                resolver(msg.sessions)
+            }
+            return
+        }
+
         const pty = this.active_sessions.get(msg.session_id)
         if (pty && pty.token === session.token) {
             this.active_sessions.delete(msg.session_id)
@@ -42,6 +52,53 @@ export class PtyRelay {
         if (pty && pty.token === session.token && pty.caller_ws.readyState === WebSocket.OPEN) {
             pty.caller_ws.send(bytes)
         }
+    }
+
+    public async handle_list_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
+        const token = accepted_token(request, url)
+        const session = this.get_open_agent(token)
+        if (!session) {
+            return Response.json([], { headers })
+        }
+
+        const req_id = crypto.randomUUID()
+        const promise = new Promise<PtySessionInfo[]>((resolve) => {
+            const timer = setTimeout(() => {
+                this.pending_list_requests.delete(req_id)
+                resolve([])
+            }, 3000)
+            this.pending_list_requests.set(req_id, (sessions) => {
+                clearTimeout(timer)
+                resolve(sessions)
+            })
+        })
+
+        this.send(session, { type: "pty:list_req", req_id })
+        const sessions = await promise
+        return Response.json(sessions, { headers })
+    }
+
+    public async handle_kill_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
+        const token = accepted_token(request, url)
+        let body: { session_id?: string }
+        try {
+            body = (await request.json()) as { session_id?: string }
+        } catch {
+            return Response.json({ error: "Invalid JSON body" }, { status: 400, headers })
+        }
+        if (!body.session_id) {
+            return Response.json({ error: "Missing 'session_id' in request body" }, { status: 400, headers })
+        }
+
+        const session_id = body.session_id
+        this.end_session(session_id, "Killed by caller")
+        const agent = this.get_open_agent(token)
+        if (agent) {
+            this.send(agent, { type: "pty:close", session_id })
+        }
+        return Response.json({ status: "ok" }, { headers })
     }
 
     public handle_pty_ws(request: Request, url: URL): Response {

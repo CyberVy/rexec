@@ -1,5 +1,12 @@
 import path from "node:path"
-import type { AgentToHubMessage, PtyAttachMessage, PtyCloseMessage, PtyOpenMessage, PtyResizeMessage } from "@/protocol"
+import type {
+    AgentToHubMessage,
+    PtyAttachMessage,
+    PtyCloseMessage,
+    PtyOpenMessage,
+    PtyResizeMessage,
+    PtySessionInfo
+} from "@/protocol"
 import { encode_pty_frame } from "@/transport"
 import { load_pty_binding, type PtyBinding } from "./pty_binding"
 import { PtyProcess } from "./pty_session"
@@ -14,6 +21,10 @@ interface PtySlot {
     ring_buffer: PtyRingBuffer
     orphan_ttl_ms: number
     orphan_timer?: NodeJS.Timeout
+    command: string
+    cwd?: string
+    started_at: number
+    detached_at?: number
 }
 
 const STRIPPED_ENV = ["TMUX", "TMUX_PANE", "STY", "WINDOW", "WINDOWID", "TERMCAP", "COLUMNS", "LINES"]
@@ -47,12 +58,18 @@ export class PtyManager {
             pending: [],
             process: null,
             ring_buffer: new PtyRingBuffer(),
-            orphan_ttl_ms
+            orphan_ttl_ms,
+            command: msg.file || "sh",
+            cwd: msg.cwd,
+            started_at: Date.now()
         }
         slot.status = "attached"
         slot.cols = dimension(msg.cols, slot.cols)
         slot.rows = dimension(msg.rows, slot.rows)
         slot.orphan_ttl_ms = orphan_ttl_ms
+        slot.command = [msg.file, ...(msg.args ?? [])].filter(Boolean).join(" ") || "sh"
+        slot.cwd = msg.cwd
+        slot.detached_at = undefined
         if (slot.orphan_timer) {
             clearTimeout(slot.orphan_timer)
             slot.orphan_timer = undefined
@@ -86,6 +103,7 @@ export class PtyManager {
             slot.orphan_timer = undefined
         }
         slot.status = "attached"
+        slot.detached_at = undefined
         console.log(
             `[rexec-agent] [pty:${session_id.slice(0, 8)}] Attached. Replaying ${slot.ring_buffer.byte_length} bytes.`
         )
@@ -115,6 +133,7 @@ export class PtyManager {
         const slot = this.sessions.get(session_id)
         if (!slot || slot.status === "closed" || slot.status === "detached") return
         slot.status = "detached"
+        slot.detached_at = Date.now()
         console.log(
             `[rexec-agent] [pty:${session_id.slice(0, 8)}] Detached. Starting orphan timer (${slot.orphan_ttl_ms}ms).`
         )
@@ -124,6 +143,30 @@ export class PtyManager {
             this.close({ type: "pty:close", session_id })
         }, slot.orphan_ttl_ms)
         slot.orphan_timer.unref?.()
+    }
+
+    public list(): PtySessionInfo[] {
+        const now = Date.now()
+        const result: PtySessionInfo[] = []
+        for (const [session_id, slot] of this.sessions) {
+            if (slot.status === "closed") continue
+            const remaining_ttl_ms =
+                slot.status === "detached" && slot.detached_at
+                    ? Math.max(0, slot.orphan_ttl_ms - (now - slot.detached_at))
+                    : slot.orphan_ttl_ms
+            result.push({
+                session_id,
+                status: slot.status,
+                command: slot.command,
+                cwd: slot.cwd,
+                started_at: slot.started_at,
+                detached_at: slot.detached_at,
+                orphan_ttl_ms: slot.orphan_ttl_ms,
+                remaining_ttl_ms,
+                buffered_bytes: slot.ring_buffer.byte_length
+            })
+        }
+        return result
     }
 
     public write(session_id: string, payload: Uint8Array): void {
@@ -157,7 +200,9 @@ export class PtyManager {
                 pending: [],
                 process: null,
                 ring_buffer: new PtyRingBuffer(),
-                orphan_ttl_ms: 0
+                orphan_ttl_ms: 0,
+                command: "closed",
+                started_at: 0
             })
             return
         }
