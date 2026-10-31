@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import tty from "node:tty"
 import type { PtyNative } from "./pty_binding"
+import { signal_process_tree_until_dead } from "./process_tree"
 
 const DESTROY_TIMEOUT_MS = 200
 
@@ -94,11 +95,7 @@ export class PtyProcess {
 
     public kill(): void {
         if (this.finished) return
-        try {
-            process.kill(this.pid, "SIGHUP")
-        } catch {
-            // The process has already exited.
-        }
+        signal_process_tree_until_dead(this.pid, "SIGHUP", () => this.exit_status !== null || this.finished)
         this.arm_destroy()
     }
 

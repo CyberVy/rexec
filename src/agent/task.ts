@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import path from "node:path"
 import type { AgentToHubMessage, TaskExecMessage, TaskKillMessage } from "@/protocol"
+import { signal_process_tree_until_dead } from "./process_tree"
 
 export class TaskManager {
     private running_tasks: Map<string, ChildProcess> = new Map()
@@ -15,7 +16,9 @@ export class TaskManager {
         const child = spawn(cmd, {
             shell: true,
             cwd: task_cwd,
-            env: task_env
+            env: task_env,
+            // New process group so caller disconnect can signal the shell and its command together.
+            detached: process.platform !== "win32"
         })
 
         this.running_tasks.set(task_id, child)
@@ -72,16 +75,22 @@ export class TaskManager {
     public kill(msg: TaskKillMessage): void {
         const child = this.running_tasks.get(msg.task_id)
         if (child) {
-            console.log(`[rexec-agent] Killing task ${msg.task_id.slice(0, 8)} with signal ${msg.signal || "SIGINT"}`)
-            child.kill((msg.signal as NodeJS.Signals) || "SIGINT")
+            console.log(`[rexec-agent] Killing task ${msg.task_id.slice(0, 8)} with signal ${msg.signal || "SIGTERM"}`)
+            this.signal_child(child, (msg.signal as NodeJS.Signals) || "SIGTERM")
         }
     }
 
     public abort_all(): void {
         for (const [task_id, child] of this.running_tasks) {
             console.log(`[rexec-agent] Terminating running task ${task_id.slice(0, 8)}`)
-            child.kill("SIGTERM")
+            this.signal_child(child, "SIGTERM")
         }
         this.running_tasks.clear()
+    }
+
+    private signal_child(child: ChildProcess, signal: NodeJS.Signals): void {
+        const pid = child.pid
+        if (pid === undefined) return
+        signal_process_tree_until_dead(pid, signal, () => child.exitCode !== null || child.signalCode !== null)
     }
 }

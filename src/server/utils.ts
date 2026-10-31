@@ -1,3 +1,30 @@
+/** Caller sockets ping about every 20s. Past this, the caller is gone even if the socket never closed. */
+export const CALLER_IDLE_MS = 120_000
+
+export function reset_idle_timer(
+    timers: Map<string, ReturnType<typeof setTimeout>>,
+    key: string,
+    on_idle: () => void,
+    idle_ms = CALLER_IDLE_MS
+): void {
+    const existing = timers.get(key)
+    if (existing) clearTimeout(existing)
+    timers.set(
+        key,
+        setTimeout(() => {
+            timers.delete(key)
+            on_idle()
+        }, idle_ms)
+    )
+}
+
+export function clear_idle_timer(timers: Map<string, ReturnType<typeof setTimeout>>, key: string): void {
+    const existing = timers.get(key)
+    if (!existing) return
+    clearTimeout(existing)
+    timers.delete(key)
+}
+
 export function get_cors_headers(request?: Request): Record<string, string> {
     const origin = request?.headers.get("Origin")
     return {
@@ -8,7 +35,15 @@ export function get_cors_headers(request?: Request): Record<string, string> {
     }
 }
 
-const AUTHENTICATED_PATHS = new Set(["/ws", "/exec", "/file/pull", "/file/push", "/ws/forward", "/ws/pty"])
+const AUTHENTICATED_PATHS = new Set([
+    "/ws",
+    "/exec",
+    "/exec/kill",
+    "/file/pull",
+    "/file/push",
+    "/ws/forward",
+    "/ws/pty"
+])
 
 export function missing_token_response(request: Request): Response | null {
     const url = new URL(request.url)

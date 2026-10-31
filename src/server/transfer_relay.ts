@@ -277,6 +277,19 @@ export class TransferRelay {
         }
     }
 
+    public stop_on_agent(session: AgentSession): void {
+        for (const [transfer_id, pull] of this.active_pulls) {
+            if (pull.token === session.token) {
+                this.send(session, { type: "transfer:error", transfer_id, error: "Agent session ended" })
+            }
+        }
+        for (const [transfer_id, push] of this.active_pushes) {
+            if (push.token === session.token) {
+                this.send(session, { type: "transfer:error", transfer_id, error: "Agent session ended" })
+            }
+        }
+    }
+
     public abort_for_token(token: string, reason: string): void {
         for (const [id, pull] of this.active_pulls) {
             if (pull.token === token) {

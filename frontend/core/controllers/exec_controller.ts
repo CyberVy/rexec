@@ -148,3 +148,9 @@ export class ExecController extends BaseController<ExecState> {
 }
 
 export const exec_controller = new ExecController()
+
+if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => {
+        exec_controller.abort()
+    })
+}
