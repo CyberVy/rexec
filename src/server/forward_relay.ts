@@ -1,7 +1,7 @@
 import type { ForwardCloseMessage, ForwardErrorMessage, HubToAgentMessage } from "@/protocol"
 import { extract_forward_session_id } from "@/transport"
 import type { AgentSession } from "./types"
-import { accepted_token, get_cors_headers, read_ws_bytes } from "./utils"
+import { accepted_token, clear_idle_timer, get_cors_headers, read_ws_bytes, reset_idle_timer } from "./utils"
 
 interface ActiveForwardSession {
     session_id: string
@@ -13,6 +13,7 @@ interface ActiveForwardSession {
 
 export class ForwardRelay {
     private active_forwards: Map<string, ActiveForwardSession> = new Map()
+    private idle_timers: Map<string, ReturnType<typeof setTimeout>> = new Map()
 
     public constructor(
         private readonly send: (session: AgentSession, msg: HubToAgentMessage) => void,
@@ -71,10 +72,12 @@ export class ForwardRelay {
             remote_port
         }
         this.active_forwards.set(session_id, forward_session)
+        this.arm_idle(session_id)
 
         server.send(JSON.stringify({ type: "forward:ready", session_id, remote_port }))
 
         server.addEventListener("message", (event) => {
+            this.arm_idle(session_id)
             if (typeof event.data === "string") {
                 try {
                     const msg = JSON.parse(event.data) as Record<string, unknown>
@@ -102,30 +105,45 @@ export class ForwardRelay {
             })
         })
 
-        const cleanup = () => {
-            const current = this.active_forwards.get(session_id)
-            if (current && current.caller_ws === server) {
-                this.active_forwards.delete(session_id)
-                this.send(session, { type: "forward:session_end", session_id })
-            }
-        }
-
+        const cleanup = () => this.end_session(session_id, "Caller closed")
         server.addEventListener("close", cleanup)
         server.addEventListener("error", cleanup)
 
         return new Response(null, { status: 101, webSocket: client })
     }
 
+    public stop_on_agent(session: AgentSession): void {
+        for (const [session_id, forward] of this.active_forwards) {
+            if (forward.token === session.token) {
+                this.send(session, { type: "forward:session_end", session_id })
+            }
+        }
+    }
+
     public abort_for_token(token: string, reason: string): void {
         for (const [session_id, forward] of this.active_forwards) {
-            if (forward.token === token) {
-                try {
-                    forward.caller_ws.close(4503, reason)
-                } catch {
-                    // Ignore
-                }
-                this.active_forwards.delete(session_id)
-            }
+            if (forward.token === token) this.end_session(session_id, reason)
+        }
+    }
+
+    private arm_idle(session_id: string): void {
+        if (!this.active_forwards.has(session_id)) return
+        reset_idle_timer(this.idle_timers, session_id, () => {
+            this.end_session(session_id, "Caller connection idle")
+        })
+    }
+
+    private end_session(session_id: string, reason: string): void {
+        const current = this.active_forwards.get(session_id)
+        if (!current) return
+        this.active_forwards.delete(session_id)
+        clear_idle_timer(this.idle_timers, session_id)
+        const agent = this.get_open_agent(current.token)
+        if (agent) this.send(agent, { type: "forward:session_end", session_id })
+        try {
+            current.caller_ws.close(1000, reason)
+        } catch {
+            // Ignore
         }
     }
 }
