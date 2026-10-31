@@ -9,8 +9,10 @@ async function run(): Promise<void> {
 
     const REMOTE_PORT = 18989
     const LOCAL_PORT = 19898
+    const REMOTE_PORT_2 = 18990
+    const LOCAL_PORT_2 = 19899
 
-    console.log(`[test:forward] Starting mock target HTTP server on port ${REMOTE_PORT}...`)
+    console.log(`[test:forward] Starting mock target HTTP servers on ports ${REMOTE_PORT} & ${REMOTE_PORT_2}...`)
     const target_server = http.createServer((req, res) => {
         if (req.url === "/echo") {
             let body = ""
@@ -24,17 +26,28 @@ async function run(): Promise<void> {
             return
         }
         res.writeHead(200, { "Content-Type": "application/json" })
-        res.end(JSON.stringify({ status: "ok", url: req.url }))
+        res.end(JSON.stringify({ status: "ok", server: 1, url: req.url }))
     })
 
-    await new Promise<void>((resolve) => {
-        target_server.listen(REMOTE_PORT, "127.0.0.1", () => resolve())
+    const target_server_2 = http.createServer((req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" })
+        res.end(JSON.stringify({ status: "ok", server: 2, url: req.url }))
     })
+
+    await Promise.all([
+        new Promise<void>((resolve) => target_server.listen(REMOTE_PORT, "127.0.0.1", () => resolve())),
+        new Promise<void>((resolve) => target_server_2.listen(REMOTE_PORT_2, "127.0.0.1", () => resolve()))
+    ])
 
     const abort_controller = new AbortController()
-    console.log(`[test:forward] Launching port forward ${LOCAL_PORT} -> ${REMOTE_PORT}...`)
+    console.log(
+        `[test:forward] Launching port forwards ${LOCAL_PORT} -> ${REMOTE_PORT} & ${LOCAL_PORT_2} -> ${REMOTE_PORT_2}...`
+    )
 
     const forward_promise = run_port_forward(caller, LOCAL_PORT, REMOTE_PORT, {
+        signal: abort_controller.signal
+    })
+    const forward_promise_2 = run_port_forward(caller, LOCAL_PORT_2, REMOTE_PORT_2, {
         signal: abort_controller.signal
     })
 
@@ -65,16 +78,23 @@ async function run(): Promise<void> {
         }
         console.log(`✓ POST request succeeded: '${text2}'`)
 
-        console.log(`[test:forward] Testing concurrent requests (10 parallel fetches)...`)
+        console.log(`[test:forward] Testing concurrent requests across two simultaneous tunnels...`)
         const concurrent_reqs = Array.from({ length: 10 }, async (_, i) => {
-            const r = await fetch(`http://127.0.0.1:${LOCAL_PORT}/concurrent-${i}`)
-            const json = (await r.json()) as { url: string }
-            if (json.url !== `/concurrent-${i}`) {
-                throw new Error(`Concurrency mismatch: ${JSON.stringify(json)}`)
+            const [r1, r2] = await Promise.all([
+                fetch(`http://127.0.0.1:${LOCAL_PORT}/concurrent-${i}`),
+                fetch(`http://127.0.0.1:${LOCAL_PORT_2}/concurrent-${i}`)
+            ])
+            const json1 = (await r1.json()) as { server: number; url: string }
+            const json2 = (await r2.json()) as { server: number; url: string }
+            if (json1.server !== 1 || json1.url !== `/concurrent-${i}`) {
+                throw new Error(`Tunnel 1 mismatch: ${JSON.stringify(json1)}`)
+            }
+            if (json2.server !== 2 || json2.url !== `/concurrent-${i}`) {
+                throw new Error(`Tunnel 2 mismatch: ${JSON.stringify(json2)}`)
             }
         })
         await Promise.all(concurrent_reqs)
-        console.log(`✓ 10 concurrent requests successfully multiplexed!`)
+        console.log(`✓ 20 concurrent requests across 2 simultaneous tunnels successfully multiplexed!`)
 
         record_history({
             test_name: "port_forward",
@@ -101,7 +121,8 @@ async function run(): Promise<void> {
     } finally {
         abort_controller.abort()
         target_server.close()
-        await forward_promise.catch(() => {})
+        target_server_2.close()
+        await Promise.allSettled([forward_promise, forward_promise_2])
         process.exit(0)
     }
 }

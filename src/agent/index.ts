@@ -114,7 +114,7 @@ Or set environment variables:
         if (bytes[0] === ChannelDomain.FORWARD) {
             const decoded = decode_forward_frame(bytes)
             if (decoded) {
-                this.forwards.handle_data(decoded.conn_id, decoded.payload)
+                this.forwards.handle_data(decoded.session_id, decoded.conn_id, decoded.payload)
             }
         } else if (bytes[0] === ChannelDomain.PTY) {
             const decoded = decode_pty_frame(bytes)

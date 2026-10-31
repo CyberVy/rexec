@@ -40,6 +40,9 @@ interface DestroyableSocket {
     remotePort?: number
 }
 
+const claimed_sockets = new WeakSet<DestroyableSocket>()
+const bound_sockets = new WeakMap<WebSocket, DestroyableSocket>()
+
 function is_node_socket(value: unknown): value is DestroyableSocket {
     if (!value || typeof value !== "object") return false
     const candidate = value as { destroy?: unknown; write?: unknown }
@@ -58,63 +61,48 @@ function parse_port(url_str: string): number | undefined {
     return undefined
 }
 
-function find_socket(root: object, target_port?: number): DestroyableSocket | null {
-    const seen = new Set<unknown>()
-    const queue: unknown[] = [root]
-    let fallback: DestroyableSocket | null = null
-    while (queue.length > 0 && seen.size < 80) {
-        const current = queue.shift()
-        if (!current || typeof current !== "object" || seen.has(current)) continue
-        seen.add(current)
-        const named = current as { socket?: unknown }
-        if (is_node_socket(named.socket)) {
-            if (typeof named.socket.resetAndDestroy === "function") return named.socket
-            fallback ??= named.socket
-        }
-        let keys: (string | symbol)[]
-        try {
-            keys = [...Object.getOwnPropertyNames(current), ...Object.getOwnPropertySymbols(current)]
-        } catch {
-            continue
-        }
-        for (const key of keys) {
-            if (key === "ws") continue
-            try {
-                const value = (current as Record<string | symbol, unknown>)[key]
-                if (value && typeof value === "object") queue.push(value)
-            } catch {
-                // Getter threw.
-            }
-        }
-    }
-    if (fallback) return fallback
-
-    // Modern Node.js undici WebSocket stores socket in private fields.
-    // Inspect active handles if available in Node.js runtime.
+function get_node_sockets(target_port?: number): DestroyableSocket[] {
     if (
-        typeof process !== "undefined" &&
-        typeof (process as unknown as { _getActiveHandles?: () => unknown[] })._getActiveHandles === "function"
+        typeof process === "undefined" ||
+        typeof (process as unknown as { _getActiveHandles?: () => unknown[] })._getActiveHandles !== "function"
     ) {
-        try {
-            const handles = (process as unknown as { _getActiveHandles: () => unknown[] })._getActiveHandles()
-            for (const handle of handles) {
-                if (is_node_socket(handle)) {
-                    if (target_port !== undefined && handle.remotePort === target_port) {
-                        return handle
-                    }
-                }
+        return []
+    }
+    try {
+        const handles = (process as unknown as { _getActiveHandles: () => unknown[] })._getActiveHandles()
+        const result: DestroyableSocket[] = []
+        for (const handle of handles) {
+            if (is_node_socket(handle) && (target_port === undefined || handle.remotePort === target_port)) {
+                result.push(handle)
             }
-        } catch {
-            // Ignore
+        }
+        return result
+    } catch {
+        return []
+    }
+}
+
+function bind_node_socket(
+    ws: WebSocket,
+    prior_sockets: ReadonlySet<DestroyableSocket>,
+    target_port?: number
+): DestroyableSocket | null {
+    const existing = bound_sockets.get(ws)
+    if (existing) return existing
+
+    for (const sock of get_node_sockets(target_port)) {
+        if (!prior_sockets.has(sock) && !claimed_sockets.has(sock)) {
+            claimed_sockets.add(sock)
+            bound_sockets.set(ws, sock)
+            return sock
         }
     }
-
     return null
 }
 
 /** RST. A graceful close can sit in CLOSING while a proxy holds the TCP flow. */
-function abort_websocket(ws: WebSocket, target_port?: number): void {
-    const socket = find_socket(ws, target_port)
+function abort_websocket(ws: WebSocket, prior_sockets: ReadonlySet<DestroyableSocket>, target_port?: number): void {
+    const socket = bind_node_socket(ws, prior_sockets, target_port)
     if (socket) {
         try {
             if (typeof socket.resetAndDestroy === "function") socket.resetAndDestroy()
@@ -204,6 +192,7 @@ export class WsClient {
     private last_ping_at = 0
     private attempt_started_at = 0
     private closing_since = 0
+    private prior_sockets: ReadonlySet<DestroyableSocket> = new Set()
     private readonly target_port?: number
 
     public constructor(options: WsClientOptions) {
@@ -257,7 +246,7 @@ export class WsClient {
         } catch {
             // Ignore
         }
-        if (this.options.reset_on_close) abort_websocket(ws, this.target_port)
+        if (this.options.reset_on_close) abort_websocket(ws, this.prior_sockets, this.target_port)
     }
 
     /** Alias for close() */
@@ -293,7 +282,7 @@ export class WsClient {
         this.closing_since = 0
         if (ws) {
             this.retired.add(ws)
-            abort_websocket(ws, this.target_port)
+            abort_websocket(ws, this.prior_sockets, this.target_port)
         }
         this.options.on_dead?.(reason)
         this.reject_initial(reason)
@@ -321,6 +310,7 @@ export class WsClient {
         this.attempt_started_at = Date.now()
         this.closing_since = 0
         this.outstanding_ping = null
+        this.prior_sockets = new Set(get_node_sockets(this.target_port))
         const attempt = this.attempt
 
         let ws: WebSocket
@@ -335,6 +325,7 @@ export class WsClient {
 
         ws.addEventListener("open", () => {
             if (this.phase !== "connecting" || this.ws !== ws || this.attempt !== attempt) return
+            bind_node_socket(ws, this.prior_sockets, this.target_port)
             this.enter_open()
         })
 
