@@ -57,6 +57,12 @@ export class PtyController extends BaseController<PtyState> {
     }
 
     public async refresh_sessions(): Promise<PtySessionInfo[]> {
+        if (!session_controller.state.hub_url) {
+            this.update_state({ sessions: [], is_listing: false })
+            this.dispatchEvent(new Event("change"))
+            return []
+        }
+
         const caller = session_controller.get_caller()
         this.update_state({ is_listing: true })
         this.dispatchEvent(new Event("change"))

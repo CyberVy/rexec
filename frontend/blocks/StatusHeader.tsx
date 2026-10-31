@@ -63,7 +63,13 @@ export function StatusHeader() {
                         }`}
                     />
                     <span className="text-foreground">
-                        {session.is_checking ? "Checking..." : session.agent_online ? "Agent Online" : "Agent Offline"}
+                        {session.is_checking
+                            ? "Checking..."
+                            : session.agent_online
+                              ? "Agent Online"
+                              : session.hub_url
+                                ? "Agent Offline"
+                                : "No Node"}
                     </span>
                     {session.latency_ms !== null && session.agent_online && (
                         <span className="text-emerald-500 text-[10px]">({session.latency_ms}ms)</span>
@@ -119,7 +125,7 @@ export function StatusHeader() {
                             className="flex items-center gap-1.5 px-2.5 py-1 rounded cursor-pointer hover:bg-black/5 dark:hover:bg-white/10 transition font-mono text-[11px] text-muted-foreground border border-transparent hover:border-black/10 dark:hover:border-white/10"
                         >
                             <span className="text-foreground truncate max-w-[180px] sm:max-w-[260px]">
-                                {session.hub_url}
+                                {session.hub_url || "(no hub url)"}
                             </span>
                             <span className="text-black/30 dark:text-white/30">•</span>
                             <span className="opacity-70">

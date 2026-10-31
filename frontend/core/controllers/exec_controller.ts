@@ -76,6 +76,15 @@ export class ExecController extends BaseController<ExecState> {
             this.abort()
         }
 
+        if (!session_controller.state.hub_url) {
+            this.update_state({
+                is_running: false,
+                error: "Hub URL is required"
+            })
+            this.dispatchEvent(new Event("change"))
+            return null
+        }
+
         const caller = session_controller.get_caller()
         const cwd = cwd_override ?? (this.state.cwd.trim() || undefined)
 
