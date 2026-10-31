@@ -41,6 +41,29 @@ export async function exec_command(
     let buffer = ""
     let current_event = "chunk"
     let exit_code: number | null = null
+    let task_id: string | null = null
+
+    const kill_remote = (): void => {
+        if (!task_id) return
+        const kill_url = new URL(hub_url)
+        kill_url.pathname = "/exec/kill"
+        const payload = JSON.stringify({ task_id })
+        if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+            const beacon_url = new URL(kill_url)
+            beacon_url.searchParams.set("token", token)
+            navigator.sendBeacon(beacon_url, new Blob([payload], { type: "text/plain;charset=UTF-8" }))
+        }
+        void fetch(kill_url.toString(), {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json"
+            },
+            body: payload,
+            keepalive: true
+        }).catch(() => {})
+    }
+    options.signal?.addEventListener("abort", kill_remote, { once: true })
 
     const process_line = (raw_line: string): boolean => {
         let line = raw_line
@@ -53,7 +76,10 @@ export async function exec_command(
             const data_raw = line.slice(6)
             try {
                 const parsed = JSON.parse(data_raw)
-                if (current_event === "chunk") {
+                if (current_event === "start" && typeof parsed.task_id === "string") {
+                    task_id = parsed.task_id
+                    if (options.signal?.aborted) kill_remote()
+                } else if (current_event === "chunk") {
                     on_chunk?.(parsed.stream, parsed.data)
                 } else if (current_event === "exit") {
                     exit_code = parsed.code ?? 0

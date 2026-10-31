@@ -160,3 +160,9 @@ export class PtyController extends BaseController<PtyState> {
 }
 
 export const pty_controller = new PtyController()
+
+if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => {
+        pty_controller.disconnect()
+    })
+}

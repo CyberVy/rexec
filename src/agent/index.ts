@@ -81,8 +81,10 @@ Or set environment variables:
             },
             on_dead: (reason) => {
                 console.log(`[rexec-agent] Session dead (${reason}). Reconnecting.`)
+                if (!this.is_shutting_down) this.release_remote_work()
             },
             on_close: (event) => {
+                if (!this.is_shutting_down) this.release_remote_work()
                 if (event.code === 1000 && event.reason === REPLACED_REASON) {
                     console.log(`[rexec-agent] Connection closed (${REPLACED_REASON}).`)
                     process.exit(0)
@@ -178,13 +180,17 @@ Or set environment variables:
         console.log(`\n[rexec-agent] Shutting down on ${signal}...`)
         this.is_shutting_down = true
 
+        this.release_remote_work()
+
+        this.client?.close(1000, "Agent shutting down")
+        process.exit(0)
+    }
+
+    private release_remote_work(): void {
         this.tasks.abort_all()
         this.transfers.abort_all()
         this.forwards.abort_all()
         this.ptys.abort_all()
-
-        this.client?.close(1000, "Agent shutting down")
-        process.exit(0)
     }
 }
 

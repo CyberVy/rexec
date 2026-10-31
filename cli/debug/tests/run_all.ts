@@ -9,6 +9,7 @@ const TEST_FILES = [
     "basic.ts",
     "env_cwd.ts",
     "abort.ts",
+    "orphan.ts",
     "large_output.ts",
     "file_transfer.ts",
     "forward.ts",

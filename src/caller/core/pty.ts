@@ -55,6 +55,7 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
         url: build_ws_url(options.hub_url, "/ws/pty", options.token),
         signal: options.signal,
         reconnect: false,
+        reset_on_close: true,
         connect_timeout_ms: 10000,
         ping_interval_ms: 20000,
         idle_timeout_ms: 0,

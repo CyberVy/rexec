@@ -53,6 +53,13 @@ export class RexecHub extends DurableObject {
             return this.tasks.handle_exec_request(request, url)
         }
 
+        if (url.pathname === "/exec/kill") {
+            if (request.method !== "POST") {
+                return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
+            }
+            return this.tasks.handle_kill_request(request, url)
+        }
+
         if (url.pathname === "/file/pull") {
             return this.transfers.handle_pull_request(request, url)
         }
@@ -102,12 +109,12 @@ export class RexecHub extends DurableObject {
 
         const existing_session = this.agents.get(token)
         if (existing_session && existing_session.ws.readyState === WebSocket.OPEN) {
+            this.cleanup_agent_session(token, existing_session.ws, "Agent replaced by new connection")
             try {
                 existing_session.ws.close(1000, "Replaced by new connection")
             } catch {
                 // Ignore close error
             }
-            this.cleanup_agent_session(token, existing_session.ws, "Agent replaced by new connection")
         }
 
         const web_socket_pair = new WebSocketPair()
@@ -145,6 +152,12 @@ export class RexecHub extends DurableObject {
     private cleanup_agent_session(token: string, ws: WebSocket, reason: string): void {
         const current = this.agents.get(token)
         if (current && current.ws === ws) {
+            if (ws.readyState === WebSocket.OPEN) {
+                this.tasks.stop_on_agent(current)
+                this.transfers.stop_on_agent(current)
+                this.forwards.stop_on_agent(current)
+                this.ptys.stop_on_agent(current)
+            }
             this.agents.delete(token)
             this.tasks.abort_for_token(token, reason)
             this.transfers.abort_for_token(token, reason)

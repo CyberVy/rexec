@@ -35,7 +35,7 @@ export class TaskRelay {
             const task = this.active_tasks.get(msg.task_id)
             if (task && task.token === session.token) {
                 const payload = JSON.stringify({ stream: msg.stream, data: msg.data })
-                this.write_to_task(task, `event: chunk\ndata: ${payload}\n\n`)
+                this.write_to_task(task, msg.task_id, `event: chunk\ndata: ${payload}\n\n`)
             }
         } else if (msg.type === "task:exit") {
             const task = this.active_tasks.get(msg.task_id)
@@ -82,34 +82,26 @@ export class TaskRelay {
 
         const timeout_id = setTimeout(() => {
             const task = this.active_tasks.get(task_id)
-            if (task) {
-                const payload = JSON.stringify({ message: `Command timed out after ${timeout_ms}ms` })
-                task.writer
-                    .write(task.encoder.encode(`event: error\ndata: ${payload}\n\n`))
-                    .then(() => task.writer.close())
-                    .catch(() => {})
-                this.send(session, { type: "task:kill", task_id, signal: "SIGTERM" })
-                this.active_tasks.delete(task_id)
-            }
+            if (!task) return
+            const payload = JSON.stringify({ message: `Command timed out after ${timeout_ms}ms` })
+            task.writer.write(task.encoder.encode(`event: error\ndata: ${payload}\n\n`)).catch(() => {})
+            this.finish_task(task_id)
         }, timeout_ms)
 
-        this.active_tasks.set(task_id, {
+        const task: ActiveTask = {
             token,
             writer,
             timeout_id,
             encoder,
             write_queue: Promise.resolve()
-        })
+        }
+        this.active_tasks.set(task_id, task)
 
         request.signal.addEventListener("abort", () => {
-            const task = this.active_tasks.get(task_id)
-            if (task) {
-                if (task.timeout_id) clearTimeout(task.timeout_id)
-                this.send(session, { type: "task:kill", task_id, signal: "SIGINT" })
-                task.writer.close().catch(() => {})
-                this.active_tasks.delete(task_id)
-            }
+            this.finish_task(task_id)
         })
+
+        this.write_to_task(task, task_id, `event: start\ndata: ${JSON.stringify({ task_id })}\n\n`)
 
         this.send(session, {
             type: "task:exec",
@@ -129,6 +121,35 @@ export class TaskRelay {
         })
     }
 
+    public async handle_kill_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
+        const token = accepted_token(request, url)
+        let body: { task_id?: string }
+        try {
+            body = (await request.json()) as { task_id?: string }
+        } catch {
+            return Response.json({ error: "Invalid JSON body" }, { status: 400, headers })
+        }
+        if (!body.task_id) {
+            return Response.json({ error: "Missing 'task_id' in request body" }, { status: 400, headers })
+        }
+        const task = this.active_tasks.get(body.task_id)
+        if (task && task.token !== token) {
+            return Response.json({ error: "Task not found" }, { status: 404, headers })
+        }
+        this.finish_task(body.task_id)
+        return Response.json({ status: "ok" }, { headers })
+    }
+
+    public stop_on_agent(session: AgentSession): void {
+        for (const task_id of this.active_tasks.keys()) {
+            const task = this.active_tasks.get(task_id)
+            if (task && task.token === session.token) {
+                this.send(session, { type: "task:kill", task_id, signal: "SIGTERM" })
+            }
+        }
+    }
+
     public abort_for_token(token: string, reason: string): void {
         for (const [task_id, task] of this.active_tasks) {
             if (task.token === token) {
@@ -143,7 +164,21 @@ export class TaskRelay {
         }
     }
 
-    private write_to_task(task: ActiveTask, text: string): void {
-        task.write_queue = task.write_queue.then(() => task.writer.write(task.encoder.encode(text))).catch(() => {})
+    private finish_task(task_id: string): void {
+        const task = this.active_tasks.get(task_id)
+        if (!task) return
+        if (task.timeout_id) clearTimeout(task.timeout_id)
+        this.active_tasks.delete(task_id)
+        const agent = this.get_open_agent(task.token)
+        if (agent) this.send(agent, { type: "task:kill", task_id, signal: "SIGTERM" })
+        task.writer.close().catch(() => {})
+    }
+
+    private write_to_task(task: ActiveTask, task_id: string, text: string): void {
+        task.write_queue = task.write_queue
+            .then(() => task.writer.write(task.encoder.encode(text)))
+            .catch(() => {
+                this.finish_task(task_id)
+            })
     }
 }

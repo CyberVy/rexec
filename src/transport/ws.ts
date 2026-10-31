@@ -20,6 +20,8 @@ export interface WsClientOptions {
      */
     watch_ms?: number
     signal?: AbortSignal
+    /** RST the socket after close so a proxy cannot keep the caller session open. */
+    reset_on_close?: boolean
 
     on_open?: (client: WsClient) => void
     on_message?: (data: string) => void
@@ -255,6 +257,7 @@ export class WsClient {
         } catch {
             // Ignore
         }
+        if (this.options.reset_on_close) abort_websocket(ws, this.target_port)
     }
 
     /** Alias for close() */
