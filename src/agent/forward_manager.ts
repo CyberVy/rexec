@@ -2,13 +2,8 @@ import net from "node:net"
 import type { AgentToHubMessage, ForwardCloseMessage, ForwardOpenMessage, ForwardSessionEndMessage } from "@/protocol"
 import { encode_forward_frame } from "@/transport"
 
-interface ConnectionInfo {
-    session_id: string
-    socket: net.Socket
-}
-
 export class ForwardManager {
-    private active_connections: Map<number, ConnectionInfo> = new Map()
+    private sessions: Map<string, Map<number, net.Socket>> = new Map()
 
     public handle_open(
         msg: ForwardOpenMessage,
@@ -17,15 +12,20 @@ export class ForwardManager {
     ): void {
         const { session_id, conn_id, remote_port } = msg
 
-        // If connection already exists for this conn_id, clean it up first
-        const existing = this.active_connections.get(conn_id)
+        let session_sockets = this.sessions.get(session_id)
+        if (!session_sockets) {
+            session_sockets = new Map()
+            this.sessions.set(session_id, session_sockets)
+        }
+
+        const existing = session_sockets.get(conn_id)
         if (existing) {
-            existing.socket.destroy()
-            this.active_connections.delete(conn_id)
+            session_sockets.delete(conn_id)
+            existing.destroy()
         }
 
         const socket = net.createConnection({ port: remote_port, host: "127.0.0.1" })
-        this.active_connections.set(conn_id, { session_id, socket })
+        session_sockets.set(conn_id, socket)
 
         socket.on("data", (chunk: Buffer) => {
             const frame = encode_forward_frame(session_id, conn_id, chunk)
@@ -33,53 +33,69 @@ export class ForwardManager {
         })
 
         socket.on("error", (err: Error) => {
+            this.delete_socket(session_id, conn_id, socket)
             send_json({
                 type: "forward:error",
                 session_id,
                 conn_id,
                 error: err.message
             })
-            this.active_connections.delete(conn_id)
         })
 
         socket.on("close", () => {
-            this.active_connections.delete(conn_id)
-            send_json({
-                type: "forward:close",
-                session_id,
-                conn_id
-            })
+            if (this.delete_socket(session_id, conn_id, socket)) {
+                send_json({
+                    type: "forward:close",
+                    session_id,
+                    conn_id
+                })
+            }
         })
     }
 
-    public handle_data(conn_id: number, payload: Uint8Array): void {
-        const info = this.active_connections.get(conn_id)
-        if (info && !info.socket.destroyed) {
-            info.socket.write(payload)
+    public handle_data(session_id: string, conn_id: number, payload: Uint8Array): void {
+        const socket = this.sessions.get(session_id)?.get(conn_id)
+        if (socket && !socket.destroyed) {
+            socket.write(payload)
         }
     }
 
     public handle_close(msg: ForwardCloseMessage): void {
-        const info = this.active_connections.get(msg.conn_id)
-        if (info) {
-            info.socket.destroy()
-            this.active_connections.delete(msg.conn_id)
+        const session_sockets = this.sessions.get(msg.session_id)
+        const socket = session_sockets?.get(msg.conn_id)
+        if (socket) {
+            this.delete_socket(msg.session_id, msg.conn_id, socket)
+            socket.destroy()
         }
     }
 
     public handle_session_end(msg: ForwardSessionEndMessage): void {
-        for (const [conn_id, info] of this.active_connections.entries()) {
-            if (info.session_id === msg.session_id) {
-                info.socket.destroy()
-                this.active_connections.delete(conn_id)
-            }
+        const session_sockets = this.sessions.get(msg.session_id)
+        if (!session_sockets) return
+        this.sessions.delete(msg.session_id)
+        for (const socket of session_sockets.values()) {
+            socket.destroy()
         }
     }
 
     public abort_all(): void {
-        for (const [, info] of this.active_connections) {
-            info.socket.destroy()
+        for (const session_sockets of this.sessions.values()) {
+            for (const socket of session_sockets.values()) {
+                socket.destroy()
+            }
         }
-        this.active_connections.clear()
+        this.sessions.clear()
+    }
+
+    private delete_socket(session_id: string, conn_id: number, socket: net.Socket): boolean {
+        const session_sockets = this.sessions.get(session_id)
+        if (!session_sockets || session_sockets.get(conn_id) !== socket) {
+            return false
+        }
+        session_sockets.delete(conn_id)
+        if (session_sockets.size === 0) {
+            this.sessions.delete(session_id)
+        }
+        return true
     }
 }
