@@ -9,7 +9,7 @@ import { FloatingModalContainer } from "@/components/composite/ModalContainer"
 import { CloseIcon, ChevronDownIcon } from "@/components/icons"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
-import { vibrate } from "@/infra/device.client"
+import { NaiveButton } from "@/components/base/Buttons"
 import { RunIcon, PlusIcon, TrashIcon, RefreshIcon, KeyboardIcon } from "./icons"
 
 interface AccessoryKey {
@@ -172,7 +172,6 @@ export function TerminalBlock() {
         e.preventDefault()
         const trimmed = command_input
         if (!trimmed) return
-        vibrate()
         pty_controller.send(trimmed + "\n")
         set_command_history((prev) => [trimmed, ...prev.filter((c) => c !== trimmed)].slice(0, 50))
         set_history_index(-1)
@@ -207,7 +206,6 @@ export function TerminalBlock() {
         const text = e.clipboardData.getData("text")
         if (text.includes("\n")) {
             e.preventDefault()
-            vibrate()
             if (term_ref.current) {
                 term_ref.current.paste(text)
             } else {
@@ -426,13 +424,13 @@ export function TerminalBlock() {
                         spellCheck={false}
                         className="flex-1 bg-transparent border-none outline-hidden text-foreground placeholder:text-muted-foreground text-xs font-mono min-w-0"
                     />
-                    <button
+                    <NaiveButton
                         type="submit"
                         disabled={!command_input.trim()}
-                        className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer shrink-0 select-none hover:opacity-90 active:scale-95"
+                        className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs hover:opacity-90 disabled:opacity-25 disabled:pointer-events-none shrink-0"
                     >
                         Send
-                    </button>
+                    </NaiveButton>
                 </form>
             )}
 
@@ -443,19 +441,18 @@ export function TerminalBlock() {
                     className="shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
                 >
                     {ACCESSORY_KEYS.map((key) => (
-                        <button
+                        <NaiveButton
                             key={key.label}
                             type="button"
                             title={key.title}
                             onPointerDown={(e) => e.preventDefault()}
                             onClick={() => {
-                                vibrate()
                                 pty_controller.send(key.payload)
                             }}
-                            className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 active:scale-95 text-foreground font-medium transition cursor-pointer shrink-0 select-none"
+                            className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 text-foreground font-medium shrink-0"
                         >
                             {key.label}
-                        </button>
+                        </NaiveButton>
                     ))}
                 </div>
             )}
