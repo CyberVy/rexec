@@ -1,2 +1,4 @@
 vendor/node-pty/**/*.node binary
 vendor/node-pty/**/spawn-helper binary
+
+src-tauri/src/inject.js linguist-generated=true text eol=lf
