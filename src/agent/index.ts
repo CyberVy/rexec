@@ -88,7 +88,7 @@ Or set environment variables:
             on_close: (event) => {
                 if (event.code === 1000 && event.reason === REPLACED_REASON) {
                     console.log(`[rexec-agent] Connection closed (${REPLACED_REASON}).`)
-                    process.exit(0)
+                    this.shutdown(REPLACED_REASON)
                 }
             }
         })
@@ -99,6 +99,7 @@ Or set environment variables:
 
         process.on("SIGINT", () => this.shutdown("SIGINT"))
         process.on("SIGTERM", () => this.shutdown("SIGTERM"))
+        process.on("SIGHUP", () => this.shutdown("SIGHUP"))
     }
 
     private send(msg: AgentToHubMessage): void {
