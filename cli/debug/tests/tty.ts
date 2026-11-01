@@ -188,6 +188,45 @@ async function run(): Promise<void> {
         if (found.status !== "detached") {
             throw new Error(`Expected status 'detached', got: ${found.status}`)
         }
+        if (found.persistent !== false) {
+            throw new Error(`Expected initial persistent=false, got: ${found.persistent}`)
+        }
+
+        console.log("[test:tty] Toggling session persistence on...")
+        await caller.set_pty_persistent(session3.session_id, true)
+        await new Promise((resolve) => setTimeout(resolve, 300))
+
+        const list_persistent = await caller.list_ptys()
+        const found_persistent = list_persistent.find((s) => s.session_id === session3.session_id)
+        if (!found_persistent || !found_persistent.persistent) {
+            throw new Error(
+                `Expected persistent=true after set_pty_persistent(true), got: ${JSON.stringify(found_persistent)}`
+            )
+        }
+        if (found_persistent.remaining_ttl_ms !== undefined) {
+            throw new Error(
+                `Expected remaining_ttl_ms=undefined when persistent, got: ${found_persistent.remaining_ttl_ms}`
+            )
+        }
+        console.log("✓ session persistence enabled (no TTL)")
+
+        console.log("[test:tty] Toggling session persistence off...")
+        await caller.set_pty_persistent(session3.session_id, false)
+        await new Promise((resolve) => setTimeout(resolve, 300))
+
+        const list_restored = await caller.list_ptys()
+        const found_restored = list_restored.find((s) => s.session_id === session3.session_id)
+        if (!found_restored || found_restored.persistent !== false) {
+            throw new Error(
+                `Expected persistent=false after set_pty_persistent(false), got: ${JSON.stringify(found_restored)}`
+            )
+        }
+        if (typeof found_restored.remaining_ttl_ms !== "number") {
+            throw new Error(
+                `Expected number remaining_ttl_ms when not persistent, got: ${found_restored.remaining_ttl_ms}`
+            )
+        }
+        console.log("✓ session persistence disabled (TTL restored)")
 
         // Kill the session
         await caller.kill_pty(session3.session_id)

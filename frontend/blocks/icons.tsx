@@ -351,3 +351,25 @@ export function FolderUpIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_
         </svg>
     )
 }
+
+export function PinIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_SIZE, ...props }: IconProps) {
+    return (
+        <svg
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            {...props}
+        >
+            <line x1="12" y1="17" x2="12" y2="22" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+                d="M5 17h14v-2l-2-2V5a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v8l-2 2v2z"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    )
+}

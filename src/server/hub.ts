@@ -57,6 +57,13 @@ export class RexecHub extends DurableObject {
             return this.ptys.handle_kill_request(request, url)
         }
 
+        if (url.pathname === HUB_ROUTES.PTY_UPDATE.path) {
+            if (request.method !== HUB_ROUTES.PTY_UPDATE.method) {
+                return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })
+            }
+            return this.ptys.handle_update_request(request, url)
+        }
+
         if (url.pathname === HUB_ROUTES.EXEC.path) {
             if (request.method !== HUB_ROUTES.EXEC.method) {
                 return new Response("Method Not Allowed", { status: 405, headers: get_cors_headers(request) })

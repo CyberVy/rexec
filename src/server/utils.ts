@@ -46,7 +46,8 @@ const AUTHENTICATED_PATHS = new Set<string>([
     HUB_ROUTES.WS_FORWARD.path,
     HUB_ROUTES.WS_PTY.path,
     HUB_ROUTES.PTY_LIST.path,
-    HUB_ROUTES.PTY_KILL.path
+    HUB_ROUTES.PTY_KILL.path,
+    HUB_ROUTES.PTY_UPDATE.path
 ])
 
 export function missing_token_response(request: Request): Response | null {

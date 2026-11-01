@@ -11,7 +11,17 @@ import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
 import { format_entry_size } from "@/core/workspace"
 import { NaiveButton } from "@/components/base/Buttons"
-import { RunIcon, PlusIcon, TrashIcon, RefreshIcon, KeyboardIcon, FolderIcon, FileIcon, FolderUpIcon } from "./icons"
+import {
+    RunIcon,
+    PlusIcon,
+    TrashIcon,
+    RefreshIcon,
+    KeyboardIcon,
+    FolderIcon,
+    FileIcon,
+    FolderUpIcon,
+    PinIcon
+} from "./icons"
 
 function format_display_path(cwd: string | null): string {
     if (!cwd) return "Workspace"
@@ -570,15 +580,25 @@ export function TerminalBlock() {
                                                             Active
                                                         </span>
                                                     )}
+                                                    {s.persistent && (
+                                                        <span className="text-[10px] px-1.5 py-0.2 rounded border border-black/15 dark:border-white/15 bg-black/5 dark:bg-white/10 text-foreground/80 font-medium">
+                                                            Persistent
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="text-[11px] text-muted-foreground flex items-center gap-2">
                                                     <span className="capitalize">{s.status}</span>
-                                                    {s.status === "detached" && (
+                                                    {s.persistent ? (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>No TTL</span>
+                                                        </>
+                                                    ) : s.status === "detached" ? (
                                                         <>
                                                             <span>•</span>
                                                             <span>~{time_left_min}m TTL left</span>
                                                         </>
-                                                    )}
+                                                    ) : null}
                                                     {s.buffered_bytes > 0 && (
                                                         <>
                                                             <span>•</span>
@@ -591,6 +611,28 @@ export function TerminalBlock() {
                                             </div>
 
                                             <div className="flex items-center gap-2 shrink-0">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void pty_controller.set_session_persistent(
+                                                            s.session_id,
+                                                            !s.persistent
+                                                        )
+                                                    }
+                                                    title={
+                                                        s.persistent
+                                                            ? "Disable persistence (restore 10m orphan TTL)"
+                                                            : "Enable persistence (keep alive indefinitely)"
+                                                    }
+                                                    className={`px-2 py-1 rounded-lg border text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+                                                        s.persistent
+                                                            ? "border-black/30 dark:border-white/30 bg-black/10 dark:bg-white/15 text-foreground font-medium"
+                                                            : "border-black/10 dark:border-white/10 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                                                    }`}
+                                                >
+                                                    <PinIcon className="size-3" />
+                                                    <span>{s.persistent ? "Persistent" : "Keep Alive"}</span>
+                                                </button>
                                                 {!is_current && (
                                                     <button
                                                         type="button"
