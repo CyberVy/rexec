@@ -1,6 +1,7 @@
 import { BaseController } from "@/infra/base_controller"
 import { create_logger } from "@/infra/logger"
 import type { PtyClient, PtySessionInfo } from "@rexec/caller/core"
+import { fetch_workspace_entries, parse_osc7_path, resolve_parent_path, type WorkspaceEntry } from "@/core/workspace"
 import { session_controller } from "./session_controller"
 
 const logger = create_logger("PtyController")
@@ -10,12 +11,17 @@ export type PtyStatus = "disconnected" | "connecting" | "connected" | "exited" |
 export interface PtyState {
     status: PtyStatus
     session_id: string | null
+    cwd: string | null
     exit_code: number | null
     error: string | null
     cols: number
     rows: number
     sessions: PtySessionInfo[]
     is_listing: boolean
+    dir_path: string | null
+    dir_entries: WorkspaceEntry[]
+    is_loading_dir: boolean
+    dir_error: string | null
 }
 
 interface ConnectOptions {
@@ -31,6 +37,7 @@ interface ConnectOptions {
 export class PtyController extends BaseController<PtyState> {
     private client: PtyClient | null = null
     private abort_controller: AbortController | null = null
+    private dir_abort_controller: AbortController | null = null
     private data_listeners: Set<(data: Uint8Array) => void> = new Set()
     private is_intentional_disconnect = false
     private last_options: ConnectOptions | null = null
@@ -42,12 +49,17 @@ export class PtyController extends BaseController<PtyState> {
         this._state = {
             status: "disconnected",
             session_id: null,
+            cwd: null,
             exit_code: null,
             error: null,
             cols: 80,
             rows: 24,
             sessions: [],
-            is_listing: false
+            is_listing: false,
+            dir_path: null,
+            dir_entries: [],
+            is_loading_dir: false,
+            dir_error: null
         }
     }
 
@@ -68,7 +80,13 @@ export class PtyController extends BaseController<PtyState> {
         this.dispatchEvent(new Event("change"))
         try {
             const sessions = await caller.list_ptys()
-            this.update_state({ sessions, is_listing: false })
+            const active_session = sessions.find((s) => s.session_id === this.state.session_id)
+            const next_cwd = active_session?.cwd ?? this.state.cwd
+            this.update_state({
+                sessions,
+                is_listing: false,
+                cwd: next_cwd
+            })
             this.dispatchEvent(new Event("change"))
             return sessions
         } catch (err) {
@@ -77,6 +95,81 @@ export class PtyController extends BaseController<PtyState> {
             this.dispatchEvent(new Event("change"))
             return []
         }
+    }
+
+    public update_cwd_from_osc7(osc_data: string): void {
+        const parsed = parse_osc7_path(osc_data)
+        if (!parsed || parsed === this.state.cwd) return
+        this.update_state({ cwd: parsed })
+        this.dispatchEvent(new Event("change"))
+    }
+
+    public async load_directory(target_path?: string): Promise<void> {
+        if (!session_controller.state.hub_url) {
+            this.update_state({
+                is_loading_dir: false,
+                dir_error: "Hub URL is required"
+            })
+            this.dispatchEvent(new Event("change"))
+            return
+        }
+
+        if (this.dir_abort_controller) {
+            this.dir_abort_controller.abort()
+        }
+        this.dir_abort_controller = new AbortController()
+        const signal = this.dir_abort_controller.signal
+
+        const requested_path = target_path ?? this.state.dir_path ?? this.state.cwd ?? undefined
+        this.update_state({
+            is_loading_dir: true,
+            dir_error: null,
+            ...(target_path ? { dir_path: target_path } : {})
+        })
+        this.dispatchEvent(new Event("change"))
+
+        try {
+            const caller = session_controller.get_caller()
+            const snapshot = await fetch_workspace_entries(caller, requested_path, signal)
+            this.update_state({
+                dir_path: snapshot.resolved_cwd,
+                dir_entries: snapshot.entries,
+                is_loading_dir: false,
+                dir_error: null,
+                cwd: this.state.cwd ?? snapshot.resolved_cwd
+            })
+            this.dispatchEvent(new Event("change"))
+        } catch (err) {
+            if (signal.aborted) return
+            const message = err instanceof Error ? err.message : String(err)
+            logger.warn("Failed to load workspace directory", message)
+            this.update_state({
+                is_loading_dir: false,
+                dir_error: message
+            })
+            this.dispatchEvent(new Event("change"))
+        } finally {
+            if (this.dir_abort_controller?.signal === signal) {
+                this.dir_abort_controller = null
+            }
+        }
+    }
+
+    public async navigate_parent_directory(): Promise<void> {
+        const current = this.state.dir_path || this.state.cwd || "/"
+        const parent = resolve_parent_path(current)
+        await this.load_directory(parent)
+    }
+
+    public cd_to_directory(target_path: string): void {
+        if (!target_path) return
+        const escaped = target_path.replace(/'/g, "'\\''")
+        this.send(`cd -- '${escaped}'\r`)
+        this.update_state({
+            cwd: target_path,
+            dir_path: target_path
+        })
+        this.dispatchEvent(new Event("change"))
     }
 
     public async kill_session(session_id: string): Promise<void> {

@@ -291,3 +291,63 @@ export function KeyboardIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_
         </svg>
     )
 }
+
+export function FolderIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_SIZE, ...props }: IconProps) {
+    return (
+        <svg
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            {...props}
+        >
+            <path
+                d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    )
+}
+
+export function FileIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_SIZE, ...props }: IconProps) {
+    return (
+        <svg
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            {...props}
+        >
+            <path
+                d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+            <polyline points="14 2 14 8 20 8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
+
+export function FolderUpIcon({ width = DEFAULT_ICON_SIZE, height = DEFAULT_ICON_SIZE, ...props }: IconProps) {
+    return (
+        <svg
+            width={width}
+            height={height}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            xmlns="http://www.w3.org/2000/svg"
+            {...props}
+        >
+            <polyline points="9 14 4 9 9 4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20 20v-7a4 4 0 0 0-4-4H4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
