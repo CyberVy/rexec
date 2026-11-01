@@ -88,6 +88,7 @@ export class PtyManager {
         }
 
         const cwd = msg.cwd ? path.resolve(base_workspace, msg.cwd) : base_workspace
+        slot.cwd = cwd
         const args = Array.isArray(msg.args) ? msg.args.map((arg) => String(arg)) : []
         void this.spawn(session_id, slot, file, args, cwd, msg.term?.trim() || "xterm-256color", send, send_binary)
     }
@@ -253,6 +254,12 @@ export class PtyManager {
             const rendered_args = args.length > 0 ? ` ${args.join(" ")}` : ""
             console.log(`[rexec-agent] [pty:${session_id.slice(0, 8)}] Spawning: ${file}${rendered_args} (cwd: ${cwd})`)
 
+            const initial_osc7 = new TextEncoder().encode(`\x1b]7;file://localhost${cwd}\x07`)
+            slot.ring_buffer.write(initial_osc7)
+            if (slot.status === "attached") {
+                send_binary(encode_pty_frame(session_id, initial_osc7))
+            }
+
             const proc = new PtyProcess(
                 this.binding.native,
                 {
@@ -266,6 +273,10 @@ export class PtyManager {
                 },
                 (data) => {
                     if (slot.status === "closed") return
+                    const detected_cwd = extract_osc7_cwd(data)
+                    if (detected_cwd) {
+                        slot.cwd = detected_cwd
+                    }
                     slot.ring_buffer.write(data)
                     if (slot.status === "attached") {
                         send_binary(encode_pty_frame(session_id, data))
@@ -324,5 +335,38 @@ function build_env(term: string, cwd: string): string[] {
     }
     env.TERM = term
     env.PWD = cwd
+    const osc7_hook = 'printf "\\033]7;file://localhost%s\\007" "$PWD"'
+    env.PROMPT_COMMAND = env.PROMPT_COMMAND ? `${env.PROMPT_COMMAND}; ${osc7_hook}` : osc7_hook
     return Object.entries(env).map(([key, value]) => `${key}=${value}`)
+}
+
+const OSC7_PREFIX = "\x1b]7;file://"
+
+function extract_osc7_cwd(data: Uint8Array): string | null {
+    // Fast check for ESC (0x1b) followed by ']' (0x5d) and '7' (0x37)
+    let has_osc7 = false
+    for (let i = 0; i + 2 < data.length; i++) {
+        if (data[i] === 0x1b && data[i + 1] === 0x5d && data[i + 2] === 0x37) {
+            has_osc7 = true
+            break
+        }
+    }
+    if (!has_osc7) return null
+    const text = new TextDecoder().decode(data)
+    const start_idx = text.lastIndexOf(OSC7_PREFIX)
+    if (start_idx === -1) return null
+    const after_prefix = text.slice(start_idx + OSC7_PREFIX.length)
+    const slash_idx = after_prefix.indexOf("/")
+    if (slash_idx === -1) return null
+    const from_slash = after_prefix.slice(slash_idx)
+    const bel_idx = from_slash.indexOf("\x07")
+    const st_idx = from_slash.indexOf("\x1b\\")
+    const end_idx = bel_idx !== -1 && st_idx !== -1 ? Math.min(bel_idx, st_idx) : bel_idx !== -1 ? bel_idx : st_idx
+    if (end_idx <= 0) return null
+    const raw_path = from_slash.slice(0, end_idx)
+    try {
+        return decodeURIComponent(raw_path)
+    } catch {
+        return raw_path
+    }
 }

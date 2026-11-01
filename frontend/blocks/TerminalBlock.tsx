@@ -9,8 +9,16 @@ import { FloatingModalContainer } from "@/components/composite/ModalContainer"
 import { CloseIcon, ChevronDownIcon } from "@/components/icons"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
+import { format_entry_size } from "@/core/workspace"
 import { NaiveButton } from "@/components/base/Buttons"
-import { RunIcon, PlusIcon, TrashIcon, RefreshIcon, KeyboardIcon } from "./icons"
+import { RunIcon, PlusIcon, TrashIcon, RefreshIcon, KeyboardIcon, FolderIcon, FileIcon, FolderUpIcon } from "./icons"
+
+function format_display_path(cwd: string | null): string {
+    if (!cwd) return "Workspace"
+    const segments = cwd.split("/").filter(Boolean)
+    if (segments.length <= 2) return cwd
+    return `.../${segments.slice(-2).join("/")}`
+}
 
 interface AccessoryKey {
     label: string
@@ -46,6 +54,7 @@ export function TerminalBlock() {
     const term_ref = useRef<Terminal | null>(null)
     const fit_addon_ref = useRef<FitAddon | null>(null)
     const [is_sessions_modal_open, set_is_sessions_modal_open] = useState(false)
+    const [is_workspace_modal_open, set_is_workspace_modal_open] = useState(false)
     const [is_accessory_bar_open, set_is_accessory_bar_open] = useState(true)
     const [command_input, set_command_input] = useState("")
     const [command_history, set_command_history] = useState<string[]>([])
@@ -63,6 +72,9 @@ export function TerminalBlock() {
 
     useEffect(() => {
         void pty_controller.refresh_sessions()
+        if (session_state.agent_online && !pty_controller.state.cwd) {
+            void pty_controller.load_directory()
+        }
     }, [session_state.agent_online])
 
     useEffect(() => {
@@ -129,6 +141,12 @@ export function TerminalBlock() {
             pty_controller.resize(cols, rows)
         })
 
+        // Wire OSC 7 current working directory notifications
+        const osc7_sub = term.parser.registerOscHandler(7, (data) => {
+            pty_controller.update_cwd_from_osc7(data)
+            return true
+        })
+
         // Window resize observer
         const resize_observer = new ResizeObserver(() => {
             try {
@@ -147,6 +165,7 @@ export function TerminalBlock() {
             remove_data_listener()
             on_data_sub.dispose()
             on_resize_sub.dispose()
+            osc7_sub.dispose()
             resize_observer.disconnect()
             term.dispose()
             term_ref.current = null
@@ -257,13 +276,29 @@ export function TerminalBlock() {
                                 void pty_controller.refresh_sessions()
                                 set_is_sessions_modal_open(true)
                             }}
-                            className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] truncate"
+                            className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] truncate shrink-0"
                         >
                             <span className="truncate">
                                 {pty_state.session_id
                                     ? `Session: ${pty_state.session_id.slice(0, 8)}`
                                     : `Sessions (${pty_state.sessions.length})`}
                             </span>
+                            <ChevronDownIcon className="size-3 shrink-0" />
+                        </button>
+
+                        {/* Workspace Folder Capsule */}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void pty_controller.load_directory(pty_state.cwd ?? undefined)
+                                set_is_workspace_modal_open(true)
+                            }}
+                            disabled={!session_state.agent_online && !pty_state.cwd}
+                            title={pty_state.cwd ? `Current workspace: ${pty_state.cwd}` : "Browse workspace folder"}
+                            className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] min-w-0 max-w-[200px] sm:max-w-[320px]"
+                        >
+                            <FolderIcon className="size-3 shrink-0" />
+                            <span className="truncate">{format_display_path(pty_state.cwd)}</span>
                             <ChevronDownIcon className="size-3 shrink-0" />
                         </button>
                     </div>
@@ -599,6 +634,186 @@ export function TerminalBlock() {
                                 <PlusIcon className="size-3" />
                                 <span>New Session</span>
                             </button>
+                        </div>
+                    </FloatingModalContainer>
+                </div>
+            )}
+
+            {/* Workspace Folder Explorer Modal */}
+            {is_workspace_modal_open && (
+                <div
+                    className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4"
+                    onClick={() => set_is_workspace_modal_open(false)}
+                >
+                    <FloatingModalContainer
+                        className="w-full max-w-lg p-5 gap-3.5"
+                        on_escape={() => set_is_workspace_modal_open(false)}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <FolderIcon className="size-4 text-foreground shrink-0" />
+                                <span className="font-semibold text-sm font-mono">Workspace Explorer</span>
+                                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-muted-foreground">
+                                    {pty_state.dir_entries.length} Items
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => void pty_controller.load_directory()}
+                                    disabled={pty_state.is_loading_dir}
+                                    title="Refresh directory"
+                                    className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                >
+                                    <RefreshIcon
+                                        className={`size-3.5 ${pty_state.is_loading_dir ? "animate-spin" : ""}`}
+                                    />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => set_is_workspace_modal_open(false)}
+                                    className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                >
+                                    <CloseIcon className="size-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Current Path Bar */}
+                        <div className="flex items-center justify-between gap-2 p-2 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 font-mono text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => void pty_controller.navigate_parent_directory()}
+                                    disabled={
+                                        pty_state.is_loading_dir || !pty_state.dir_path || pty_state.dir_path === "/"
+                                    }
+                                    title="Parent directory (..)"
+                                    className="flex items-center gap-1 px-2 py-1 rounded border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/15 disabled:opacity-40 text-foreground transition cursor-pointer shrink-0 text-[11px]"
+                                >
+                                    <FolderUpIcon className="size-3" />
+                                    <span>..</span>
+                                </button>
+                                <span
+                                    className="truncate text-foreground font-medium select-text"
+                                    title={pty_state.dir_path ?? pty_state.cwd ?? "/"}
+                                >
+                                    {pty_state.dir_path ?? pty_state.cwd ?? "/"}
+                                </span>
+                            </div>
+
+                            {pty_state.status === "connected" &&
+                                pty_state.dir_path &&
+                                pty_state.dir_path !== pty_state.cwd && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (pty_state.dir_path) {
+                                                pty_controller.cd_to_directory(pty_state.dir_path)
+                                                set_is_workspace_modal_open(false)
+                                            }
+                                        }}
+                                        className="px-2 py-1 rounded bg-foreground text-background font-medium text-[11px] hover:opacity-90 transition cursor-pointer shrink-0"
+                                    >
+                                        cd Here
+                                    </button>
+                                )}
+                        </div>
+
+                        {/* Directory Entries List */}
+                        <div className="max-h-72 overflow-y-auto space-y-1.5 pr-0.5 font-mono text-xs">
+                            {pty_state.dir_error ? (
+                                <div className="py-6 px-3 text-center text-muted-foreground text-xs font-mono border border-black/10 dark:border-white/10 rounded-lg">
+                                    {pty_state.dir_error}
+                                </div>
+                            ) : pty_state.is_loading_dir && pty_state.dir_entries.length === 0 ? (
+                                <div className="py-8 text-center text-muted-foreground text-xs font-mono">
+                                    Loading directory contents...
+                                </div>
+                            ) : pty_state.dir_entries.length === 0 ? (
+                                <div className="py-8 text-center text-muted-foreground text-xs font-mono">
+                                    Directory is empty.
+                                </div>
+                            ) : (
+                                pty_state.dir_entries.map((entry) => (
+                                    <div
+                                        key={entry.path}
+                                        onClick={() => {
+                                            if (entry.is_directory) {
+                                                void pty_controller.load_directory(entry.path)
+                                            }
+                                        }}
+                                        className={`px-3 py-2 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 flex items-center justify-between gap-3 transition ${
+                                            entry.is_directory
+                                                ? "hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
+                                                : ""
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            {entry.is_directory ? (
+                                                <FolderIcon className="size-4 text-foreground shrink-0" />
+                                            ) : (
+                                                <FileIcon className="size-4 text-muted-foreground shrink-0" />
+                                            )}
+                                            <div className="flex flex-col min-w-0">
+                                                <span
+                                                    className={`truncate ${
+                                                        entry.is_directory
+                                                            ? "font-semibold text-foreground"
+                                                            : "text-foreground/90"
+                                                    }`}
+                                                >
+                                                    {entry.name}
+                                                    {entry.is_directory ? "/" : ""}
+                                                </span>
+                                                <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                                                    <span>{entry.permissions}</span>
+                                                    <span>•</span>
+                                                    <span>{entry.mtime_label}</span>
+                                                    {!entry.is_directory && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>{format_entry_size(entry.size)}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {entry.is_directory && pty_state.status === "connected" && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    pty_controller.cd_to_directory(entry.path)
+                                                    set_is_workspace_modal_open(false)
+                                                }}
+                                                title={`cd into ${entry.name}`}
+                                                className="px-2 py-0.5 rounded border border-black/15 dark:border-white/15 hover:bg-foreground hover:text-background text-foreground font-medium text-[11px] transition shrink-0 cursor-pointer"
+                                            >
+                                                cd
+                                            </button>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="pt-2 border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-muted-foreground font-mono truncate">
+                                Terminal CWD: {pty_state.cwd ?? "Not connected"}
+                            </span>
+                            {pty_state.cwd && pty_state.dir_path && pty_state.dir_path !== pty_state.cwd && (
+                                <button
+                                    type="button"
+                                    onClick={() => void pty_controller.load_directory(pty_state.cwd ?? undefined)}
+                                    className="px-2.5 py-1 rounded-lg border border-black/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 text-foreground font-medium text-[11px] font-mono transition shrink-0 cursor-pointer"
+                                >
+                                    Reset to Terminal CWD
+                                </button>
+                            )}
                         </div>
                     </FloatingModalContainer>
                 </div>
