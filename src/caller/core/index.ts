@@ -14,6 +14,7 @@ import {
     type PtyKillRequestPayload,
     type PtyOptions,
     type PtySessionInfo,
+    type PtyUpdateRequestPayload,
     type TransferSink,
     type TransferSource
 } from "./types"
@@ -124,6 +125,7 @@ export class RexecCaller {
             rows: options.rows,
             term: options.term,
             orphan_ttl_ms: options.orphan_ttl_ms,
+            persistent: options.persistent,
             signal: options.signal
         })
     }
@@ -155,5 +157,29 @@ export class RexecCaller {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         })
+    }
+
+    /**
+     * Update configuration for a remote PTY session (e.g. toggle persistence).
+     */
+    public async update_pty(session_id: string, updates: { persistent: boolean }): Promise<void> {
+        const url = new URL(HUB_ROUTES.PTY_UPDATE.path, this.hub_url)
+        url.searchParams.set("token", this.token)
+        const payload: PtyUpdateRequestPayload = {
+            session_id,
+            persistent: updates.persistent
+        }
+        await fetch(url.toString(), {
+            method: HUB_ROUTES.PTY_UPDATE.method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+    }
+
+    /**
+     * Set persistence for a remote PTY session.
+     */
+    public async set_pty_persistent(session_id: string, persistent: boolean): Promise<void> {
+        await this.update_pty(session_id, { persistent })
     }
 }

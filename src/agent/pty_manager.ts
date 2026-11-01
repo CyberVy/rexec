@@ -5,7 +5,8 @@ import type {
     PtyCloseMessage,
     PtyOpenMessage,
     PtyResizeMessage,
-    PtySessionInfo
+    PtySessionInfo,
+    PtyUpdateMessage
 } from "@/protocol"
 import { encode_pty_frame } from "@/transport"
 import { load_pty_binding, type PtyBinding } from "./pty_binding"
@@ -25,6 +26,7 @@ interface PtySlot {
     cwd?: string
     started_at: number
     detached_at?: number
+    persistent: boolean
 }
 
 const STRIPPED_ENV = ["TMUX", "TMUX_PANE", "STY", "WINDOW", "WINDOWID", "TERMCAP", "COLUMNS", "LINES"]
@@ -55,6 +57,7 @@ export class PtyManager {
         const orphan_ttl_ms =
             msg.orphan_ttl_ms ??
             (process.env.REXEC_PTY_ORPHAN_TTL_MS ? Number(process.env.REXEC_PTY_ORPHAN_TTL_MS) : DEFAULT_ORPHAN_TTL_MS)
+        const persistent = Boolean(msg.persistent)
 
         const slot: PtySlot = existing ?? {
             status: "attached",
@@ -66,7 +69,8 @@ export class PtyManager {
             orphan_ttl_ms,
             command: msg.file || "sh",
             cwd: msg.cwd,
-            started_at: Date.now()
+            started_at: Date.now(),
+            persistent
         }
         slot.status = "attached"
         slot.cols = dimension(msg.cols, slot.cols)
@@ -75,6 +79,9 @@ export class PtyManager {
         slot.command = [msg.file, ...(msg.args ?? [])].filter(Boolean).join(" ") || "sh"
         slot.cwd = msg.cwd
         slot.detached_at = undefined
+        if (msg.persistent !== undefined) {
+            slot.persistent = persistent
+        }
         if (slot.orphan_timer) {
             clearTimeout(slot.orphan_timer)
             slot.orphan_timer = undefined
@@ -140,6 +147,14 @@ export class PtyManager {
         if (!slot || slot.status === "closed" || slot.status === "detached") return
         slot.status = "detached"
         slot.detached_at = Date.now()
+        if (slot.persistent) {
+            console.log(`[rexec-agent] [pty:${session_id.slice(0, 8)}] Detached. Persistent session (no orphan timer).`)
+            if (slot.orphan_timer) {
+                clearTimeout(slot.orphan_timer)
+                slot.orphan_timer = undefined
+            }
+            return
+        }
         console.log(
             `[rexec-agent] [pty:${session_id.slice(0, 8)}] Detached. Starting orphan timer (${slot.orphan_ttl_ms}ms).`
         )
@@ -149,6 +164,26 @@ export class PtyManager {
             this.close({ type: "pty:close", session_id })
         }, slot.orphan_ttl_ms)
         slot.orphan_timer.unref?.()
+    }
+
+    public update(msg: PtyUpdateMessage): void {
+        const slot = this.sessions.get(msg.session_id)
+        if (!slot || slot.status === "closed") return
+        slot.persistent = Boolean(msg.persistent)
+        console.log(`[rexec-agent] [pty:${msg.session_id.slice(0, 8)}] Updated persistent status: ${slot.persistent}`)
+        if (slot.persistent) {
+            if (slot.orphan_timer) {
+                clearTimeout(slot.orphan_timer)
+                slot.orphan_timer = undefined
+            }
+        } else if (slot.status === "detached") {
+            if (slot.orphan_timer) clearTimeout(slot.orphan_timer)
+            slot.orphan_timer = setTimeout(() => {
+                console.log(`[rexec-agent] [pty:${msg.session_id.slice(0, 8)}] Orphan TTL expired. Reaping process.`)
+                this.close({ type: "pty:close", session_id: msg.session_id })
+            }, slot.orphan_ttl_ms)
+            slot.orphan_timer.unref?.()
+        }
     }
 
     public list(): PtySessionInfo[] {
@@ -168,8 +203,9 @@ export class PtyManager {
                 started_at: slot.started_at,
                 detached_at: slot.detached_at,
                 orphan_ttl_ms: slot.orphan_ttl_ms,
-                remaining_ttl_ms,
-                buffered_bytes: slot.ring_buffer.byte_length
+                remaining_ttl_ms: slot.persistent ? undefined : remaining_ttl_ms,
+                buffered_bytes: slot.ring_buffer.byte_length,
+                persistent: slot.persistent
             })
         }
         return result
@@ -208,7 +244,8 @@ export class PtyManager {
                 ring_buffer: new PtyRingBuffer(),
                 orphan_ttl_ms: 0,
                 command: "closed",
-                started_at: 0
+                started_at: 0,
+                persistent: false
             })
             return
         }

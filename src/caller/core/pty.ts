@@ -13,6 +13,7 @@ export interface PtyClientOptions {
     rows?: number
     term?: string
     orphan_ttl_ms?: number
+    persistent?: boolean
     signal?: AbortSignal
 }
 
@@ -132,7 +133,8 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                 cols: options.cols && options.cols > 0 ? options.cols : 80,
                 rows: options.rows && options.rows > 0 ? options.rows : 24,
                 term: options.term,
-                orphan_ttl_ms: options.orphan_ttl_ms
+                orphan_ttl_ms: options.orphan_ttl_ms,
+                persistent: options.persistent
             })
         }
 

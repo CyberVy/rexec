@@ -17,7 +17,9 @@ export type {
     HubStatus,
     PtyKillRequestPayload,
     PtyKillResponse,
-    PtySessionInfo
+    PtySessionInfo,
+    PtyUpdateRequestPayload,
+    PtyUpdateResponse
 } from "@/protocol"
 
 export interface PtyOptions {
@@ -29,6 +31,7 @@ export interface PtyOptions {
     rows?: number
     term?: string
     orphan_ttl_ms?: number
+    persistent?: boolean
     signal?: AbortSignal
 }
 

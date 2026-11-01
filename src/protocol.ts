@@ -148,6 +148,7 @@ export interface PtyOpenMessage {
     rows: number
     term?: string
     orphan_ttl_ms?: number
+    persistent?: boolean
 }
 
 export interface PtyResizeMessage {
@@ -197,6 +198,13 @@ export interface PtySessionInfo {
     orphan_ttl_ms: number
     remaining_ttl_ms?: number
     buffered_bytes: number
+    persistent: boolean
+}
+
+export interface PtyUpdateMessage {
+    type: "pty:update"
+    session_id: string
+    persistent: boolean
 }
 
 export interface PtyListReqMessage {
@@ -248,6 +256,7 @@ export type HubToAgentMessage =
     | PtyDetachMessage
     | PtyAttachMessage
     | PtyListReqMessage
+    | PtyUpdateMessage
 
 // ==========================================
 // HTTP API Route Manifest & Registry (SSOT)
@@ -256,6 +265,7 @@ export const HUB_ROUTES = {
     HEALTH: { path: "/health", method: "GET" },
     PTY_LIST: { path: "/pty/list", method: "GET" },
     PTY_KILL: { path: "/pty/kill", method: "POST" },
+    PTY_UPDATE: { path: "/pty/update", method: "POST" },
     EXEC: { path: "/exec", method: "POST" },
     EXEC_KILL: { path: "/exec/kill", method: "POST" },
     FILE_PULL: { path: "/file/pull", method: "GET" },
@@ -328,12 +338,21 @@ export interface ExecKillResponse {
     status: "ok"
 }
 
-// 3. /pty/kill (Note: /pty/list returns PtySessionInfo[])
+// 3. /pty/kill and /pty/update (Note: /pty/list returns PtySessionInfo[])
 export interface PtyKillRequestPayload {
     session_id: string
 }
 
 export interface PtyKillResponse {
+    status: "ok"
+}
+
+export interface PtyUpdateRequestPayload {
+    session_id: string
+    persistent: boolean
+}
+
+export interface PtyUpdateResponse {
     status: "ok"
 }
 

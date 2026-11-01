@@ -6,7 +6,9 @@ import type {
     PtyKillRequestPayload,
     PtyKillResponse,
     PtyListResMessage,
-    PtySessionInfo
+    PtySessionInfo,
+    PtyUpdateRequestPayload,
+    PtyUpdateResponse
 } from "@/protocol"
 import { extract_pty_session_id } from "@/transport"
 import type { AgentSession } from "./types"
@@ -110,6 +112,33 @@ export class PtyRelay {
             this.send(agent, { type: "pty:close", session_id })
         }
         const success_res: PtyKillResponse = { status: "ok" }
+        return Response.json(success_res, { headers })
+    }
+
+    public async handle_update_request(request: Request, url: URL): Promise<Response> {
+        const headers = get_cors_headers(request)
+        const token = accepted_token(request, url)
+        let body: PtyUpdateRequestPayload
+        try {
+            body = (await request.json()) as PtyUpdateRequestPayload
+        } catch {
+            const error_res: ApiErrorResponse = { error: "Invalid JSON body" }
+            return Response.json(error_res, { status: 400, headers })
+        }
+        if (!body.session_id) {
+            const error_res: ApiErrorResponse = { error: "Missing 'session_id' in request body" }
+            return Response.json(error_res, { status: 400, headers })
+        }
+
+        const agent = this.get_open_agent(token)
+        if (agent) {
+            this.send(agent, {
+                type: "pty:update",
+                session_id: body.session_id,
+                persistent: Boolean(body.persistent)
+            })
+        }
+        const success_res: PtyUpdateResponse = { status: "ok" }
         return Response.json(success_res, { headers })
     }
 

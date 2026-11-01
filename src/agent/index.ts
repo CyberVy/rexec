@@ -176,6 +176,8 @@ Or set environment variables:
                 this.ptys.resize(msg)
             } else if (msg.type === "pty:close") {
                 this.ptys.close(msg)
+            } else if (msg.type === "pty:update") {
+                this.ptys.update(msg)
             } else if (msg.type === "pty:list_req") {
                 const sessions = this.ptys.list()
                 this.send({ type: "pty:list_res", req_id: msg.req_id, sessions })

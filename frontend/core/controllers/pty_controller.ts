@@ -185,6 +185,16 @@ export class PtyController extends BaseController<PtyState> {
         await this.refresh_sessions()
     }
 
+    public async set_session_persistent(session_id: string, persistent: boolean): Promise<void> {
+        const caller = session_controller.get_caller()
+        try {
+            await caller.set_pty_persistent(session_id, persistent)
+        } catch (err) {
+            logger.error("Failed to update PTY session persistent state", err)
+        }
+        await this.refresh_sessions()
+    }
+
     public async switch_session(session_id: string): Promise<void> {
         if (this.client) {
             this.client.detach()
