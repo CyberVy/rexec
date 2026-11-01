@@ -1,4 +1,5 @@
 import http from "node:http"
+import type { Socket } from "node:net"
 import { RexecCaller } from "@/caller"
 import { run_port_forward } from "@/caller/terminal/forward"
 import { DEBUG_TOKEN, read_debug_config, record_history } from "./helpers"
@@ -96,6 +97,18 @@ async function run(): Promise<void> {
         await Promise.all(concurrent_reqs)
         console.log(`✓ 20 concurrent requests across 2 simultaneous tunnels successfully multiplexed!`)
 
+        console.log(`[test:forward] Dropping caller tunnel sockets so the hub mints a new session...`)
+        const hub = hub_port(config.hub_url)
+        const dropped = drop_hub_sockets(hub)
+        if (dropped < 2) {
+            throw new Error(`Expected both forward sockets on hub port ${hub}, dropped ${dropped}`)
+        }
+        await wait_for_hub_sockets(hub, (count) => count === 0)
+        await wait_for_hub_sockets(hub, (count) => count >= 2)
+        await wait_until_forward_responds(LOCAL_PORT, "/reconnect-check")
+        await wait_until_forward_responds(LOCAL_PORT_2, "/reconnect-check")
+        console.log(`✓ Both tunnels accepted a new session id after the WebSocket dropped`)
+
         record_history({
             test_name: "port_forward",
             command: `rexec forward ${LOCAL_PORT}:${REMOTE_PORT}`,
@@ -125,6 +138,59 @@ async function run(): Promise<void> {
         await Promise.allSettled([forward_promise, forward_promise_2])
         process.exit(0)
     }
+}
+
+function hub_port(hub_url: string): number {
+    const url = new URL(hub_url)
+    if (url.port) return Number(url.port)
+    return url.protocol === "https:" ? 443 : 80
+}
+
+function hub_sockets(port: number): Socket[] {
+    const getter = (process as unknown as { _getActiveHandles?: () => unknown[] })._getActiveHandles
+    if (!getter) return []
+    const found: Socket[] = []
+    for (const handle of getter()) {
+        if (!handle || typeof handle !== "object") continue
+        const socket = handle as Socket
+        if (typeof socket.destroy !== "function" || socket.destroyed || socket.remotePort !== port) continue
+        found.push(socket)
+    }
+    return found
+}
+
+function drop_hub_sockets(port: number): number {
+    const sockets = hub_sockets(port)
+    for (const socket of sockets) socket.destroy()
+    return sockets.length
+}
+
+async function wait_for_hub_sockets(port: number, ready: (count: number) => boolean): Promise<void> {
+    const deadline = Date.now() + 15_000
+    let last_count = hub_sockets(port).length
+    while (Date.now() < deadline) {
+        last_count = hub_sockets(port).length
+        if (ready(last_count)) return
+        await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    throw new Error(`Hub port ${port} socket count stayed at ${last_count}`)
+}
+
+async function wait_until_forward_responds(local_port: number, path: string): Promise<void> {
+    const deadline = Date.now() + 15_000
+    let last_error = "no attempt"
+    while (Date.now() < deadline) {
+        try {
+            const res = await fetch(`http://127.0.0.1:${local_port}${path}`, { signal: AbortSignal.timeout(2000) })
+            const data = (await res.json()) as { status?: string; url?: string }
+            if (res.ok && data.status === "ok" && data.url === path) return
+            last_error = `HTTP ${res.status} ${JSON.stringify(data)}`
+        } catch (err) {
+            last_error = (err as Error).message
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error(`Tunnel on port ${local_port} did not recover after reconnect: ${last_error}`)
 }
 
 run().catch((err) => {

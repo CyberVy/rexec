@@ -30,9 +30,10 @@ export async function run_port_forward(
         }
     })
 
-    tunnel.on_channel_close((conn_id) => {
+    tunnel.on_channel_close((conn_id, reason) => {
         const item = active_sockets.get(conn_id)
         if (item) {
+            if (reason) console.log(`[conn-${conn_id}] ${reason}`)
             item.socket.destroy()
             active_sockets.delete(conn_id)
         }
