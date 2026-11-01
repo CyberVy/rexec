@@ -29,7 +29,7 @@ import {
     FileIcon,
     FolderUpIcon,
     PinIcon
-} from "./icons"
+} from "../icons"
 
 function format_display_path(cwd: string | null): string {
     if (!cwd) return "Workspace"
@@ -67,7 +67,7 @@ const ACCESSORY_KEYS: AccessoryKey[] = [
     { label: "_", payload: "_", title: "Underscore" }
 ]
 
-export function TerminalBlock() {
+export function TerminalView() {
     const container_ref = useRef<HTMLDivElement>(null)
     const term_ref = useRef<Terminal | null>(null)
     const fit_addon_ref = useRef<FitAddon | null>(null)
@@ -318,7 +318,7 @@ export function TerminalBlock() {
     }, [])
 
     return (
-        <div className="flex flex-col h-dvh p-4 gap-2 pb-24 min-h-0">
+        <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-2 pb-24 min-h-0">
             {/* Terminal Top Control Bar */}
             <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono shrink-0">
                 {/* Row 1: Status & Context */}
@@ -418,7 +418,7 @@ export function TerminalBlock() {
                                 disabled={!session_state.agent_online && !session_state.is_checking}
                                 className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5 cursor-pointer"
                             >
-                                <RunIcon className="size-3" /> Connect Terminal
+                                <RunIcon className="size-3" /> Connect
                             </button>
                         )}
                     </div>
@@ -569,7 +569,7 @@ export function TerminalBlock() {
                         on_escape={handle_close_sessions_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
                     >
-                        <div className="w-full max-w-2xl mx-auto flex flex-col gap-4 py-2">
+                        <div className="w-full max-w-2xl mx-auto flex flex-col gap-4 py-4">
                             <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
                                 <div className="flex items-center gap-2.5">
                                     <span className="font-semibold text-base font-mono">Terminal Sessions</span>
@@ -736,7 +736,7 @@ export function TerminalBlock() {
                                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-foreground text-background font-medium text-xs font-mono transition hover:opacity-90 cursor-pointer"
                                 >
                                     <PlusIcon className="size-3.5" />
-                                    <span>New Session</span>
+                                    <span>New</span>
                                 </button>
                             </div>
                         </div>
@@ -770,7 +770,7 @@ export function TerminalBlock() {
                         on_escape={handle_close_workspace_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
                     >
-                        <div className="w-full max-w-2xl mx-auto flex flex-col gap-4 py-2">
+                        <div className="w-full max-w-2xl mx-auto flex flex-col gap-4 py-4">
                             {/* Header */}
                             <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
                                 <div className="flex items-center gap-2">

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useController } from "@/components/hooks"
 import { exec_controller } from "@/core/controllers/exec_controller"
-import { RunIcon, AbortIcon, ClearIcon, CopyIcon, CheckIcon } from "./icons"
+import { RunIcon, AbortIcon, ClearIcon, CopyIcon, CheckIcon } from "../icons"
 
 const PRESETS = [
     "uname -a",
@@ -16,7 +16,7 @@ const PRESETS = [
     "free -m"
 ]
 
-export function ExecBlock() {
+export function ExecView() {
     const exec_state = useController(exec_controller, {
         events: ["change"]
     })
@@ -65,7 +65,7 @@ export function ExecBlock() {
     }
 
     return (
-        <div className="flex flex-col h-dvh p-4 gap-3 pb-24 min-h-0">
+        <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-3 pb-24 min-h-0">
             {/* Command Input Bar */}
             <div className="flex flex-col gap-2 p-3 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
                 <div className="flex items-center gap-2">
