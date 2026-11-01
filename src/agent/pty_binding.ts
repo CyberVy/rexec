@@ -5,7 +5,8 @@ import os from "node:os"
 import path from "node:path"
 
 const NODE_PTY_VERSION = "1.2.0-beta.17"
-const DEFAULT_PTY_BASE_URL = `https://cdn.jsdelivr.net/npm/node-pty@${NODE_PTY_VERSION}/prebuilds`
+
+/** Served from `vendor/node-pty/<version>` via the Hub static asset `/install/pty/<version>`. */
 
 interface PtyAsset {
     name: string
@@ -55,15 +56,35 @@ export interface PtyBinding {
 
 let loading: Promise<PtyBinding> | null = null
 
-export function load_pty_binding(): Promise<PtyBinding> {
-    loading ??= fetch_binding().catch((err) => {
+export function load_pty_binding(hub_url: string): Promise<PtyBinding> {
+    loading ??= fetch_binding(hub_url).catch((err) => {
         loading = null
         throw err
     })
     return loading
 }
 
-async function fetch_binding(): Promise<PtyBinding> {
+function pty_base_url(hub_url: string): string {
+    const override = process.env.REXEC_PTY_BASE_URL?.trim()
+    if (override) return override.replace(/\/$/, "")
+
+    let http_url = hub_url.trim()
+    if (http_url.startsWith("wss://")) {
+        http_url = "https://" + http_url.slice(6)
+    } else if (http_url.startsWith("ws://")) {
+        http_url = "http://" + http_url.slice(5)
+    } else if (!http_url.startsWith("https://") && !http_url.startsWith("http://")) {
+        http_url = "https://" + http_url
+    }
+
+    const url = new URL(http_url)
+    url.pathname = `/install/pty/${NODE_PTY_VERSION}`
+    url.search = ""
+    url.hash = ""
+    return url.toString().replace(/\/$/, "")
+}
+
+async function fetch_binding(hub_url: string): Promise<PtyBinding> {
     const platform_key = `${process.platform}-${process.arch}`
     const assets = PTY_ASSETS[platform_key]
     if (!assets) {
@@ -75,7 +96,7 @@ async function fetch_binding(): Promise<PtyBinding> {
         path.join(os.homedir(), ".cache", "rexec", "node-pty", NODE_PTY_VERSION, platform_key)
     fs.mkdirSync(cache_dir, { recursive: true })
 
-    const base_url = (process.env.REXEC_PTY_BASE_URL?.trim() || DEFAULT_PTY_BASE_URL).replace(/\/$/, "")
+    const base_url = pty_base_url(hub_url)
     for (const asset of assets) {
         const dest = path.join(cache_dir, asset.name)
         await ensure_asset(`${base_url}/${platform_key}/${asset.name}`, dest, asset.sha256)

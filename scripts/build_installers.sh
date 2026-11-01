@@ -98,3 +98,13 @@ EOF
 
 generate_installer "caller" "rexec" "$DIST_DIR/rexec.mjs"
 generate_installer "agent" "rexec-agent" "$DIST_DIR/rexec-agent.mjs"
+
+PTY_VENDOR="$REPO_ROOT/vendor/node-pty"
+PTY_DEST="$INSTALL_DIR/pty"
+if [ ! -d "$PTY_VENDOR" ]; then
+    echo "Error: PTY prebuilds not found at $PTY_VENDOR" >&2
+    exit 1
+fi
+rm -rf "$PTY_DEST"
+cp -R "$PTY_VENDOR" "$PTY_DEST"
+echo "[build:installers] Copied PTY prebuilds to dist/install/pty"

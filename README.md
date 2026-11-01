@@ -191,7 +191,7 @@ rexec tty bash
 rexec tty bash -lc "htop"
 ```
 
-The first session makes the agent download `node-pty`'s `pty.node` into `~/.cache/rexec`. Linux and macOS (x64 and arm64) are supported. `/exec` is unchanged and still runs one-shot commands without a PTY.
+The first session makes the agent download `node-pty`'s `pty.node` from the Hub (`/install/pty/`) into `~/.cache/rexec`. Linux and macOS (x64 and arm64) are supported. `/exec` is unchanged and still runs one-shot commands without a PTY.
 
 #### Transfer Files and Directories
 
