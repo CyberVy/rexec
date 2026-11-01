@@ -12,9 +12,9 @@ import {
     BackIcon
 } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
-import { PlusIcon, RefreshIcon, TrashIcon } from "./icons"
+import { PlusIcon, RefreshIcon, TrashIcon } from "../icons"
 
-export function NodesBlock() {
+export function NodesView() {
     const session = useController(session_controller, {
         events: ["change", "status_change"]
     })
@@ -73,7 +73,7 @@ export function NodesBlock() {
     }
 
     return (
-        <div className="flex flex-col h-dvh p-4 gap-3 pb-24 min-h-0">
+        <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-3 pb-24 min-h-0">
             {/* Header / Summary Bar */}
             <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
                 <div className="flex items-center gap-2.5">
