@@ -33,6 +33,11 @@ const DEFAULT_ORPHAN_TTL_MS = 10 * 60 * 1000 // 10 minutes
 export class PtyManager {
     private sessions: Map<string, PtySlot> = new Map()
     private binding: PtyBinding | null = null
+    private hub_url: string
+
+    public constructor(hub_url: string) {
+        this.hub_url = hub_url
+    }
 
     public open(
         msg: PtyOpenMessage,
@@ -239,7 +244,7 @@ export class PtyManager {
         send_binary: (packet: Uint8Array) => void
     ): Promise<void> {
         try {
-            this.binding ??= await load_pty_binding()
+            this.binding ??= await load_pty_binding(this.hub_url)
             if (slot.status === "closed") {
                 this.sessions.delete(session_id)
                 return

@@ -26,11 +26,12 @@ export class RexecAgent {
     private tasks = new TaskManager()
     private transfers = new TransferManager()
     private forwards = new ForwardManager()
-    private ptys = new PtyManager()
+    private ptys: PtyManager
     private is_shutting_down = false
 
     public constructor(options: AgentOptions) {
         this.options = options
+        this.ptys = new PtyManager(options.hub_url)
     }
 
     public start(): void {
