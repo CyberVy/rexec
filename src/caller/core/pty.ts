@@ -1,6 +1,30 @@
-import { HUB_ROUTES } from "@/protocol"
+import { HUB_ROUTES, PTY_CALLER_REPLACED_REASON } from "@/protocol"
 import { decode_pty_frame, encode_pty_frame } from "@/transport/framing"
 import { build_ws_url, WsClient } from "@/transport/ws"
+
+export { PTY_CALLER_REPLACED_REASON }
+
+const PTY_SESSION_MISSING = "PTY session not found or expired"
+
+export class PtySocketClosed extends Error {
+    readonly close_code: number
+    readonly close_reason: string
+
+    public constructor(close_code: number, close_reason: string) {
+        super(close_reason || "PTY session closed")
+        this.name = "PtySocketClosed"
+        this.close_code = close_code
+        this.close_reason = close_reason
+    }
+}
+
+export function pty_taken_by_another_caller(err: unknown): boolean {
+    return err instanceof PtySocketClosed && err.close_code === 1000 && err.close_reason === PTY_CALLER_REPLACED_REASON
+}
+
+export function pty_session_missing(err: unknown): boolean {
+    return err instanceof Error && err.message === PTY_SESSION_MISSING
+}
 
 export interface PtyClientOptions {
     hub_url: string
@@ -95,8 +119,8 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
             const decoded = decode_pty_frame(bytes)
             if (decoded) data_handler?.(decoded.payload)
         },
-        on_close() {
-            const err = new Error("PTY session closed")
+        on_close(event) {
+            const err = new PtySocketClosed(event.code, event.reason || "")
             reject_ready(err)
             finish(err)
         }
