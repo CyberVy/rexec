@@ -259,7 +259,7 @@ export function TerminalView() {
         e.preventDefault()
         const trimmed = command_input
         if (!trimmed) return
-        pty_controller.send(trimmed + "\n")
+        pty_controller.send(trimmed + "\r")
         set_command_history((prev) => [trimmed, ...prev.filter((c) => c !== trimmed)].slice(0, 50))
         set_history_index(-1)
         command_draft_ref.current = ""
