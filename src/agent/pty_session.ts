@@ -25,7 +25,14 @@ export interface PtySpawnOptions {
     helper_path: string
 }
 
-export class PtyProcess {
+export interface PtyHandle {
+    readonly pid: number
+    write(data: Uint8Array): void
+    resize(cols: number, rows: number): void
+    kill(): void
+}
+
+export class PtyProcess implements PtyHandle {
     public readonly pid: number
     private readonly native: PtyNative
     private readonly fd: number

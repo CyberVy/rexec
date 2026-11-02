@@ -10,15 +10,16 @@ import type {
 } from "@/protocol"
 import { encode_pty_frame } from "@/transport"
 import { load_pty_binding, type PtyBinding } from "./pty_binding"
-import { PtyProcess } from "./pty_session"
+import { PtyProcess, type PtyExitStatus, type PtyHandle, type PtySpawnOptions } from "./pty_session"
 import { PtyRingBuffer } from "./ring_buffer"
+import { WindowsPtyProcess } from "./windows_pty"
 
 interface PtySlot {
     status: "attached" | "detached" | "closed"
     cols: number
     rows: number
     pending: Uint8Array[]
-    process: PtyProcess | null
+    process: PtyHandle | null
     ring_buffer: PtyRingBuffer
     orphan_ttl_ms: number
     orphan_timer?: NodeJS.Timeout
@@ -76,7 +77,6 @@ export class PtyManager {
         slot.cols = dimension(msg.cols, slot.cols)
         slot.rows = dimension(msg.rows, slot.rows)
         slot.orphan_ttl_ms = orphan_ttl_ms
-        slot.command = [msg.file, ...(msg.args ?? [])].filter(Boolean).join(" ") || "sh"
         slot.cwd = msg.cwd
         slot.detached_at = undefined
         if (msg.persistent !== undefined) {
@@ -88,7 +88,10 @@ export class PtyManager {
         }
         this.sessions.set(session_id, slot)
 
-        const file = msg.file?.trim()
+        let file = msg.file?.trim() ?? ""
+        if (process.platform === "win32" && (file === "/bin/bash" || file === "/bin/sh" || file.length === 0)) {
+            file = process.env.COMSPEC || "cmd.exe"
+        }
         if (!file) {
             this.fail(session_id, "Missing command", send)
             return
@@ -97,6 +100,7 @@ export class PtyManager {
         const cwd = msg.cwd ? path.resolve(base_workspace, msg.cwd) : base_workspace
         slot.cwd = cwd
         const args = Array.isArray(msg.args) ? msg.args.map((arg) => String(arg)) : []
+        slot.command = [file, ...args].filter(Boolean).join(" ") || file
         void this.spawn(session_id, slot, file, args, cwd, msg.term?.trim() || "xterm-256color", send, send_binary)
     }
 
@@ -297,8 +301,8 @@ export class PtyManager {
                 send_binary(encode_pty_frame(session_id, initial_osc7))
             }
 
-            const proc = new PtyProcess(
-                this.binding.native,
+            const proc = open_pty_process(
+                this.binding,
                 {
                     file,
                     args,
@@ -355,6 +359,20 @@ export class PtyManager {
         this.sessions.delete(session_id)
         send({ type: "pty:error", session_id, error })
     }
+}
+
+function open_pty_process(
+    binding: PtyBinding,
+    options: PtySpawnOptions,
+    on_data: (data: Uint8Array) => void,
+    on_exit: (status: PtyExitStatus) => void
+): PtyHandle {
+    if (process.platform === "win32") {
+        if (!binding.conpty) throw new Error("Missing Windows ConPTY binding")
+        return new WindowsPtyProcess(binding.conpty, options, on_data, on_exit)
+    }
+    if (!binding.native) throw new Error("Missing Unix PTY binding")
+    return new PtyProcess(binding.native, options, on_data, on_exit)
 }
 
 function dimension(value: number, fallback: number): number {

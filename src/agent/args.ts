@@ -24,7 +24,7 @@ Environment (milliseconds, 0 disables that check):
   REXEC_CONNECT_TIMEOUT_MS      Handshake deadline for every attempt (default 10000)
   REXEC_PTY_BASE_URL            Prebuild URL used the first time a PTY session starts
                                 (default: <hub>/install/pty/<version>)
-  REXEC_PTY_CACHE               Directory for the cached pty.node (default ~/.cache/rexec)
+  REXEC_PTY_CACHE               Directory for the cached PTY native module (default ~/.cache/rexec)
 
 A half-open proxy socket can stay OPEN after the Hub has dropped the session.
 The agent treats an unanswered application ping as dead: if no Hub frame arrives
