@@ -173,7 +173,9 @@ export class RexecHub extends DurableObject {
                 this.tasks.stop_on_agent(current)
                 this.transfers.stop_on_agent(current)
                 this.forwards.stop_on_agent(current)
-                this.ptys.stop_on_agent(current)
+                // A PTY belongs to the agent process, not this socket. The same
+                // process reconnects through here, and a real replacement exits
+                // via the close reason, which reaps the child sessions.
             }
             this.agents.delete(token)
             this.tasks.abort_for_token(token, reason)
