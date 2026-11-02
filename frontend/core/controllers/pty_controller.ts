@@ -1,6 +1,11 @@
 import { BaseController } from "@/infra/base_controller"
 import { create_logger } from "@/infra/logger"
-import type { PtyClient, PtySessionInfo } from "@rexec/caller/core"
+import {
+    pty_session_missing,
+    pty_taken_by_another_caller,
+    type PtyClient,
+    type PtySessionInfo
+} from "@rexec/caller/core"
 import { fetch_workspace_entries, parse_osc7_path, resolve_parent_path, type WorkspaceEntry } from "@/core/workspace"
 import { session_controller } from "./session_controller"
 
@@ -43,6 +48,7 @@ export class PtyController extends BaseController<PtyState> {
     private last_options: ConnectOptions | null = null
     private reconnect_timer: ReturnType<typeof setTimeout> | null = null
     private reconnect_attempts = 0
+    private connection_attempt = 0
 
     constructor() {
         super()
@@ -214,24 +220,17 @@ export class PtyController extends BaseController<PtyState> {
 
     public async connect(options?: ConnectOptions): Promise<void> {
         this.is_intentional_disconnect = false
-        if (this.reconnect_timer) {
-            clearTimeout(this.reconnect_timer)
-            this.reconnect_timer = null
-        }
-        if (this.client) {
-            this.client.detach()
-            this.client = null
-        }
+        const attempt = this.begin_attempt()
         this.last_options = options ?? this.last_options
 
         const caller = session_controller.get_caller()
-        this.abort_controller = new AbortController()
         const cols = options?.cols ?? this.state.cols
         const rows = options?.rows ?? this.state.rows
+        const session_id = options?.session_id ?? this.state.session_id ?? undefined
 
         this.update_state({
             status: "connecting",
-            session_id: options?.session_id ?? this.state.session_id,
+            session_id: session_id ?? null,
             exit_code: null,
             error: null,
             cols,
@@ -241,15 +240,19 @@ export class PtyController extends BaseController<PtyState> {
 
         try {
             const pty_client = await caller.open_pty({
-                session_id: options?.session_id ?? this.state.session_id ?? undefined,
+                session_id,
                 file: options?.file || this.last_options?.file || "/bin/bash",
                 args: options?.args ?? this.last_options?.args ?? [],
                 cwd: options?.cwd ?? this.last_options?.cwd,
                 cols,
                 rows,
                 term: options?.term || this.last_options?.term || "xterm-256color",
-                signal: this.abort_controller.signal
+                signal: this.abort_controller?.signal
             })
+            if (!this.is_current(attempt)) {
+                pty_client.detach()
+                return
+            }
 
             this.client = pty_client
             this.reconnect_attempts = 0
@@ -266,6 +269,7 @@ export class PtyController extends BaseController<PtyState> {
             void this.refresh_sessions()
 
             pty_client.on_data((bytes) => {
+                if (!this.is_current(attempt)) return
                 for (const listener of this.data_listeners) {
                     listener(bytes)
                 }
@@ -273,6 +277,7 @@ export class PtyController extends BaseController<PtyState> {
 
             pty_client.exited
                 .then((status) => {
+                    if (!this.is_current(attempt)) return
                     logger.info("PTY session exited", status)
                     this.client = null
                     this.update_state({
@@ -284,38 +289,55 @@ export class PtyController extends BaseController<PtyState> {
                     void this.refresh_sessions()
                 })
                 .catch((err) => {
-                    const message = err instanceof Error ? err.message : String(err)
-                    logger.warn("PTY session disconnected", message)
-                    this.client = null
-
-                    if (!this.is_intentional_disconnect && this.state.session_id) {
-                        this.schedule_reconnect()
-                    } else {
-                        this.update_state({
-                            status: "error",
-                            error: message
-                        })
-                        this.dispatchEvent(new Event("change"))
-                        this.dispatchEvent(new Event("exit"))
-                    }
-                    void this.refresh_sessions()
+                    this.fail_attempt(attempt, err, true)
                 })
         } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            logger.error("Failed to connect PTY session", message)
-            this.client = null
-
-            if (!this.is_intentional_disconnect && this.state.session_id) {
-                this.schedule_reconnect()
-            } else {
-                this.update_state({
-                    status: "error",
-                    error: message
-                })
-                this.dispatchEvent(new Event("change"))
-            }
-            void this.refresh_sessions()
+            this.fail_attempt(attempt, err, false)
         }
+    }
+
+    private begin_attempt(): number {
+        this.connection_attempt += 1
+        if (this.reconnect_timer) {
+            clearTimeout(this.reconnect_timer)
+            this.reconnect_timer = null
+        }
+        this.abort_controller?.abort()
+        this.abort_controller = new AbortController()
+        if (this.client) {
+            this.client.detach()
+            this.client = null
+        }
+        return this.connection_attempt
+    }
+
+    private is_current(attempt: number): boolean {
+        return attempt === this.connection_attempt
+    }
+
+    private fail_attempt(attempt: number, err: unknown, from_open_session: boolean): void {
+        if (!this.is_current(attempt)) return
+        const message = err instanceof Error ? err.message : String(err)
+        if (from_open_session) logger.warn("PTY session disconnected", message)
+        else logger.error("Failed to connect PTY session", message)
+        this.client = null
+        const keep_trying =
+            !this.is_intentional_disconnect &&
+            Boolean(this.state.session_id) &&
+            !pty_taken_by_another_caller(err) &&
+            !pty_session_missing(err)
+        if (keep_trying) {
+            this.schedule_reconnect()
+            void this.refresh_sessions()
+            return
+        }
+        this.update_state({
+            status: "error",
+            error: pty_taken_by_another_caller(err) ? "Session is open in another client" : message
+        })
+        this.dispatchEvent(new Event("change"))
+        if (from_open_session) this.dispatchEvent(new Event("exit"))
+        void this.refresh_sessions()
     }
 
     private schedule_reconnect(): void {
@@ -348,6 +370,7 @@ export class PtyController extends BaseController<PtyState> {
 
     public disconnect(): void {
         this.is_intentional_disconnect = true
+        this.connection_attempt += 1
         if (this.reconnect_timer) {
             clearTimeout(this.reconnect_timer)
             this.reconnect_timer = null
