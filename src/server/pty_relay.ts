@@ -232,14 +232,6 @@ export class PtyRelay {
         return new Response(null, { status: 101, webSocket: client })
     }
 
-    public stop_on_agent(session: AgentSession): void {
-        for (const [session_id, pty] of this.active_sessions) {
-            if (pty.token === session.token) {
-                this.send(session, { type: "pty:close", session_id })
-            }
-        }
-    }
-
     public abort_for_token(token: string, reason: string): void {
         for (const [session_id, pty] of this.active_sessions) {
             if (pty.token === token) this.end_session(session_id, reason)
