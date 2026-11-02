@@ -48,10 +48,7 @@ export function ViewSwitcherToolbar<T extends string>({
                 >
                     {views.map((view) => {
                         const is_active = view.id === active_view_id
-                        const active_text_class = view.icon
-                            ? "text-red-700 dark:text-red-500"
-                            : "text-black dark:text-white"
-                        const text_class = is_active ? active_text_class : "text-black/50 dark:text-white/50"
+                        const text_class = is_active ? "text-black dark:text-white" : "text-black/50 dark:text-white/50"
                         return (
                             <button
                                 key={view.id}
