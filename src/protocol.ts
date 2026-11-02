@@ -163,6 +163,9 @@ export interface PtyCloseMessage {
     session_id: string
 }
 
+/** Hub closes the previous caller socket with this reason when another caller takes the session. */
+export const PTY_CALLER_REPLACED_REASON = "Replaced by new connection"
+
 export interface PtyDetachMessage {
     type: "pty:detach"
     session_id: string

@@ -1,14 +1,15 @@
-import type {
-    ApiErrorResponse,
-    HubToAgentMessage,
-    PtyErrorMessage,
-    PtyExitMessage,
-    PtyKillRequestPayload,
-    PtyKillResponse,
-    PtyListResMessage,
-    PtySessionInfo,
-    PtyUpdateRequestPayload,
-    PtyUpdateResponse
+import {
+    PTY_CALLER_REPLACED_REASON,
+    type ApiErrorResponse,
+    type HubToAgentMessage,
+    type PtyErrorMessage,
+    type PtyExitMessage,
+    type PtyKillRequestPayload,
+    type PtyKillResponse,
+    type PtyListResMessage,
+    type PtySessionInfo,
+    type PtyUpdateRequestPayload,
+    type PtyUpdateResponse
 } from "@/protocol"
 import { extract_pty_session_id } from "@/transport"
 import type { AgentSession } from "./types"
@@ -169,7 +170,7 @@ export class PtyRelay {
         const existing = this.active_sessions.get(session_id)
         if (existing && existing.token === token) {
             try {
-                existing.caller_ws.close(1000, "Replaced by new connection")
+                existing.caller_ws.close(1000, PTY_CALLER_REPLACED_REASON)
             } catch {
                 // Ignore
             }
