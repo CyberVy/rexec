@@ -28,7 +28,9 @@ import {
     FolderIcon,
     FileIcon,
     FolderUpIcon,
-    PinIcon
+    PinIcon,
+    CopyIcon,
+    CheckIcon
 } from "../icons"
 
 function format_display_path(cwd: string | null): string {
@@ -74,6 +76,7 @@ export function TerminalView() {
     const [is_sessions_modal_open, set_is_sessions_modal_open] = useState(false)
     const [is_workspace_modal_open, set_is_workspace_modal_open] = useState(false)
     const [is_accessory_bar_open, set_is_accessory_bar_open] = useState(true)
+    const [is_buffer_copied, set_is_buffer_copied] = useState(false)
 
     const handle_open_sessions_modal = useCallback(() => {
         void pty_controller.refresh_sessions()
@@ -255,6 +258,33 @@ export function TerminalView() {
         term_ref.current?.clear()
     }
 
+    const handle_copy_buffer = async () => {
+        const term = term_ref.current
+        if (!term) return
+        const buffer = term.buffer.active
+        const logical_lines: string[] = []
+        for (let row = 0; row < buffer.length; row++) {
+            const line = buffer.getLine(row)
+            if (!line) continue
+            // Keep trailing spaces when the next row is a soft-wrap continuation of this one
+            const text = line.translateToString(!buffer.getLine(row + 1)?.isWrapped)
+            if (line.isWrapped && logical_lines.length > 0) {
+                logical_lines[logical_lines.length - 1] += text
+            } else {
+                logical_lines.push(text)
+            }
+        }
+        const content = logical_lines.join("\n").trimEnd()
+        if (!content) return
+        try {
+            await navigator.clipboard.writeText(content)
+            set_is_buffer_copied(true)
+            setTimeout(() => set_is_buffer_copied(false), 1500)
+        } catch {
+            // Ignore clipboard errors
+        }
+    }
+
     const handle_command_submit = (e: React.FormEvent) => {
         e.preventDefault()
         const trimmed = command_input
@@ -399,6 +429,16 @@ export function TerminalView() {
                             className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
                         >
                             Clear
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handle_copy_buffer}
+                            title="Copy terminal content"
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                        >
+                            {is_buffer_copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                            <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
                         </button>
                     </div>
 
