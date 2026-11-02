@@ -185,11 +185,7 @@ export function compute_view_render_config<T extends string>(
               ["--switcher-bottom-offset" as string]: `${layout.top_offset}px`
           }
         : {}
-    const view_class = layout
-        ? "block"
-        : is_active
-          ? "block w-full min-h-[calc(100vh-env(safe-area-inset-top))]"
-          : "hidden"
+    const view_class = layout ? "block" : is_active ? "block w-full" : "hidden"
 
     return { view_class, style, is_view_active_in_transition }
 }

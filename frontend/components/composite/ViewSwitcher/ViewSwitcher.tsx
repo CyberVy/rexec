@@ -210,50 +210,49 @@ export function ViewSwitcher<T extends string = string>({
     }
 
     return (
-        <div ref={set_container_element_ref} className={join_classes("w-full h-full", className)} {...props}>
-            {/* Content Views Area */}
-            <div className="w-full h-full">
-                {views.map((view) => {
-                    const render_config = compute_view_render_config(
-                        view,
-                        current_active_view_id,
-                        keep_alive_default,
-                        transition_state
-                    )
-                    if (!render_config) return null
+        <div
+            ref={set_container_element_ref}
+            className={join_classes("w-full min-h-[calc(100vh-env(safe-area-inset-top))]", className)}
+            {...props}
+        >
+            {views.map((view) => {
+                const render_config = compute_view_render_config(
+                    view,
+                    current_active_view_id,
+                    keep_alive_default,
+                    transition_state
+                )
+                if (!render_config) return null
 
-                    return (
-                        <div
-                            key={view.id}
-                            ref={(el) => {
-                                if (el) view_elements_ref.current[view.id] = el
-                                else delete view_elements_ref.current[view.id]
-                            }}
-                            className={render_config.view_class}
-                            style={render_config.style}
-                            onTransitionEnd={
-                                render_config.is_view_active_in_transition ? handle_transition_end : undefined
-                            }
-                        >
-                            {view.content}
-                        </div>
-                    )
-                })}
-
-                {/* Spacer to prevent document height collapse and window.scrollY reset during fixed transition */}
-                {transition_state.status !== "idle" && (
+                return (
                     <div
-                        className="w-full min-h-[calc(100vh-env(safe-area-inset-top))]"
-                        style={{
-                            height: Math.max(
-                                transition_state.active_view_height,
-                                (transition_state.prev_view_scroll_y ?? 0) + transition_state.viewport_height,
-                                (transition_state.next_view_scroll_y ?? 0) + transition_state.viewport_height
-                            )
+                        key={view.id}
+                        ref={(el) => {
+                            if (el) view_elements_ref.current[view.id] = el
+                            else delete view_elements_ref.current[view.id]
                         }}
-                    />
-                )}
-            </div>
+                        className={render_config.view_class}
+                        style={render_config.style}
+                        onTransitionEnd={render_config.is_view_active_in_transition ? handle_transition_end : undefined}
+                    >
+                        {view.content}
+                    </div>
+                )
+            })}
+
+            {/* Spacer to prevent document height collapse and window.scrollY reset during fixed transition */}
+            {transition_state.status !== "idle" && (
+                <div
+                    className="w-full min-h-[calc(100vh-env(safe-area-inset-top))]"
+                    style={{
+                        height: Math.max(
+                            transition_state.active_view_height,
+                            (transition_state.prev_view_scroll_y ?? 0) + transition_state.viewport_height,
+                            (transition_state.next_view_scroll_y ?? 0) + transition_state.viewport_height
+                        )
+                    }}
+                />
+            )}
 
             <ViewSwitcherToolbar
                 views={views}
