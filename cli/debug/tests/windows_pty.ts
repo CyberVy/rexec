@@ -92,7 +92,12 @@ async function run(): Promise<void> {
         console.log("[test:windows-pty] passed")
     } finally {
         manager.abort_all()
-        fs.rmSync(cache_dir, { recursive: true, force: true })
+        // conpty.dll stays loaded in this process, so Windows refuses to delete it.
+        try {
+            fs.rmSync(cache_dir, { recursive: true, force: true })
+        } catch (err) {
+            console.log(`[test:windows-pty] left cache in place: ${(err as Error).message}`)
+        }
     }
 }
 
@@ -135,7 +140,9 @@ async function wait_for(
     throw new Error(`Timed out waiting for ${label} after ${timeout_ms}ms\n${output_text(chunks)}`)
 }
 
-run().catch((err: Error) => {
-    console.error(`[test:windows-pty] ${err.message}`)
-    process.exit(1)
-})
+run()
+    .then(() => process.exit(0))
+    .catch((err: Error) => {
+        console.error(`[test:windows-pty] ${err.message}`)
+        process.exit(1)
+    })
