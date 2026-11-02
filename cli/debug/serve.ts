@@ -40,7 +40,13 @@ function parse_args(): ServeOptions {
     return { port, ip }
 }
 
-async function wait_for_hub_ready(url: string, timeout_ms = 15000): Promise<boolean> {
+function hub_ready_timeout_ms(): number {
+    const parsed = Number(process.env.REXEC_DEBUG_HUB_TIMEOUT_MS)
+    if (!Number.isFinite(parsed) || parsed < 1000) return 15000
+    return parsed
+}
+
+async function wait_for_hub_ready(url: string, timeout_ms = hub_ready_timeout_ms()): Promise<boolean> {
     const start = Date.now()
     while (Date.now() - start < timeout_ms) {
         try {

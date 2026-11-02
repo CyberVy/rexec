@@ -23,6 +23,16 @@ const PTY_ASSETS: Record<string, PtyAsset[]> = {
     "darwin-arm64": [
         { name: "pty.node", sha256: "DzHHHQqlZQa6v4GsxFEaknykRe5l7EpdeHN10aolV7g=" },
         { name: "spawn-helper", sha256: "wW/kADA9/G+bTZeVE8qS6FFlAzwgV8DqNjYC7gtOdWk=" }
+    ],
+    "win32-x64": [
+        { name: "conpty.node", sha256: "UGWsvGkX4MSJy1G99S7bYlJC5ea6B81BQjGPM13FlRQ=" },
+        { name: "conpty/conpty.dll", sha256: "Mxm0hLgLtT0fTQqesOpg/Q9h2mnbcoDKQ7hCFfGSRf8=" },
+        { name: "conpty/OpenConsole.exe", sha256: "f2jIQCJlBQBCFcC4LU5QLCS1vD9Lk8S6qqGb1nnA3vg=" }
+    ],
+    "win32-arm64": [
+        { name: "conpty.node", sha256: "JN9XvN8/CwAvYUYbvz7oYBtTedVyw78JHQHJeBswoRc=" },
+        { name: "conpty/conpty.dll", sha256: "s6n5dcUdW5uW0pC/eE6ZDj+FIDsGPCFhRFc1P1ZiZv8=" },
+        { name: "conpty/OpenConsole.exe", sha256: "f6VgvgybbIHbXRuFWkpuDz7loup1027rs65ERDuNSGY=" }
     ]
 }
 
@@ -49,8 +59,39 @@ export interface PtyNative {
     resize: (fd: number, cols: number, rows: number, x_pixel: number, y_pixel: number) => void
 }
 
+export interface ConptyStartResult {
+    pty: number
+    fd: number
+    conin: string
+    conout: string
+}
+
+/** Native API of `conpty.node` from node-pty 1.2.0-beta.17. */
+export interface ConptyNative {
+    startProcess: (
+        file: string,
+        cols: number,
+        rows: number,
+        debug: boolean,
+        pipe_name: string,
+        inherit_cursor: boolean,
+        use_conpty_dll: boolean
+    ) => ConptyStartResult
+    connect: (
+        id: number,
+        command_line: string,
+        cwd: string,
+        env: string[],
+        use_conpty_dll: boolean,
+        on_exit: (code: number) => void
+    ) => { pid: number }
+    resize: (id: number, cols: number, rows: number, use_conpty_dll: boolean) => void
+    kill: (id: number, use_conpty_dll: boolean) => void
+}
+
 export interface PtyBinding {
-    native: PtyNative
+    native: PtyNative | null
+    conpty: ConptyNative | null
     helper_path: string
 }
 
@@ -88,7 +129,9 @@ async function fetch_binding(hub_url: string): Promise<PtyBinding> {
     const platform_key = `${process.platform}-${process.arch}`
     const assets = PTY_ASSETS[platform_key]
     if (!assets) {
-        throw new Error(`PTY sessions are available on Linux and macOS (x64 and arm64). This agent is ${platform_key}.`)
+        throw new Error(
+            `PTY sessions are available on Linux, macOS, and Windows (x64 and arm64). This agent is ${platform_key}.`
+        )
     }
 
     const cache_dir =
@@ -105,11 +148,17 @@ async function fetch_binding(hub_url: string): Promise<PtyBinding> {
         }
     }
 
-    const pty_path = path.join(cache_dir, "pty.node")
+    const require = createRequire(import.meta.url)
+    if (process.platform === "win32") {
+        const conpty = require(path.join(cache_dir, "conpty.node")) as ConptyNative
+        return { native: null, conpty, helper_path: "" }
+    }
+
+    const native = require(path.join(cache_dir, "pty.node")) as PtyNative
     const helper_path = path.join(cache_dir, "spawn-helper")
-    const native = createRequire(import.meta.url)(pty_path) as PtyNative
     return {
         native,
+        conpty: null,
         helper_path: fs.existsSync(helper_path) ? helper_path : "spawn-helper"
     }
 }
@@ -119,6 +168,7 @@ async function ensure_asset(url: string, dest: string, sha256: string): Promise<
         return
     }
 
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
     console.log(`[rexec-agent] Downloading PTY binding ${path.basename(dest)}`)
     const res = await fetch(url)
     if (!res.ok) {
