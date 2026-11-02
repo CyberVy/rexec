@@ -1,0 +1,89 @@
+name: e2e
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            os: ubuntu-latest
+            command: npm run debug:test
+            hub: true
+          - name: macos
+            os: macos-latest
+            command: npm run debug:test
+            hub: true
+          - name: windows
+            os: windows-latest
+            command: npm run debug:test:windows-pty
+            hub: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - name: Engine end-to-end tests
+        if: matrix.hub
+        shell: bash
+        env:
+          REXEC_DEBUG_HUB_TIMEOUT_MS: "90000"
+        run: |
+          set -euo pipefail
+          npm run build:agent
+          npm run build:caller-terminal
+          npm run build:vscode
+          npm run build:installers
+          log="$RUNNER_TEMP/debug-serve.log"
+          npm run debug:serve >"$log" 2>&1 &
+          pid=$!
+          cleanup() { kill "$pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          ready=0
+          for _ in $(seq 1 50); do
+            if grep -q "debug channel ready" "$log"; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              echo "debug server exited early"
+              cat "$log"
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "debug server did not become ready"
+            cat "$log"
+            exit 1
+          fi
+          npm run debug:test
+      - name: Windows ConPTY end-to-end test
+        if: ${{ !matrix.hub }}
+        run: npm run debug:test:windows-pty
+        env:
+          REXEC_REQUIRE_WINDOWS_PTY: "1"
+      - name: Upload debug logs
+        if: failure() && matrix.hub
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs-${{ matrix.name }}
+          path: |
+            .debug/engine/agent.jsonl
+            .debug/engine/worker.jsonl
+            .debug/engine/history.jsonl
+          if-no-files-found: ignore
