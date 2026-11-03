@@ -105,8 +105,8 @@ export function NodesView() {
                 </div>
             </div>
 
-            {/* Nodes List */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-0.5">
+            {/* Nodes Grid */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-0.5">
                 {session.agent_ids.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 border border-dashed border-black/10 dark:border-white/10 rounded-xl text-center p-6 gap-2.5">
                         <span className="text-sm font-medium text-foreground">No Node Agents configured</span>
@@ -123,131 +123,133 @@ export function NodesView() {
                         </button>
                     </div>
                 ) : (
-                    session.agent_ids.map((agent_id) => {
-                        const agent = session.agents[agent_id]
-                        if (!agent) return null
-                        const is_active = agent_id === session.active_agent_id
-                        const is_revealed = !!show_tokens[agent_id]
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start">
+                        {session.agent_ids.map((agent_id) => {
+                            const agent = session.agents[agent_id]
+                            if (!agent) return null
+                            const is_active = agent_id === session.active_agent_id
+                            const is_revealed = !!show_tokens[agent_id]
 
-                        return (
-                            <div
-                                key={agent_id}
-                                className={`p-3.5 rounded-xl border transition flex flex-col gap-2.5 ${
-                                    is_active
-                                        ? "border-foreground/30 bg-black/4 dark:bg-white/6 shadow-sm"
-                                        : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:border-black/20 dark:hover:border-white/20"
-                                }`}
-                            >
-                                {/* Card Top: Status & Name */}
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <span
-                                            className={`size-2 rounded-full shrink-0 ${
-                                                agent.is_checking
-                                                    ? "bg-emerald-500/50 animate-ping"
-                                                    : agent.is_online
-                                                      ? "bg-emerald-500 animate-pulse"
-                                                      : "bg-foreground/20"
-                                            }`}
-                                        />
-                                        <span className="font-semibold text-sm text-foreground truncate">
-                                            {agent.name}
-                                        </span>
-                                        {is_active && (
-                                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-foreground/30 bg-foreground/10 text-foreground shrink-0 font-bold">
-                                                ACTIVE
+                            return (
+                                <div
+                                    key={agent_id}
+                                    className={`p-3.5 rounded-xl border transition flex flex-col gap-2.5 ${
+                                        is_active
+                                            ? "border-foreground/30 bg-black/4 dark:bg-white/6 shadow-sm"
+                                            : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:border-black/20 dark:hover:border-white/20"
+                                    }`}
+                                >
+                                    {/* Card Top: Status & Name */}
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <span
+                                                className={`size-2 rounded-full shrink-0 ${
+                                                    agent.is_online
+                                                        ? "bg-emerald-500 animate-pulse"
+                                                        : "bg-foreground/20"
+                                                }`}
+                                            />
+                                            <span className="font-semibold text-sm text-foreground truncate">
+                                                {agent.name}
                                             </span>
-                                        )}
-                                        {agent.node_id && (
-                                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/10 text-muted-foreground truncate hidden sm:inline">
-                                                {agent.node_id}
-                                            </span>
-                                        )}
-                                    </div>
+                                            {is_active && (
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-foreground/30 bg-foreground/10 text-foreground shrink-0 font-bold">
+                                                    ACTIVE
+                                                </span>
+                                            )}
+                                            {agent.node_id && (
+                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/10 text-muted-foreground truncate hidden sm:inline">
+                                                    {agent.node_id}
+                                                </span>
+                                            )}
+                                        </div>
 
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        {agent.is_online && agent.latency_ms !== null && (
-                                            <span className="text-[11px] font-mono text-muted-foreground">
-                                                {agent.latency_ms}ms
-                                            </span>
-                                        )}
-                                        <span className="text-xs font-mono text-muted-foreground">
-                                            {agent.is_checking ? "Checking..." : agent.is_online ? "Online" : "Offline"}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Card Details: Hub URL & Token */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono bg-background/50 p-2.5 rounded-lg border border-black/5 dark:border-white/5">
-                                    <div className="min-w-0 flex items-center gap-1.5">
-                                        <span className="text-muted-foreground shrink-0">Hub:</span>
-                                        <span className="text-foreground truncate" title={agent.hub_url}>
-                                            {agent.hub_url || "(none)"}
-                                        </span>
-                                    </div>
-
-                                    <div className="min-w-0 flex items-center justify-between gap-1">
-                                        <div className="min-w-0 flex items-center gap-1.5">
-                                            <span className="text-muted-foreground shrink-0">Token:</span>
-                                            <span className="text-foreground truncate">
-                                                {is_revealed
-                                                    ? agent.token
-                                                    : agent.token
-                                                      ? `${agent.token.slice(0, 4)}••••••••`
-                                                      : "(none)"}
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {agent.is_online && agent.latency_ms !== null && (
+                                                <span className="text-[11px] font-mono text-muted-foreground">
+                                                    {agent.latency_ms}ms
+                                                </span>
+                                            )}
+                                            <span className="text-xs font-mono text-muted-foreground">
+                                                {agent.is_online ? "Online" : "Offline"}
                                             </span>
                                         </div>
-                                        {agent.token && (
-                                            <button
-                                                type="button"
-                                                onClick={() => toggle_show_token(agent_id)}
-                                                className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer shrink-0"
-                                            >
-                                                {is_revealed ? "hide" : "show"}
-                                            </button>
-                                        )}
                                     </div>
-                                </div>
 
-                                {/* Card Actions */}
-                                <div className="flex items-center justify-between gap-2 pt-0.5">
-                                    <div className="flex items-center gap-1.5">
-                                        {!is_active ? (
+                                    {/* Card Details: Hub URL & Token */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono bg-background/50 p-2.5 rounded-lg border border-black/5 dark:border-white/5">
+                                        <div className="min-w-0 flex items-center gap-1.5">
+                                            <span className="text-muted-foreground shrink-0">Hub:</span>
+                                            <span className="text-foreground truncate" title={agent.hub_url}>
+                                                {agent.hub_url || "(none)"}
+                                            </span>
+                                        </div>
+
+                                        <div className="min-w-0 flex items-center justify-between gap-1">
+                                            <div className="min-w-0 flex items-center gap-1.5">
+                                                <span className="text-muted-foreground shrink-0">Token:</span>
+                                                <span className="text-foreground truncate">
+                                                    {is_revealed
+                                                        ? agent.token
+                                                        : agent.token
+                                                          ? `${agent.token.slice(0, 4)}••••••••`
+                                                          : "(none)"}
+                                                </span>
+                                            </div>
+                                            {agent.token && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggle_show_token(agent_id)}
+                                                    className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer shrink-0"
+                                                >
+                                                    {is_revealed ? "hide" : "show"}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Card Actions */}
+                                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                            {!is_active ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => session_controller.select_agent(agent_id)}
+                                                    className="px-2.5 py-1 rounded-lg border border-black/15 dark:border-white/15 bg-background hover:bg-black/5 dark:hover:bg-white/10 text-xs font-mono text-foreground transition cursor-pointer"
+                                                >
+                                                    Activate
+                                                </button>
+                                            ) : (
+                                                <span className="text-xs font-mono text-muted-foreground italic pl-1">
+                                                    Current active target
+                                                </span>
+                                            )}
+
                                             <button
                                                 type="button"
-                                                onClick={() => session_controller.select_agent(agent_id)}
-                                                className="px-2.5 py-1 rounded-lg border border-black/15 dark:border-white/15 bg-background hover:bg-black/5 dark:hover:bg-white/10 text-xs font-mono text-foreground transition cursor-pointer"
+                                                onClick={() => {
+                                                    if (agent.is_checking) return
+                                                    session_controller.refresh_agent_status(agent_id)
+                                                }}
+                                                className="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
                                             >
-                                                Activate
+                                                Check
                                             </button>
-                                        ) : (
-                                            <span className="text-xs font-mono text-muted-foreground italic pl-1">
-                                                Current active target
-                                            </span>
-                                        )}
+                                        </div>
 
                                         <button
                                             type="button"
-                                            onClick={() => session_controller.refresh_agent_status(agent_id)}
-                                            disabled={agent.is_checking}
-                                            className="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer disabled:opacity-40"
+                                            onClick={() => session_controller.remove_agent(agent_id)}
+                                            title="Delete node agent"
+                                            className="p-1 rounded-lg border border-transparent hover:border-black/10 dark:hover:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-red-700 dark:text-red-500 hover:text-foreground transition cursor-pointer"
                                         >
-                                            Check
+                                            <TrashIcon className="size-3.5" />
                                         </button>
                                     </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => session_controller.remove_agent(agent_id)}
-                                        title="Delete node agent"
-                                        className="p-1 rounded-lg border border-transparent hover:border-black/10 dark:hover:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-red-700 dark:text-red-500 hover:text-foreground transition cursor-pointer"
-                                    >
-                                        <TrashIcon className="size-3.5" />
-                                    </button>
                                 </div>
-                            </div>
-                        )
-                    })
+                            )
+                        })}
+                    </div>
                 )}
             </div>
 
