@@ -7,6 +7,7 @@ import {
     type PtyKillRequestPayload,
     type PtyKillResponse,
     type PtyListResMessage,
+    type PtyReplayMessage,
     type PtySessionInfo,
     type PtyUpdateRequestPayload,
     type PtyUpdateResponse
@@ -31,7 +32,18 @@ export class PtyRelay {
         private readonly get_open_agent: (token: string) => AgentSession | undefined
     ) {}
 
-    public on_agent_message(session: AgentSession, msg: PtyExitMessage | PtyErrorMessage | PtyListResMessage): void {
+    public on_agent_message(
+        session: AgentSession,
+        msg: PtyExitMessage | PtyErrorMessage | PtyListResMessage | PtyReplayMessage
+    ): void {
+        if (msg.type === "pty:replay") {
+            const pty = this.active_sessions.get(msg.session_id)
+            if (pty && pty.token === session.token && pty.caller_ws.readyState === WebSocket.OPEN) {
+                pty.caller_ws.send(JSON.stringify(msg))
+            }
+            return
+        }
+
         if (msg.type === "pty:list_res") {
             const resolver = this.pending_list_requests.get(msg.req_id)
             if (resolver) {

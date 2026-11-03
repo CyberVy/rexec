@@ -73,9 +73,13 @@ async function run(): Promise<void> {
         )
 
         const replay = Buffer.concat(replay_frames)
+        const header = messages.find((message) => message.type === "pty:replay")
+        if (!header || header.type !== "pty:replay" || header.bytes !== replay.byteLength) {
+            throw new Error(`Replay was not framed: ${JSON.stringify(messages)} bytes=${replay.byteLength}`)
+        }
         for (const query of QUERIES) {
-            if (replay.includes(query)) {
-                throw new Error(`Replay still contains ${JSON.stringify(query.toString("utf8"))}`)
+            if (!replay.includes(query)) {
+                throw new Error(`Replay dropped ${JSON.stringify(query.toString("utf8"))}`)
             }
         }
         if (!replay.includes(COLOR_SET) || !replay.includes(CURSOR_VISIBLE) || !replay.includes(MARKER)) {
@@ -84,7 +88,7 @@ async function run(): Promise<void> {
         if (messages.some((message) => message.type === "pty:error")) {
             throw new Error(`Attach failed: ${JSON.stringify(messages)}`)
         }
-        console.log(`[test:pty-replay] replayed ${replay.byteLength} bytes without the color query`)
+        console.log(`[test:pty-replay] framed ${header.bytes} replay bytes, queries left for the terminal`)
     } finally {
         manager.close({ type: "pty:close", session_id: SESSION_ID })
         fs.rmSync(cache_dir, { recursive: true, force: true })
