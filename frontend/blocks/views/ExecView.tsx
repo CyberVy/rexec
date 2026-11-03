@@ -78,6 +78,9 @@ export function ExecView() {
                             exec_controller.set_command(e.target.value)
                         }}
                         onKeyDown={handle_key_down}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         placeholder="Command to execute (e.g. uname -a, ls -la)"
                         disabled={exec_state.is_running}
                         className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
@@ -115,6 +118,9 @@ export function ExecView() {
                                 set_cwd_input(e.target.value)
                                 exec_controller.set_cwd(e.target.value)
                             }}
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
                             placeholder="Optional working directory (e.g. /workspace)"
                             disabled={exec_state.is_running}
                             className="flex-1 max-w-sm px-2 py-0.5 rounded bg-background/50 border border-black/10 dark:border-white/10 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 disabled:opacity-50"
