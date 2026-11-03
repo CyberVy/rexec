@@ -450,41 +450,52 @@ function is_osc_color_query(body: string): boolean {
     const parts = body.split(";")
     if (parts.length < 2) return false
     const first = Number(parts[0])
-    if (first === 10 || first === 11 || first === 12) {
-        if (parts.length % 2 !== 0) return false
-        for (let i = 0; i < parts.length; i += 2) {
-            const command = Number(parts[i])
-            if ((command !== 10 && command !== 11 && command !== 12) || parts[i + 1] !== "?") return false
+    if (first === 4) {
+        if (parts.length < 3 || parts.length % 2 === 0) return false
+        for (let i = 1; i < parts.length; i += 2) {
+            const index = parts[i]
+            if (index === "" || !/^\d+$/.test(index) || parts[i + 1] !== "?") return false
         }
         return true
     }
-    if (first !== 4 || parts.length < 3 || parts.length % 2 === 0) return false
-    for (let i = 1; i < parts.length; i += 2) {
-        const index = parts[i]
-        if (index === "" || !/^\d+$/.test(index) || parts[i + 1] !== "?") return false
+    if (first !== 10 && first !== 11 && first !== 12) return false
+    // `11;?`, stacked `10;?;?`, or repeated `10;?;11;?`. A real color spec stays.
+    let saw_query = false
+    for (let i = 1; i < parts.length; i++) {
+        const token = parts[i]
+        if (token === "?") {
+            saw_query = true
+            continue
+        }
+        const command = Number(token)
+        if (command === 4 || command === 10 || command === 11 || command === 12) continue
+        return false
     }
-    return true
+    return saw_query
 }
 
 function csi_report_query_length(input: Uint8Array, start: number): number {
     const limit = Math.min(input.length, start + MAX_QUERY_BYTES)
     let cursor = start + 2
     const param_start = cursor
-    while (cursor < limit) {
-        const byte = input[cursor]
-        if (byte >= 0x30 && byte <= 0x3f) {
-            cursor++
-            continue
-        }
-        if (byte < 0x40 || byte > 0x7e) return 0
-        const params = new TextDecoder().decode(input.subarray(param_start, cursor))
-        return is_csi_report_query(params, byte) ? cursor + 1 - start : 0
-    }
-    return 0
+    while (cursor < limit && input[cursor] >= 0x30 && input[cursor] <= 0x3f) cursor++
+    const intermediate_start = cursor
+    while (cursor < limit && input[cursor] >= 0x20 && input[cursor] <= 0x2f) cursor++
+    if (cursor >= limit) return 0
+    const final_byte = input[cursor]
+    if (final_byte < 0x40 || final_byte > 0x7e) return 0
+    const params = new TextDecoder().decode(input.subarray(param_start, intermediate_start))
+    const intermediates = new TextDecoder().decode(input.subarray(intermediate_start, cursor))
+    return is_csi_report_query(params, intermediates, final_byte) ? cursor + 1 - start : 0
 }
 
-function is_csi_report_query(params: string, final_byte: number): boolean {
-    if (final_byte === 0x63) return params === "" || params === "0" || params === ">" || params === ">0"
+function is_csi_report_query(params: string, intermediates: string, final_byte: number): boolean {
+    // DECRQM: CSI Ps $ p and CSI ? Ps $ p. xterm answers with CSI Ps ; Pm $ y.
+    if (intermediates === "$" && final_byte === 0x70) return true
+    if (intermediates !== "") return false
+    if (final_byte === 0x63) {
+        return params === "" || params === "0" || params === ">" || params === ">0"
+    }
     if (final_byte === 0x6e) return params === "5" || params === "6" || params === "?6"
     if (final_byte === 0x74) {
         return params === "14" || params === "16" || params === "18" || params === "20" || params === "21"

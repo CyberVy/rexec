@@ -8,7 +8,13 @@ import { decode_pty_frame } from "@/transport"
 
 const repo_root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..")
 const SESSION_ID = "pty-replay-test"
-const QUERY = Buffer.from("\x1b]11;?\x07")
+const QUERIES = [
+    Buffer.from("\x1b[c"),
+    Buffer.from("\x1b[?2026$p"),
+    Buffer.from("\x1b[?2027$p"),
+    Buffer.from("\x1b]11;?\x07")
+]
+const CURSOR_VISIBLE = Buffer.from("\x1b[?25h")
 const COLOR_SET = Buffer.from("\x1b]11;rgb:0000/0000/0000\x07")
 const MARKER = "REPLAY_MARKER"
 
@@ -33,7 +39,10 @@ async function run(): Promise<void> {
                 type: "pty:open",
                 session_id: SESSION_ID,
                 file: "sh",
-                args: ["-c", `printf '\\033]11;?\\007\\033]11;rgb:0000/0000/0000\\007${MARKER}\\n'; sleep 2`],
+                args: [
+                    "-c",
+                    `printf '\\033[c\\033[?2026$p\\033[?2027$p\\033]11;?\\007\\033[?25h\\033]11;rgb:0000/0000/0000\\007${MARKER}\\n'; sleep 2`
+                ],
                 cols: 80,
                 rows: 24,
                 term: "xterm-256color",
@@ -64,11 +73,13 @@ async function run(): Promise<void> {
         )
 
         const replay = Buffer.concat(replay_frames)
-        if (replay.includes(QUERY)) {
-            throw new Error("Replay still contains the OSC 11 color query")
+        for (const query of QUERIES) {
+            if (replay.includes(query)) {
+                throw new Error(`Replay still contains ${JSON.stringify(query.toString("utf8"))}`)
+            }
         }
-        if (!replay.includes(COLOR_SET) || !replay.includes(MARKER)) {
-            throw new Error(`Replay dropped a color set or marker: ${JSON.stringify(replay.toString("utf8"))}`)
+        if (!replay.includes(COLOR_SET) || !replay.includes(CURSOR_VISIBLE) || !replay.includes(MARKER)) {
+            throw new Error(`Replay dropped screen state: ${JSON.stringify(replay.toString("utf8"))}`)
         }
         if (messages.some((message) => message.type === "pty:error")) {
             throw new Error(`Attach failed: ${JSON.stringify(messages)}`)
