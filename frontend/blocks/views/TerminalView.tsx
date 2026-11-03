@@ -197,13 +197,25 @@ export function TerminalView() {
             }
         }, 50)
 
-        // Wire incoming data from PTY
-        const remove_data_listener = pty_controller.on_data((bytes) => {
-            term.write(bytes)
+        // Replay is a transcript. Parsing it makes xterm answer old queries, and
+        // those answers are delivered on the same channel as keystrokes.
+        let replay_writes = 0
+        const remove_data_listener = pty_controller.on_data((bytes, replay_bytes) => {
+            if (replay_bytes <= 0) {
+                term.write(bytes)
+                return
+            }
+            const replay = replay_bytes === bytes.byteLength ? bytes : bytes.subarray(0, replay_bytes)
+            const rest = replay_bytes === bytes.byteLength ? null : bytes.subarray(replay_bytes)
+            replay_writes += 1
+            term.write(replay, () => {
+                replay_writes -= 1
+            })
+            if (rest && rest.byteLength > 0) term.write(rest)
         })
 
-        // Wire user typing to PTY
         const on_data_sub = term.onData((data) => {
+            if (replay_writes > 0) return
             pty_controller.send(data)
         })
 

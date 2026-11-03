@@ -178,6 +178,13 @@ export interface PtyAttachMessage {
     rows?: number
 }
 
+/** How many of the following PTY bytes are a screen replay, not live output. */
+export interface PtyReplayMessage {
+    type: "pty:replay"
+    session_id: string
+    bytes: number
+}
+
 export interface PtyExitMessage {
     type: "pty:exit"
     session_id: string
@@ -238,6 +245,7 @@ export type AgentToHubMessage =
     | ForwardErrorMessage
     | PtyExitMessage
     | PtyErrorMessage
+    | PtyReplayMessage
     | PtyListResMessage
 
 export type HubToAgentMessage =

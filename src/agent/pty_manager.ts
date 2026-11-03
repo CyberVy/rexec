@@ -129,11 +129,14 @@ export class PtyManager {
             this.resize({ type: "pty:resize", session_id, cols: msg.cols, rows: msg.rows })
         }
 
-        // Replay restores the screen. Queries in that history ask the terminal to
-        // answer; a new xterm would type the reply into the shell's unsent line.
-        const replay = omit_terminal_queries(slot.ring_buffer.get_chunks())
-        if (replay.byteLength > 0) {
-            send_binary(encode_pty_frame(session_id, replay))
+        // The bytes are a screen transcript. Mark their length so the terminal can
+        // draw them without answering queries that were already consumed.
+        const replay_chunks = slot.ring_buffer.get_chunks()
+        let replay_bytes = 0
+        for (const chunk of replay_chunks) replay_bytes += chunk.byteLength
+        send({ type: "pty:replay", session_id, bytes: replay_bytes })
+        for (const chunk of replay_chunks) {
+            send_binary(encode_pty_frame(session_id, chunk))
         }
 
         // Flush any pending input
@@ -395,110 +398,6 @@ function build_env(term: string, cwd: string): string[] {
     const osc7_hook = 'printf "\\033]7;file://localhost%s\\007" "$PWD"'
     env.PROMPT_COMMAND = env.PROMPT_COMMAND ? `${env.PROMPT_COMMAND}; ${osc7_hook}` : osc7_hook
     return Object.entries(env).map(([key, value]) => `${key}=${value}`)
-}
-
-const MAX_QUERY_BYTES = 64
-
-// Remove terminal queries from a replay snapshot. Color and mode changes stay.
-function omit_terminal_queries(chunks: Uint8Array[]): Uint8Array {
-    let total = 0
-    for (const chunk of chunks) total += chunk.byteLength
-    if (total === 0) return new Uint8Array()
-
-    const input = new Uint8Array(total)
-    let offset = 0
-    for (const chunk of chunks) {
-        input.set(chunk, offset)
-        offset += chunk.byteLength
-    }
-
-    const output = new Uint8Array(total)
-    let written = 0
-    for (let i = 0; i < input.length; i++) {
-        const skip = input[i] === 0x1b ? terminal_query_length(input, i) : 0
-        if (skip > 0) {
-            i += skip - 1
-            continue
-        }
-        output[written++] = input[i]
-    }
-    return written === total ? input : output.subarray(0, written)
-}
-
-function terminal_query_length(input: Uint8Array, start: number): number {
-    const kind = input[start + 1]
-    if (kind === 0x5d) return osc_color_query_length(input, start)
-    if (kind === 0x5b) return csi_report_query_length(input, start)
-    if (kind === 0x50) return dcs_status_query_length(input, start)
-    return 0
-}
-
-function osc_color_query_length(input: Uint8Array, start: number): number {
-    const limit = Math.min(input.length, start + MAX_QUERY_BYTES)
-    for (let i = start + 2; i < limit; i++) {
-        const bel = input[i] === 0x07
-        const st = input[i] === 0x1b && input[i + 1] === 0x5c
-        if (!bel && !st) continue
-        const body = new TextDecoder().decode(input.subarray(start + 2, i))
-        if (!is_osc_color_query(body)) return 0
-        return (bel ? i + 1 : i + 2) - start
-    }
-    return 0
-}
-
-function is_osc_color_query(body: string): boolean {
-    const parts = body.split(";")
-    if (parts.length < 2) return false
-    const first = Number(parts[0])
-    if (first === 10 || first === 11 || first === 12) {
-        if (parts.length % 2 !== 0) return false
-        for (let i = 0; i < parts.length; i += 2) {
-            const command = Number(parts[i])
-            if ((command !== 10 && command !== 11 && command !== 12) || parts[i + 1] !== "?") return false
-        }
-        return true
-    }
-    if (first !== 4 || parts.length < 3 || parts.length % 2 === 0) return false
-    for (let i = 1; i < parts.length; i += 2) {
-        const index = parts[i]
-        if (index === "" || !/^\d+$/.test(index) || parts[i + 1] !== "?") return false
-    }
-    return true
-}
-
-function csi_report_query_length(input: Uint8Array, start: number): number {
-    const limit = Math.min(input.length, start + MAX_QUERY_BYTES)
-    let cursor = start + 2
-    const param_start = cursor
-    while (cursor < limit) {
-        const byte = input[cursor]
-        if (byte >= 0x30 && byte <= 0x3f) {
-            cursor++
-            continue
-        }
-        if (byte < 0x40 || byte > 0x7e) return 0
-        const params = new TextDecoder().decode(input.subarray(param_start, cursor))
-        return is_csi_report_query(params, byte) ? cursor + 1 - start : 0
-    }
-    return 0
-}
-
-function is_csi_report_query(params: string, final_byte: number): boolean {
-    if (final_byte === 0x63) return params === "" || params === "0" || params === ">" || params === ">0"
-    if (final_byte === 0x6e) return params === "5" || params === "6" || params === "?6"
-    if (final_byte === 0x74) {
-        return params === "14" || params === "16" || params === "18" || params === "20" || params === "21"
-    }
-    return false
-}
-
-function dcs_status_query_length(input: Uint8Array, start: number): number {
-    if (input[start + 2] !== 0x24 || input[start + 3] !== 0x71) return 0
-    const limit = Math.min(input.length, start + MAX_QUERY_BYTES)
-    for (let i = start + 4; i < limit; i++) {
-        if (input[i] === 0x1b && input[i + 1] === 0x5c) return i + 2 - start
-    }
-    return 0
 }
 
 const OSC7_PREFIX = "\x1b]7;file://"
