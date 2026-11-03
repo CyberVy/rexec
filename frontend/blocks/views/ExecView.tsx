@@ -145,7 +145,6 @@ export function ExecView() {
             {/* Output Panel Header */}
             <div className="flex items-center justify-between text-xs px-1 shrink-0">
                 <div className="flex items-center gap-2 font-mono">
-                    <span className="text-muted-foreground">Console Output</span>
                     {exec_state.is_running && (
                         <span className="text-amber-500 text-[11px] flex items-center gap-1">
                             <span className="size-1.5 rounded-full bg-amber-500 animate-ping" />
@@ -186,7 +185,7 @@ export function ExecView() {
                         className="text-[11px] font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 transition flex items-center gap-1"
                     >
                         <ClearIcon className="size-3" />
-                        Clear Output
+                        Clear
                     </button>
                 </div>
             </div>
