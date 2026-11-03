@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Terminal } from "@xterm/xterm"
+import type { ITheme } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
-import { useController } from "@/components/hooks"
+import { useController, useMediaQuery } from "@/components/hooks"
 import {
     FullscreenModalContainer,
     AnimationContainer,
@@ -68,6 +69,44 @@ const ACCESSORY_KEYS: AccessoryKey[] = [
     { label: "-", payload: "-", title: "Dash" },
     { label: "_", payload: "_", title: "Underscore" }
 ]
+
+const DARK_TERMINAL_THEME: ITheme = {
+    background: "#09090b",
+    foreground: "#fafafa",
+    cursor: "#10b981",
+    selectionBackground: "#27272a",
+    black: "#18181b",
+    red: "#ef4444",
+    green: "#10b981",
+    yellow: "#f59e0b",
+    blue: "#3b82f6",
+    magenta: "#ec4899",
+    cyan: "#06b6d4",
+    white: "#f4f4f5",
+    brightBlack: "#71717a",
+    brightRed: "#f87171",
+    brightGreen: "#34d399",
+    brightYellow: "#fbbf24",
+    brightBlue: "#60a5fa",
+    brightMagenta: "#f472b6",
+    brightCyan: "#22d3ee",
+    brightWhite: "#ffffff"
+}
+
+// Black and white swap roles so programs that print explicit white stay readable on a light background.
+const LIGHT_TERMINAL_THEME: ITheme = {
+    ...DARK_TERMINAL_THEME,
+    background: "#ffffff",
+    foreground: "#09090b",
+    selectionBackground: "#d4d4d8",
+    black: "#f4f4f5",
+    white: "#18181b",
+    brightBlack: "#a1a1aa",
+    brightWhite: "#000000"
+}
+
+// Truecolor and 256-color output bypass the palette; let xterm darken it when it would vanish on white.
+const LIGHT_MINIMUM_CONTRAST_RATIO = 4.5
 
 export function TerminalView() {
     const container_ref = useRef<HTMLDivElement>(null)
@@ -141,6 +180,8 @@ export function TerminalView() {
         events: ["change", "status_change"]
     })
 
+    const is_dark_mode = useMediaQuery("(prefers-color-scheme: dark)", true)
+
     useEffect(() => {
         void pty_controller.refresh_sessions()
         if (session_state.agent_online && !pty_controller.state.cwd) {
@@ -155,29 +196,7 @@ export function TerminalView() {
             cursorBlink: true,
             fontSize: 13,
             fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            theme: {
-                background: "#09090b",
-                foreground: "#fafafa",
-                cursor: "#10b981",
-                selectionBackground: "#27272a",
-                black: "#18181b",
-                red: "#ef4444",
-                green: "#10b981",
-                yellow: "#f59e0b",
-                blue: "#3b82f6",
-                magenta: "#ec4899",
-                cyan: "#06b6d4",
-                white: "#f4f4f5",
-                brightBlack: "#71717a",
-                brightRed: "#f87171",
-                brightGreen: "#34d399",
-                brightYellow: "#fbbf24",
-                brightBlue: "#60a5fa",
-                brightMagenta: "#f472b6",
-                brightCyan: "#22d3ee",
-                brightWhite: "#ffffff"
-            }
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
         })
 
         const fit_addon = new FitAddon()
@@ -255,6 +274,13 @@ export function TerminalView() {
             fit_addon_ref.current = null
         }
     }, [])
+
+    useEffect(() => {
+        const term = term_ref.current
+        if (!term) return
+        term.options.theme = is_dark_mode ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
+        term.options.minimumContrastRatio = is_dark_mode ? 1 : LIGHT_MINIMUM_CONTRAST_RATIO
+    }, [is_dark_mode])
 
     const handle_connect = () => {
         const cols = term_ref.current?.cols ?? 80
@@ -477,18 +503,20 @@ export function TerminalView() {
             </div>
 
             {/* XTerm Container */}
-            <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-zinc-800 bg-[#09090b] shadow-inner p-2">
+            <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-black/10 dark:border-zinc-800 bg-white dark:bg-[#09090b] shadow-inner p-2">
                 <div ref={container_ref} className="absolute inset-2" />
 
                 {pty_state.status === "disconnected" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
-                        <div className="text-zinc-300 text-sm font-mono font-medium">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
+                        <div className="text-zinc-700 dark:text-zinc-300 text-sm font-mono font-medium">
                             Interactive Remote Terminal (PTY)
                         </div>
 
                         {pty_state.sessions.filter((s) => s.status === "detached").length > 0 ? (
                             <div className="flex flex-col items-center gap-2.5 max-w-sm w-full">
-                                <div className="text-xs text-zinc-400 font-mono">Available Detached Sessions:</div>
+                                <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
+                                    Available Detached Sessions:
+                                </div>
                                 <div className="w-full space-y-2">
                                     {pty_state.sessions
                                         .filter((s) => s.status === "detached")
@@ -496,11 +524,11 @@ export function TerminalView() {
                                         .map((s) => (
                                             <div
                                                 key={s.session_id}
-                                                className="p-2.5 rounded-lg border border-white/10 bg-white/5 flex items-center justify-between gap-2 font-mono text-xs"
+                                                className="p-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 flex items-center justify-between gap-2 font-mono text-xs"
                                             >
                                                 <div className="flex items-center gap-2 truncate">
                                                     <span className="size-2 rounded-full bg-amber-400 shrink-0" />
-                                                    <span className="text-zinc-200 font-medium truncate">
+                                                    <span className="text-zinc-800 dark:text-zinc-200 font-medium truncate">
                                                         {s.command || "shell"}
                                                     </span>
                                                     <span className="text-zinc-500 text-[11px]">
@@ -524,7 +552,7 @@ export function TerminalView() {
                                         type="button"
                                         onClick={handle_connect}
                                         disabled={!session_state.agent_online}
-                                        className="px-3.5 py-1.5 rounded-lg border border-white/20 hover:bg-white/10 text-zinc-200 font-medium text-xs font-mono transition cursor-pointer"
+                                        className="px-3.5 py-1.5 rounded-lg border border-black/20 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200 font-medium text-xs font-mono transition cursor-pointer"
                                     >
                                         New Shell Session
                                     </button>
