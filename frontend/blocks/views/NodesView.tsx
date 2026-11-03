@@ -100,7 +100,7 @@ export function NodesView() {
                         className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-foreground text-background font-medium text-xs font-mono transition cursor-pointer hover:opacity-90"
                     >
                         <PlusIcon className="size-3.5" />
-                        <span>Add Node</span>
+                        <span>Add</span>
                     </button>
                 </div>
             </div>
