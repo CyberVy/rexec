@@ -134,7 +134,7 @@ export function NodesView() {
                                 key={agent_id}
                                 className={`p-3.5 rounded-xl border transition flex flex-col gap-2.5 ${
                                     is_active
-                                        ? "border-foreground/30 bg-black/[0.04] dark:bg-white/[0.06] shadow-sm"
+                                        ? "border-foreground/30 bg-black/4 dark:bg-white/6 shadow-sm"
                                         : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:border-black/20 dark:hover:border-white/20"
                                 }`}
                             >
@@ -142,11 +142,11 @@ export function NodesView() {
                                 <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
                                         <span
-                                            className={`size-2.5 rounded-full shrink-0 ${
+                                            className={`size-2 rounded-full shrink-0 ${
                                                 agent.is_checking
-                                                    ? "bg-foreground/50 animate-ping"
+                                                    ? "bg-emerald-500/50 animate-ping"
                                                     : agent.is_online
-                                                      ? "bg-foreground animate-pulse"
+                                                      ? "bg-emerald-500 animate-pulse"
                                                       : "bg-foreground/20"
                                             }`}
                                         />
@@ -240,7 +240,7 @@ export function NodesView() {
                                         type="button"
                                         onClick={() => session_controller.remove_agent(agent_id)}
                                         title="Delete node agent"
-                                        className="p-1 rounded-lg border border-transparent hover:border-black/10 dark:hover:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                                        className="p-1 rounded-lg border border-transparent hover:border-black/10 dark:hover:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-red-700 dark:text-red-500 hover:text-foreground transition cursor-pointer"
                                     >
                                         <TrashIcon className="size-3.5" />
                                     </button>
@@ -336,7 +336,7 @@ export function NodesView() {
                     </FullscreenModalContainer>
 
                     <ButtonGroup
-                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
+                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
                         items={[
                             {
                                 content: <BackIcon key="back" />,

@@ -106,7 +106,7 @@ export function ExecView() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-2 flex-1 min-w-50">
                         <span className="text-[11px] font-mono text-muted-foreground">cwd:</span>
                         <input
                             type="text"
@@ -194,10 +194,10 @@ export function ExecView() {
             <div
                 ref={output_ref}
                 onScroll={handle_scroll}
-                className="flex-1 min-h-0 overflow-auto rounded-xl p-3 bg-zinc-950 text-zinc-100 font-mono text-xs leading-relaxed select-text border border-zinc-800"
+                className="flex-1 min-h-0 overflow-auto rounded-xl p-3 bg-white dark:bg-black text-foreground font-mono text-xs leading-relaxed select-text border border-black/10 dark:border-white/10 shadow-inner"
             >
                 {exec_state.chunks.length === 0 && !exec_state.error && !exec_state.is_running && (
-                    <div className="text-zinc-600 py-8 text-center">
+                    <div className="text-foreground/50 py-8 text-center">
                         Execute a command to stream remote stdout / stderr in real time.
                     </div>
                 )}
@@ -207,8 +207,8 @@ export function ExecView() {
                         key={index}
                         className={
                             chunk.stream === "stderr"
-                                ? "text-amber-400 whitespace-pre-wrap"
-                                : "text-zinc-200 whitespace-pre-wrap"
+                                ? "text-amber-700 dark:text-amber-400 whitespace-pre-wrap"
+                                : "text-foreground whitespace-pre-wrap"
                         }
                     >
                         {chunk.data}
@@ -216,7 +216,7 @@ export function ExecView() {
                 ))}
 
                 {exec_state.error && (
-                    <div className="mt-2 text-red-400 p-2 rounded bg-red-950/40 border border-red-900/50">
+                    <div className="mt-2 text-red-700 dark:text-red-400 p-2 rounded bg-red-500/10 dark:bg-red-950/40 border border-red-500/30 dark:border-red-900/50">
                         Error: {exec_state.error}
                     </div>
                 )}

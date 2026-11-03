@@ -71,8 +71,8 @@ const ACCESSORY_KEYS: AccessoryKey[] = [
 ]
 
 const DARK_TERMINAL_THEME: ITheme = {
-    background: "#09090b",
-    foreground: "#fafafa",
+    background: "#000000",
+    foreground: "#eeeeee",
     cursor: "#10b981",
     selectionBackground: "#27272a",
     black: "#18181b",
@@ -97,7 +97,7 @@ const DARK_TERMINAL_THEME: ITheme = {
 const LIGHT_TERMINAL_THEME: ITheme = {
     ...DARK_TERMINAL_THEME,
     background: "#ffffff",
-    foreground: "#09090b",
+    foreground: "#000000",
     selectionBackground: "#d4d4d8",
     black: "#f4f4f5",
     white: "#18181b",
@@ -399,7 +399,7 @@ export function TerminalView() {
                                         ? "bg-emerald-500 animate-pulse"
                                         : pty_state.status === "connecting"
                                           ? "bg-amber-400 animate-ping"
-                                          : "bg-zinc-500"
+                                          : "bg-foreground/40"
                                 }`}
                             />
                             <span className="capitalize text-foreground font-medium">{pty_state.status}</span>
@@ -503,20 +503,18 @@ export function TerminalView() {
             </div>
 
             {/* XTerm Container */}
-            <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-black/10 dark:border-zinc-800 bg-white dark:bg-[#09090b] shadow-inner p-2">
+            <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white dark:bg-black shadow-inner p-2">
                 <div ref={container_ref} className="absolute inset-2" />
 
                 {pty_state.status === "disconnected" && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
-                        <div className="text-zinc-700 dark:text-zinc-300 text-sm font-mono font-medium">
+                        <div className="text-foreground text-sm font-mono font-medium">
                             Interactive Remote Terminal (PTY)
                         </div>
 
                         {pty_state.sessions.filter((s) => s.status === "detached").length > 0 ? (
                             <div className="flex flex-col items-center gap-2.5 max-w-sm w-full">
-                                <div className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-                                    Available Detached Sessions:
-                                </div>
+                                <div className="text-xs text-foreground/50 font-mono">Available Detached Sessions:</div>
                                 <div className="w-full space-y-2">
                                     {pty_state.sessions
                                         .filter((s) => s.status === "detached")
@@ -528,10 +526,10 @@ export function TerminalView() {
                                             >
                                                 <div className="flex items-center gap-2 truncate">
                                                     <span className="size-2 rounded-full bg-amber-400 shrink-0" />
-                                                    <span className="text-zinc-800 dark:text-zinc-200 font-medium truncate">
+                                                    <span className="text-foreground font-medium truncate">
                                                         {s.command || "shell"}
                                                     </span>
-                                                    <span className="text-zinc-500 text-[11px]">
+                                                    <span className="text-foreground/50 text-[11px]">
                                                         ({s.session_id.slice(0, 6)})
                                                     </span>
                                                 </div>
@@ -552,7 +550,7 @@ export function TerminalView() {
                                         type="button"
                                         onClick={handle_connect}
                                         disabled={!session_state.agent_online}
-                                        className="px-3.5 py-1.5 rounded-lg border border-black/20 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/10 text-zinc-800 dark:text-zinc-200 font-medium text-xs font-mono transition cursor-pointer"
+                                        className="px-3.5 py-1.5 rounded-lg border border-black/20 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/10 text-foreground font-medium text-xs font-mono transition cursor-pointer"
                                     >
                                         New Shell Session
                                     </button>
@@ -822,7 +820,7 @@ export function TerminalView() {
                     </FullscreenModalContainer>
 
                     <ButtonGroup
-                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
+                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
                         items={[
                             {
                                 content: <BackIcon key="back" />,
@@ -1023,7 +1021,7 @@ export function TerminalView() {
                     </FullscreenModalContainer>
 
                     <ButtonGroup
-                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
+                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
                         items={[
                             {
                                 content: <BackIcon key="back" />,
