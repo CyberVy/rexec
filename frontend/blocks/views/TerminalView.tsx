@@ -363,7 +363,7 @@ export function TerminalView() {
         <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-2 pb-24 min-h-0">
             {/* Terminal Top Control Bar */}
             <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono shrink-0">
-                {/* Row 1: Status & Context */}
+                {/* Row 1: Status */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -379,82 +379,18 @@ export function TerminalView() {
                             <span className="capitalize text-foreground font-medium">{pty_state.status}</span>
                         </div>
 
-                        {/* Session Selector Capsule */}
-                        <button
-                            type="button"
-                            onClick={handle_open_sessions_modal}
-                            className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] truncate shrink-0"
-                        >
-                            <span className="truncate">
-                                {pty_state.session_id
-                                    ? `Session: ${pty_state.session_id.slice(0, 8)}`
-                                    : `Sessions (${pty_state.sessions.length})`}
-                            </span>
-                            <ChevronDownIcon className="size-3 shrink-0" />
-                        </button>
-
-                        {/* Workspace Folder Capsule */}
-                        <button
-                            type="button"
-                            onClick={handle_open_workspace_modal}
-                            disabled={!session_state.agent_online && !pty_state.cwd}
-                            title={pty_state.cwd ? `Current workspace: ${pty_state.cwd}` : "Browse workspace folder"}
-                            className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] min-w-0 max-w-[200px] sm:max-w-[320px]"
-                        >
-                            <FolderIcon className="size-3 shrink-0" />
-                            <span className="truncate">{format_display_path(pty_state.cwd)}</span>
-                            <ChevronDownIcon className="size-3 shrink-0" />
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
                         {pty_state.exit_code !== null && (
-                            <span className="text-[11px] text-amber-500">Exited with code {pty_state.exit_code}</span>
+                            <span className="text-[11px] text-amber-500 shrink-0">
+                                Exited with code {pty_state.exit_code}
+                            </span>
                         )}
 
                         {pty_state.error && (
-                            <span className="text-[11px] text-red-400 truncate max-w-[140px]">{pty_state.error}</span>
+                            <span className="text-[11px] text-red-400 truncate min-w-0">{pty_state.error}</span>
                         )}
                     </div>
-                </div>
 
-                {/* Row 2: Action Controls */}
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-black/5 dark:border-white/5">
-                    <div className="flex items-center gap-1.5">
-                        <button
-                            type="button"
-                            onClick={() => set_is_accessory_bar_open((prev) => !prev)}
-                            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
-                                is_accessory_bar_open
-                                    ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
-                                    : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
-                            }`}
-                            title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
-                        >
-                            <KeyboardIcon className="size-3" />
-                            <span>Keys</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handle_clear}
-                            className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
-                        >
-                            Clear
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={handle_copy_buffer}
-                            title="Copy terminal content"
-                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
-                        >
-                            {is_buffer_copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
-                            <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
-                        </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center shrink-0">
                         {pty_state.status === "connected" || pty_state.status === "connecting" ? (
                             <button
                                 type="button"
@@ -474,6 +410,69 @@ export function TerminalView() {
                             </button>
                         )}
                     </div>
+                </div>
+
+                {/* Row 2: Session & Workspace */}
+                <div className="flex items-center gap-2 min-w-0">
+                    <button
+                        type="button"
+                        onClick={handle_open_sessions_modal}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] truncate shrink-0"
+                    >
+                        <span className="truncate">
+                            {pty_state.session_id
+                                ? `Session: ${pty_state.session_id.slice(0, 8)}`
+                                : `Sessions (${pty_state.sessions.length})`}
+                        </span>
+                        <ChevronDownIcon className="size-3 shrink-0" />
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handle_open_workspace_modal}
+                        disabled={!session_state.agent_online && !pty_state.cwd}
+                        title={pty_state.cwd ? `Current workspace: ${pty_state.cwd}` : "Browse workspace folder"}
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] min-w-0"
+                    >
+                        <FolderIcon className="size-3 shrink-0" />
+                        <span className="truncate">{format_display_path(pty_state.cwd)}</span>
+                        <ChevronDownIcon className="size-3 shrink-0" />
+                    </button>
+                </div>
+
+                {/* Row 3: Action Controls */}
+                <div className="flex items-center gap-1.5 pt-1 border-t border-black/5 dark:border-white/5">
+                    <button
+                        type="button"
+                        onClick={() => set_is_accessory_bar_open((prev) => !prev)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                            is_accessory_bar_open
+                                ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
+                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                        }`}
+                        title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
+                    >
+                        <KeyboardIcon className="size-3" />
+                        <span>Keys</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handle_clear}
+                        className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                    >
+                        Clear
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handle_copy_buffer}
+                        title="Copy terminal content"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                    >
+                        {is_buffer_copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                        <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
+                    </button>
                 </div>
             </div>
 
