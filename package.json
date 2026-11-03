@@ -37,6 +37,7 @@
     "debug:test:forward": "tsx cli/debug/tests/forward.ts",
     "debug:test:tty": "tsx cli/debug/tests/tty.ts",
     "debug:test:windows-pty": "tsx cli/debug/tests/windows_pty.ts",
+    "debug:test:pty-replay": "tsx cli/debug/tests/pty_replay.ts",
     "debug:test:heartbeat": "tsx cli/debug/tests/heartbeat.ts",
     "debug:test:vscode": "tsx cli/debug/tests/vscode_extension.ts",
     "test": "npm run debug:test",
