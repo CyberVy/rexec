@@ -199,12 +199,7 @@ export class RexecHub extends DurableObject {
                 this.transfers.on_agent_message(session, msg)
             } else if (msg.type === "forward:close" || msg.type === "forward:error") {
                 this.forwards.on_agent_message(session, msg)
-            } else if (
-                msg.type === "pty:exit" ||
-                msg.type === "pty:error" ||
-                msg.type === "pty:replay" ||
-                msg.type === "pty:list_res"
-            ) {
+            } else if (msg.type === "pty:exit" || msg.type === "pty:error" || msg.type === "pty:list_res") {
                 this.ptys.on_agent_message(session, msg)
             } else if (msg.type === "register") {
                 if (msg.hostname) session.hostname = msg.hostname

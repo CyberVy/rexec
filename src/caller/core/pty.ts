@@ -51,7 +51,6 @@ export interface PtyClient {
     send(data: Uint8Array): void
     resize(cols: number, rows: number): void
     on_data(callback: (data: Uint8Array) => void): void
-    on_replay(callback: (bytes: number) => void): void
     detach(): void
     close(): void
     readonly exited: Promise<PtyExitStatus>
@@ -59,7 +58,6 @@ export interface PtyClient {
 
 export async function open_pty_session(options: PtyClientOptions): Promise<PtyClient> {
     let data_handler: ((data: Uint8Array) => void) | null = null
-    let replay_handler: ((bytes: number) => void) | null = null
     let resolve_ready!: (session_id: string) => void
     let reject_ready!: (err: Error) => void
     const ready = new Promise<string>((resolve, reject) => {
@@ -101,14 +99,9 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                     code?: number
                     signal?: number
                     error?: string
-                    bytes?: number
                 }
                 if (msg.type === "pty:ready" && msg.session_id) {
                     resolve_ready(msg.session_id)
-                    return
-                }
-                if (msg.type === "pty:replay" && typeof msg.bytes === "number") {
-                    replay_handler?.(msg.bytes)
                     return
                 }
                 if (msg.type === "pty:exit") {
@@ -179,9 +172,6 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
             },
             on_data(callback) {
                 data_handler = callback
-            },
-            on_replay(callback) {
-                replay_handler = callback
             },
             detach() {
                 client.close(1000, "PTY client detached")
