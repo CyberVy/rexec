@@ -121,16 +121,15 @@ export class PtyManager {
         }
         slot.status = "attached"
         slot.detached_at = undefined
-        console.log(
-            `[rexec-agent] [pty:${session_id.slice(0, 8)}] Attached. Replaying ${slot.ring_buffer.byte_length} bytes.`
-        )
+        const replay_chunks = slot.ring_buffer.get_chunks()
+        let replay_bytes = 0
+        for (const chunk of replay_chunks) replay_bytes += chunk.byteLength
+        console.log(`[rexec-agent] [pty:${session_id.slice(0, 8)}] Attached. Replaying ${replay_bytes} bytes.`)
 
-        if (msg.cols && msg.rows) {
-            this.resize({ type: "pty:resize", session_id, cols: msg.cols, rows: msg.rows })
-        }
-
-        // Replay buffered output
-        for (const chunk of slot.ring_buffer.get_chunks()) {
+        // Announce the replay length before the bytes. The caller uses it to
+        // ignore terminal reports produced by parsing historical queries.
+        send({ type: "pty:replay", session_id, bytes: replay_bytes })
+        for (const chunk of replay_chunks) {
             send_binary(encode_pty_frame(session_id, chunk))
         }
 
@@ -142,8 +141,12 @@ export class PtyManager {
             }
         }
 
-        // Trigger SIGWINCH to redraw application state
-        slot.process?.resize(slot.cols, slot.rows)
+        // Resize after the snapshot so the redraw is live output, not part of the replay.
+        if (msg.cols && msg.rows) {
+            this.resize({ type: "pty:resize", session_id, cols: msg.cols, rows: msg.rows })
+        } else {
+            slot.process?.resize(slot.cols, slot.rows)
+        }
     }
 
     public detach(session_id: string): void {

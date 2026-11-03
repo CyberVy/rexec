@@ -46,6 +46,27 @@ interface AccessoryKey {
     title?: string
 }
 
+// Reports xterm emits while parsing output (color probes, device attributes, cursor position).
+// Keystrokes never use this shape: arrows end in A/B/C/D, and editing keys end in ~.
+function is_terminal_report(data: string): boolean {
+    if (data.charCodeAt(0) !== 0x1b) return false
+    const kind = data.charCodeAt(1)
+    // OSC (ESC ]) and DCS (ESC P), including the color reply `ESC ] 11 ; rgb:... ST`.
+    if (kind === 0x5d || kind === 0x50) return true
+    // Focus in / focus out.
+    if (data === "\x1b[I" || data === "\x1b[O") return true
+    // CSI reports: device attributes (c), cursor position (R), status (n), window size (t).
+    if (kind !== 0x5b || data.length < 3) return false
+    const final_byte = data.charCodeAt(data.length - 1)
+    if (final_byte !== 0x63 && final_byte !== 0x52 && final_byte !== 0x6e && final_byte !== 0x74) return false
+    for (let i = 2; i < data.length - 1; i++) {
+        const code = data.charCodeAt(i)
+        const is_digit = code >= 0x30 && code <= 0x39
+        if (!is_digit && code !== 0x3b && code !== 0x3f) return false
+    }
+    return true
+}
+
 const ACCESSORY_KEYS: AccessoryKey[] = [
     { label: "ESC", payload: "\x1b", title: "Escape" },
     { label: "TAB", payload: "\t", title: "Tab" },
@@ -197,14 +218,47 @@ export function TerminalView() {
             }
         }, 50)
 
-        // Wire incoming data from PTY
-        const remove_data_listener = pty_controller.on_data((bytes) => {
-            term.write(bytes)
+        // Historical PTY output is parsed again on restore. Queries inside it (OSC 11
+        // background color, and similar) make xterm answer on onData. Those answers
+        // are not keystrokes; forwarding them types the payload into the shell line.
+        let disposed = false
+        let suppress_reports = false
+        let replay_id = 0
+        const queued_input: string[] = []
+
+        const finish_replay = (id: number) => {
+            if (disposed || id !== replay_id) return
+            suppress_reports = false
+            const pending = queued_input.splice(0)
+            for (const item of pending) pty_controller.send(item)
+        }
+
+        const remove_data_listener = pty_controller.on_data((bytes, replay_bytes, id, replay_done) => {
+            if (replay_bytes <= 0) {
+                term.write(bytes)
+                return
+            }
+            if (id !== replay_id) {
+                replay_id = id
+                queued_input.length = 0
+            }
+            suppress_reports = true
+            const replay = replay_bytes === bytes.byteLength ? bytes : bytes.subarray(0, replay_bytes)
+            const live = replay_bytes === bytes.byteLength ? null : bytes.subarray(replay_bytes)
+            // xterm runs this callback after the chunk is parsed and before the next chunk.
+            term.write(replay, () => {
+                if (replay_done) finish_replay(id)
+            })
+            if (live && live.byteLength > 0) term.write(live)
         })
 
         // Wire user typing to PTY
         const on_data_sub = term.onData((data) => {
-            pty_controller.send(data)
+            if (!suppress_reports) {
+                pty_controller.send(data)
+                return
+            }
+            if (!is_terminal_report(data)) queued_input.push(data)
         })
 
         // Wire terminal resize to PTY
@@ -232,6 +286,7 @@ export function TerminalView() {
         resize_observer.observe(container_ref.current)
 
         return () => {
+            disposed = true
             clearTimeout(fit_timer)
             remove_data_listener()
             on_data_sub.dispose()

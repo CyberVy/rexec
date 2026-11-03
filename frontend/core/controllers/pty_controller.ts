@@ -43,7 +43,11 @@ export class PtyController extends BaseController<PtyState> {
     private client: PtyClient | null = null
     private abort_controller: AbortController | null = null
     private dir_abort_controller: AbortController | null = null
-    private data_listeners: Set<(data: Uint8Array) => void> = new Set()
+    private data_listeners: Set<
+        (data: Uint8Array, replay_bytes: number, replay_id: number, replay_done: boolean) => void
+    > = new Set()
+    private replay_remaining = 0
+    private replay_id = 0
     private is_intentional_disconnect = false
     private last_options: ConnectOptions | null = null
     private reconnect_timer: ReturnType<typeof setTimeout> | null = null
@@ -69,7 +73,9 @@ export class PtyController extends BaseController<PtyState> {
         }
     }
 
-    public on_data(cb: (data: Uint8Array) => void): () => void {
+    public on_data(
+        cb: (data: Uint8Array, replay_bytes: number, replay_id: number, replay_done: boolean) => void
+    ): () => void {
         this.data_listeners.add(cb)
         return () => this.data_listeners.delete(cb)
     }
@@ -268,10 +274,24 @@ export class PtyController extends BaseController<PtyState> {
             // Refresh sessions in background
             void this.refresh_sessions()
 
+            pty_client.on_replay((bytes) => {
+                if (!this.is_current(attempt)) return
+                this.replay_id += 1
+                this.replay_remaining = bytes > 0 ? bytes : 0
+            })
+
             pty_client.on_data((bytes) => {
                 if (!this.is_current(attempt)) return
+                let replay_bytes = 0
+                let replay_done = false
+                const replay_id = this.replay_id
+                if (this.replay_remaining > 0) {
+                    replay_bytes = Math.min(this.replay_remaining, bytes.byteLength)
+                    this.replay_remaining -= replay_bytes
+                    replay_done = this.replay_remaining === 0
+                }
                 for (const listener of this.data_listeners) {
-                    listener(bytes)
+                    listener(bytes, replay_bytes, replay_id, replay_done)
                 }
             })
 
@@ -304,6 +324,7 @@ export class PtyController extends BaseController<PtyState> {
         }
         this.abort_controller?.abort()
         this.abort_controller = new AbortController()
+        this.replay_remaining = 0
         if (this.client) {
             this.client.detach()
             this.client = null
