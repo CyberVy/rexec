@@ -73,7 +73,7 @@ export function NodesView() {
     }
 
     return (
-        <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-3 pb-24 min-h-0">
+        <div className="flex flex-col p-4 gap-3 pb-24 min-h-0">
             {/* Header / Summary Bar */}
             <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
                 <div className="flex items-center gap-2.5">
@@ -106,7 +106,7 @@ export function NodesView() {
             </div>
 
             {/* Nodes Grid */}
-            <div className="flex-1 min-h-0 overflow-y-auto pr-0.5">
+            <div className="flex-1 min-h-0">
                 {session.agent_ids.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-48 border border-dashed border-black/10 dark:border-white/10 rounded-xl text-center p-6 gap-2.5">
                         <span className="text-sm font-medium text-foreground">No Node Agents configured</span>
