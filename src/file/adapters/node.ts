@@ -85,43 +85,71 @@ export function create_node_sink(target_path: string, is_directory: boolean): Fi
         })
 
         let tar_exit_code: number | null = null
-        let tar_close_resolver: ((code: number) => void) | null = null
+        const exit_waiters: Array<(code: number) => void> = []
+
+        const finish_tar = (code: number) => {
+            if (tar_exit_code !== null) return
+            tar_exit_code = code
+            const waiters = exit_waiters.splice(0)
+            for (const waiter of waiters) waiter(code)
+        }
+
+        const wait_for_tar_exit = (): Promise<number> => {
+            if (tar_exit_code !== null) return Promise.resolve(tar_exit_code)
+            return new Promise((resolve) => {
+                exit_waiters.push(resolve)
+            })
+        }
+
+        const tar_failure = (fallback: string) => {
+            const detail = tar_stderr.trim()
+            return new Error(detail || fallback)
+        }
+
+        // tar stops at the archive trailer and closes stdin before the caller
+        // necessarily finishes writing. That surfaces as EPIPE while the close
+        // event is still queued; the extract itself can still have succeeded.
+        const accept_if_tar_succeeded = async (err: Error): Promise<void> => {
+            if (tar_exit_code === 0) return
+            const code = "code" in err ? (err as NodeJS.ErrnoException).code : undefined
+            const pipe_closed =
+                code === "EPIPE" ||
+                code === "ECONNRESET" ||
+                code === "ERR_STREAM_DESTROYED" ||
+                !tar_proc.stdin?.writable
+            if (!pipe_closed) throw err
+            const exit_code = await wait_for_tar_exit()
+            if (exit_code !== 0) throw tar_failure(err.message)
+        }
 
         tar_proc.on("close", (code) => {
-            tar_exit_code = code ?? 0
-            if (tar_close_resolver) {
-                tar_close_resolver(tar_exit_code)
-                tar_close_resolver = null
-            }
+            finish_tar(code ?? 0)
         })
 
         tar_proc.on("error", (err) => {
             tar_stderr += `\n${err.message}`
-            tar_exit_code = 1
-            if (tar_close_resolver) {
-                tar_close_resolver(1)
-                tar_close_resolver = null
-            }
+            finish_tar(1)
         })
 
         const stream = new WritableStream<Uint8Array>({
             write(chunk) {
                 if (tar_proc.killed || tar_exit_code !== null) {
                     if (tar_exit_code === 0) return
-                    throw new Error(tar_stderr || `tar exit code ${tar_exit_code}`)
+                    throw tar_failure(`tar exit code ${tar_exit_code}`)
                 }
                 return new Promise<void>((resolve, reject) => {
-                    if (!tar_proc.stdin?.writable) {
-                        if (tar_exit_code === 0) return resolve()
-                        return reject(new Error(tar_stderr || "tar stdin is not writable"))
-                    }
-                    tar_proc.stdin.write(chunk, (err) => {
-                        if (err) {
-                            if (tar_exit_code === 0) return resolve()
-                            return reject(err)
+                    const done = (err?: Error | null) => {
+                        if (!err) {
+                            resolve()
+                            return
                         }
-                        resolve()
-                    })
+                        accept_if_tar_succeeded(err).then(resolve, reject)
+                    }
+                    if (!tar_proc.stdin?.writable) {
+                        done(new Error(tar_stderr.trim() || "tar stdin is not writable"))
+                        return
+                    }
+                    tar_proc.stdin.write(chunk, (err) => done(err))
                 })
             },
             close() {
@@ -142,15 +170,8 @@ export function create_node_sink(target_path: string, is_directory: boolean): Fi
                 if (!tar_proc.killed && tar_proc.stdin?.writable) {
                     tar_proc.stdin.end()
                 }
-                const code =
-                    tar_exit_code !== null
-                        ? tar_exit_code
-                        : await new Promise<number>((resolve) => {
-                              tar_close_resolver = resolve
-                          })
-                if (code !== 0) {
-                    throw new Error(tar_stderr || `tar exit code ${code}`)
-                }
+                const code = await wait_for_tar_exit()
+                if (code !== 0) throw tar_failure(`tar exit code ${code}`)
             },
             cleanup: () => {
                 if (!tar_proc.killed) {
