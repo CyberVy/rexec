@@ -267,7 +267,13 @@ async function run_file_transfer_tests(): Promise<boolean> {
             ? fs.readFileSync(path.join(downloaded_dir, "nested", "f2.txt"), "utf-8")
             : ""
         const passed = res.exit_code === 0 && downloaded_f1 === "hello f1" && downloaded_f2 === "hello f2"
-        print_verdict(test_11, passed, passed ? undefined : `f1: ${downloaded_f1}, f2: ${downloaded_f2}`)
+        print_verdict(
+            test_11,
+            passed,
+            passed
+                ? undefined
+                : `exit_code: ${res.exit_code}, f1: ${JSON.stringify(downloaded_f1)}, f2: ${JSON.stringify(downloaded_f2)}, stderr: ${res.stderr.trim()}`
+        )
         record_history({
             test_name: test_11,
             command: `rexec pull -r ${remote_dest_dir} ${downloaded_dir}`,

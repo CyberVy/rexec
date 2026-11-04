@@ -12,6 +12,7 @@ const TEST_FILES = [
     "orphan.ts",
     "large_output.ts",
     "file_transfer.ts",
+    "dir_extract.ts",
     "forward.ts",
     "tty.ts",
     "heartbeat.ts",
