@@ -1,4 +1,3 @@
-export * from "./StatusHeader"
 export * from "./views/ExecView"
 export * from "./views/TerminalView"
 export * from "./views/NodesView"

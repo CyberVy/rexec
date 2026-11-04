@@ -8,12 +8,14 @@ import { RunIcon, AbortIcon, ClearIcon, CopyIcon, CheckIcon } from "../icons"
 const PRESETS = [
     "uname -a",
     "pwd",
-    "ls -la",
+    "ls",
     "nvidia-smi",
     "python3 --version",
     "cat /etc/os-release",
     "df -h",
-    "free -m"
+    "free -m",
+    "curl https://4.ident.me -s",
+    "curl https://ipinfo.io -s"
 ]
 
 export function ExecView() {
@@ -153,7 +155,7 @@ export function ExecView() {
                 <div className="flex items-center gap-2 font-mono">
                     {exec_state.is_running && (
                         <span className="text-amber-500 text-[11px] flex items-center gap-1">
-                            <span className="size-1.5 rounded-full bg-amber-500 animate-ping" />
+                            <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                             Streaming...
                         </span>
                     )}

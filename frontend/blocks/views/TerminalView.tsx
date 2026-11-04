@@ -14,7 +14,7 @@ import {
     CloseIcon,
     ChevronDownIcon,
     ButtonGroup,
-    BackIcon
+    BackIcon,
 } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
@@ -31,7 +31,8 @@ import {
     FolderUpIcon,
     PinIcon,
     CopyIcon,
-    CheckIcon
+    CheckIcon,
+    ClearIcon
 } from "../icons"
 
 function format_display_path(cwd: string | null): string {
@@ -398,7 +399,7 @@ export function TerminalView() {
                                     pty_state.status === "connected"
                                         ? "bg-emerald-500 animate-pulse"
                                         : pty_state.status === "connecting"
-                                          ? "bg-amber-400 animate-ping"
+                                          ? "bg-amber-400 animate-pulse"
                                           : "bg-foreground/40"
                                 }`}
                             />
@@ -485,8 +486,9 @@ export function TerminalView() {
                     <button
                         type="button"
                         onClick={handle_clear}
-                        className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
-                    >
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                    >   
+                        <ClearIcon className="size-3" />
                         Clear
                     </button>
 
