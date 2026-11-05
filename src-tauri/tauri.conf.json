@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rexec",
+  "productName": "Rexec",
   "version": "0.1.0",
-  "identifier": "com.edgetool.rexec",
+  "identifier": "dev.workers.edgetool.rexec",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5000",
@@ -16,7 +16,7 @@
         "create": false,
         "visible": false,
         "url": "/native_entry",
-        "title": "rexec",
+        "title": "Rexec",
         "width": 800,
         "height": 600,
         "resizable": true,
