@@ -136,13 +136,11 @@ export class RexecCaller {
     public async list_ptys(): Promise<PtySessionInfo[]> {
         const url = new URL(HUB_ROUTES.PTY_LIST.path, this.hub_url)
         url.searchParams.set("token", this.token)
-        try {
-            const res = await fetch(url.toString())
-            if (!res.ok) return []
-            return (await res.json()) as PtySessionInfo[]
-        } catch {
-            return []
+        const res = await fetch(url.toString())
+        if (!res.ok) {
+            throw new Error(`Failed to list PTY sessions (${res.status})`)
         }
+        return (await res.json()) as PtySessionInfo[]
     }
 
     /**
@@ -152,11 +150,14 @@ export class RexecCaller {
         const url = new URL(HUB_ROUTES.PTY_KILL.path, this.hub_url)
         url.searchParams.set("token", this.token)
         const payload: PtyKillRequestPayload = { session_id }
-        await fetch(url.toString(), {
+        const res = await fetch(url.toString(), {
             method: HUB_ROUTES.PTY_KILL.method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         })
+        if (!res.ok) {
+            throw new Error(await pty_http_error(res, "kill PTY session"))
+        }
     }
 
     /**
@@ -169,11 +170,14 @@ export class RexecCaller {
             session_id,
             persistent: updates.persistent
         }
-        await fetch(url.toString(), {
+        const res = await fetch(url.toString(), {
             method: HUB_ROUTES.PTY_UPDATE.method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
         })
+        if (!res.ok) {
+            throw new Error(await pty_http_error(res, "update PTY session"))
+        }
     }
 
     /**
@@ -182,4 +186,15 @@ export class RexecCaller {
     public async set_pty_persistent(session_id: string, persistent: boolean): Promise<void> {
         await this.update_pty(session_id, { persistent })
     }
+}
+
+async function pty_http_error(res: Response, action: string): Promise<string> {
+    let detail = ""
+    try {
+        const body = (await res.json()) as { error?: string }
+        if (body.error) detail = `: ${body.error}`
+    } catch {
+        // Response body is not JSON.
+    }
+    return `Failed to ${action} (${res.status})${detail}`
 }

@@ -3,9 +3,9 @@ import fs from "node:fs"
 import path from "node:path"
 import { RexecCaller } from "@/caller"
 import { create_node_sink, create_node_source } from "@/file/adapters/node"
-import { parse_cli_args, print_usage } from "./args"
+import { parse_cli_args, print_usage, type ParsedCli } from "./args"
 import { run_port_forward } from "./forward"
-import { run_tty } from "./tty"
+import { list_tty_sessions, resolve_tty_session, run_tty } from "./tty"
 import { format_bytes, render_progress } from "./ui"
 
 async function handle_status(caller: RexecCaller): Promise<void> {
@@ -226,7 +226,7 @@ async function main(): Promise<void> {
     }
 
     if (parsed.subcommand === "tty") {
-        await handle_tty(caller, parsed.args, parsed.cwd)
+        await handle_tty(caller, parsed)
         return
     }
 
@@ -234,20 +234,63 @@ async function main(): Promise<void> {
     await handle_exec(caller, parsed.args, parsed.cwd, parsed.timeout_ms)
 }
 
-async function handle_tty(caller: RexecCaller, command_parts: string[], cwd?: string): Promise<void> {
-    const file = command_parts[0]
-    if (!file) {
-        console.error("Error: Missing command. Usage: rexec tty <command...>")
-        process.exit(1)
-    }
-
+async function handle_tty(caller: RexecCaller, parsed: ParsedCli): Promise<void> {
     try {
-        const exit_code = await run_tty(caller, file, command_parts.slice(1), cwd)
-        process.exit(exit_code)
+        if (parsed.persistent && parsed.tty_action !== "run") {
+            throw new Error("--persistent applies when opening a new PTY session")
+        }
+        if (parsed.tty_action === "list") {
+            if (parsed.args.length > 0) throw new Error("Usage: rexec tty list")
+            await list_tty_sessions(caller)
+            return
+        }
+        if (parsed.tty_action === "attach") {
+            const session = await resolve_tty_session(caller, require_session_arg("attach", parsed.args))
+            process.exit(await run_tty(caller, { session_id: session.session_id }))
+        }
+        if (parsed.tty_action === "kill") {
+            const session = await resolve_tty_session(caller, require_session_arg("kill", parsed.args))
+            await caller.kill_pty(session.session_id)
+            console.log(`Killed session ${session.session_id.slice(0, 8)} (${session.command || "shell"})`)
+            return
+        }
+        if (parsed.tty_action === "persist") {
+            const [session_arg, flag, ...extra] = parsed.args
+            if (!session_arg || (flag !== "on" && flag !== "off") || extra.length > 0) {
+                throw new Error("Usage: rexec tty persist <session_id> on|off")
+            }
+            const session = await resolve_tty_session(caller, session_arg)
+            const persistent = flag === "on"
+            await caller.set_pty_persistent(session.session_id, persistent)
+            console.log(`Session ${session.session_id.slice(0, 8)} persistent ${flag}`)
+            return
+        }
+
+        const file = parsed.args[0]
+        if (!file) {
+            throw new Error(
+                "Missing command. Usage: rexec tty <command...> | list | attach <id> | kill <id> | persist <id> on|off"
+            )
+        }
+        process.exit(
+            await run_tty(caller, {
+                file,
+                args: parsed.args.slice(1),
+                cwd: parsed.cwd,
+                persistent: parsed.persistent
+            })
+        )
     } catch (err) {
         console.error(`[rexec tty error] ${(err as Error).message}`)
         process.exit(1)
     }
+}
+
+function require_session_arg(action: "attach" | "kill", args: string[]): string {
+    if (args.length !== 1 || !args[0]) {
+        throw new Error(`Usage: rexec tty ${action} <session_id>`)
+    }
+    return args[0]
 }
 
 async function handle_forward(caller: RexecCaller, port_arg: string | undefined, second_arg?: string): Promise<void> {

@@ -55,6 +55,7 @@ export interface PtyClient {
     detach(): void
     close(): void
     readonly exited: Promise<PtyExitStatus>
+    readonly detached: Promise<void>
 }
 
 export async function open_pty_session(options: PtyClientOptions): Promise<PtyClient> {
@@ -73,6 +74,10 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
     const exited = new Promise<PtyExitStatus>((resolve, reject) => {
         resolve_exit = resolve
         reject_exit = reject
+    })
+    let resolve_detach!: () => void
+    const detached = new Promise<void>((resolve) => {
+        resolve_detach = resolve
     })
 
     const finish = (result: PtyExitStatus | Error): void => {
@@ -184,6 +189,7 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                 replay_handler = callback
             },
             detach() {
+                resolve_detach()
                 client.close(1000, "PTY client detached")
             },
             close() {
@@ -194,7 +200,8 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                 }
                 client.close(1000, "PTY client closed")
             },
-            exited
+            exited,
+            detached
         }
     } catch (err) {
         client.close(1000, "PTY client closed")

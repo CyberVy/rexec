@@ -1,3 +1,5 @@
+export type TtyAction = "run" | "list" | "attach" | "kill" | "persist"
+
 export interface ParsedCli {
     subcommand: "status" | "pull" | "push" | "run" | "forward" | "tty"
     hub_url: string
@@ -6,6 +8,8 @@ export interface ParsedCli {
     timeout_ms: number
     force: boolean
     recursive: boolean
+    persistent: boolean
+    tty_action: TtyAction
     args: string[]
 }
 
@@ -16,7 +20,11 @@ Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
   rexec forward [options] <port...>   Forward local port to remote agent port
-  rexec tty [options] <command...>    Run an interactive command in a remote PTY
+  rexec tty [options] <command...>    Open a remote PTY and attach this terminal
+  rexec tty list                      List remote PTY sessions
+  rexec tty attach <session>          Attach to a session by id or unique prefix
+  rexec tty kill <session>            Kill a remote PTY session
+  rexec tty persist <session> on|off  Keep a session after detach, or restore orphan TTL
   rexec pull [options] <remote> [loc] Download a file or directory from remote agent
   rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status
@@ -29,13 +37,23 @@ Options:
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
   -r, --recursive    Transfer directories recursively via streaming tar
   -f, --force        Overwrite local target file when pulling
+  --persistent       Keep a new PTY session after the local client detaches
   -h, --help         Show this help message
+
+Leaving a PTY detaches the local client. The remote process keeps running.
+Press Ctrl-] to detach. Exit the remote command to end the session.
 
 Examples:
   rexec "nvidia-smi"
   rexec run python main.py --epochs 10
   rexec tty codex                    # Interactive command (argv, not a shell string)
   rexec tty bash
+  rexec tty --persistent bash
+  rexec tty list
+  rexec tty attach a1b2c3d4
+  rexec tty kill a1b2c3d4
+  rexec tty persist a1b2c3d4 on
+  rexec tty -- list                  # Run a remote command named 'list'
   rexec forward 8080                 # Forward localhost:8080 -> agent:8080
   rexec forward 9000:8000            # Forward localhost:9000 -> agent:8000
   rexec pull /content/loss.png ./loss.png
@@ -55,10 +73,22 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
     let timeout_ms = 300000
     let force = false
     let recursive = false
+    let persistent = false
 
     const tokens: string[] = []
     let has_double_dash = false
     const after_double_dash: string[] = []
+
+    const finish = (fields: Pick<ParsedCli, "subcommand" | "tty_action" | "args">): ParsedCli => ({
+        hub_url,
+        token,
+        cwd,
+        timeout_ms,
+        force,
+        recursive,
+        persistent,
+        ...fields
+    })
 
     for (let i = 0; i < raw_args.length; i++) {
         const arg = raw_args[i]
@@ -90,43 +120,59 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
             force = true
         } else if (arg === "-r" || arg === "--recursive") {
             recursive = true
+        } else if (arg === "--persistent") {
+            persistent = true
         } else {
             tokens.push(arg)
         }
     }
 
-    if (has_double_dash) {
-        return {
+    const first_token = tokens[0]
+    if (has_double_dash && first_token !== "tty") {
+        return finish({
             subcommand: "run",
-            hub_url,
-            token,
-            cwd,
-            timeout_ms,
-            force,
-            recursive,
+            tty_action: "run",
             args: [...tokens, ...after_double_dash]
-        }
+        })
     }
 
-    const first_token = tokens[0]
     if (first_token === "status") {
-        return { subcommand: "status", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+        return finish({ subcommand: "status", tty_action: "run", args: tokens.slice(1) })
     }
     if (first_token === "forward") {
-        return { subcommand: "forward", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+        return finish({ subcommand: "forward", tty_action: "run", args: tokens.slice(1) })
     }
     if (first_token === "tty") {
-        return { subcommand: "tty", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+        return finish({ subcommand: "tty", ...classify_tty(tokens.slice(1), has_double_dash, after_double_dash) })
     }
     if (first_token === "pull") {
-        return { subcommand: "pull", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+        return finish({ subcommand: "pull", tty_action: "run", args: tokens.slice(1) })
     }
     if (first_token === "push") {
-        return { subcommand: "push", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+        return finish({ subcommand: "push", tty_action: "run", args: tokens.slice(1) })
     }
     if (first_token === "run" || first_token === "exec") {
-        return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens.slice(1) }
+        return finish({ subcommand: "run", tty_action: "run", args: tokens.slice(1) })
     }
 
-    return { subcommand: "run", hub_url, token, cwd, timeout_ms, force, recursive, args: tokens }
+    return finish({ subcommand: "run", tty_action: "run", args: tokens })
+}
+
+function classify_tty(
+    operands: string[],
+    escaped: boolean,
+    escaped_args: string[]
+): Pick<ParsedCli, "tty_action" | "args"> {
+    if (escaped && operands.length === 0) {
+        return { tty_action: "run", args: escaped_args }
+    }
+    const verb = operands[0]
+    if (verb && is_tty_verb(verb)) {
+        return { tty_action: verb, args: [...operands.slice(1), ...escaped_args] }
+    }
+    return { tty_action: "run", args: [...operands, ...escaped_args] }
+}
+
+function is_tty_verb(value: string): value is Exclude<TtyAction, "run"> {
+    return value === "list" || value === "attach" || value === "kill" || value === "persist"
 }
