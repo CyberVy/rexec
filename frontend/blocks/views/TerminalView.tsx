@@ -14,7 +14,7 @@ import {
     CloseIcon,
     ChevronDownIcon,
     ButtonGroup,
-    BackIcon,
+    BackIcon
 } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
@@ -34,6 +34,7 @@ import {
     CheckIcon,
     ClearIcon
 } from "../icons"
+import { TerminalShortcutBar } from "../shortcuts"
 
 function format_display_path(cwd: string | null): string {
     if (!cwd) return "Workspace"
@@ -487,7 +488,7 @@ export function TerminalView() {
                         type="button"
                         onClick={handle_clear}
                         className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
-                    >   
+                    >
                         <ClearIcon className="size-3" />
                         Clear
                     </button>
@@ -575,39 +576,41 @@ export function TerminalView() {
                 )}
             </div>
 
-            {/* Native Command Input Bar */}
             {pty_state.status === "connected" && (
-                <form
-                    onSubmit={handle_command_submit}
-                    className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
-                >
-                    <span className="text-muted-foreground select-none shrink-0 font-bold">$</span>
-                    <input
-                        ref={command_input_ref}
-                        type="text"
-                        value={command_input}
-                        onChange={(e) => {
-                            set_command_input(e.target.value)
-                            if (history_index !== -1) {
-                                set_history_index(-1)
-                            }
-                        }}
-                        onKeyDown={handle_command_keydown}
-                        onPaste={handle_paste_event}
-                        placeholder="Type command or paste..."
-                        autoCapitalize="none"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        className="flex-1 bg-transparent border-none outline-hidden text-foreground placeholder:text-muted-foreground text-xs font-mono min-w-0"
-                    />
-                    <NaiveButton
-                        type="submit"
-                        disabled={!command_input.trim()}
-                        className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs hover:opacity-90 disabled:opacity-25 disabled:pointer-events-none shrink-0"
+                <>
+                    <TerminalShortcutBar />
+                    <form
+                        onSubmit={handle_command_submit}
+                        className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
                     >
-                        Send
-                    </NaiveButton>
-                </form>
+                        <span className="text-muted-foreground select-none shrink-0 font-bold">$</span>
+                        <input
+                            ref={command_input_ref}
+                            type="text"
+                            value={command_input}
+                            onChange={(e) => {
+                                set_command_input(e.target.value)
+                                if (history_index !== -1) {
+                                    set_history_index(-1)
+                                }
+                            }}
+                            onKeyDown={handle_command_keydown}
+                            onPaste={handle_paste_event}
+                            placeholder="Type command or paste..."
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            className="flex-1 bg-transparent border-none outline-hidden text-foreground placeholder:text-muted-foreground text-xs font-mono min-w-0"
+                        />
+                        <NaiveButton
+                            type="submit"
+                            disabled={!command_input.trim()}
+                            className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs hover:opacity-90 disabled:opacity-25 disabled:pointer-events-none shrink-0"
+                        >
+                            Send
+                        </NaiveButton>
+                    </form>
+                </>
             )}
 
             {/* Accessory Virtual Keys Bar */}

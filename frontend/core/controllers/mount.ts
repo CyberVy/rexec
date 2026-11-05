@@ -1,20 +1,28 @@
 import { session_controller } from "./session_controller"
 import { exec_controller } from "./exec_controller"
 import { pty_controller } from "./pty_controller"
+import { exec_shortcut_controller } from "./exec_shortcut_controller"
+import { pty_shortcut_controller } from "./pty_shortcut_controller"
 
 export const debug_controllers = {
     session: session_controller,
     exec: exec_controller,
     pty: pty_controller,
+    exec_shortcuts: exec_shortcut_controller,
+    pty_shortcuts: pty_shortcut_controller,
 
     session_controller,
     exec_controller,
     pty_controller,
+    exec_shortcut_controller,
+    pty_shortcut_controller,
 
     dump_state: () => ({
         session: session_controller.state,
         exec: exec_controller.state,
-        pty: pty_controller.state
+        pty: pty_controller.state,
+        exec_shortcuts: exec_shortcut_controller.state,
+        pty_shortcuts: pty_shortcut_controller.state
     })
 }
 

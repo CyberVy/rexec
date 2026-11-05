@@ -4,19 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useController } from "@/components/hooks"
 import { exec_controller } from "@/core/controllers/exec_controller"
 import { RunIcon, AbortIcon, ClearIcon, CopyIcon, CheckIcon } from "../icons"
-
-const PRESETS = [
-    "uname -a",
-    "pwd",
-    "ls",
-    "nvidia-smi",
-    "python3 --version",
-    "cat /etc/os-release",
-    "df -h",
-    "free -m",
-    "curl https://4.ident.me -s",
-    "curl https://ipinfo.io -s"
-]
+import { ExecShortcutBar } from "../shortcuts"
 
 export function ExecView() {
     const exec_state = useController(exec_controller, {
@@ -110,45 +98,33 @@ export function ExecView() {
                     )}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 flex-1 min-w-50">
-                        <span className="text-[11px] font-mono text-muted-foreground">cwd:</span>
-                        <input
-                            type="text"
-                            value={cwd_input}
-                            onChange={(e) => {
-                                set_cwd_input(e.target.value)
-                                exec_controller.set_cwd(e.target.value)
-                            }}
-                            autoCapitalize="none"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            placeholder="Optional working directory (e.g. /workspace)"
-                            disabled={exec_state.is_running}
-                            className="flex-1 max-w-sm px-2 py-0.5 rounded bg-background/50 border border-black/10 dark:border-white/10 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 disabled:opacity-50"
-                        />
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[11px] text-muted-foreground mr-1">Presets:</span>
-                        {PRESETS.map((preset) => (
-                            <button
-                                key={preset}
-                                type="button"
-                                onClick={() => {
-                                    set_cmd_input(preset)
-                                    exec_controller.set_command(preset)
-                                    handle_run(preset)
-                                }}
-                                disabled={exec_state.is_running}
-                                className="px-2 py-0.5 rounded text-[11px] font-mono bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 text-muted-foreground hover:text-foreground transition disabled:opacity-40"
-                            >
-                                {preset}
-                            </button>
-                        ))}
-                    </div>
+                <div className="flex items-center gap-2 text-xs">
+                    <span className="text-[11px] font-mono text-muted-foreground">cwd:</span>
+                    <input
+                        type="text"
+                        value={cwd_input}
+                        onChange={(e) => {
+                            set_cwd_input(e.target.value)
+                            exec_controller.set_cwd(e.target.value)
+                        }}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        placeholder="Optional working directory (e.g. /workspace)"
+                        disabled={exec_state.is_running}
+                        className="flex-1 max-w-sm px-2 py-0.5 rounded bg-background/50 border border-black/10 dark:border-white/10 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 disabled:opacity-50"
+                    />
                 </div>
             </div>
+
+            <ExecShortcutBar
+                disabled={exec_state.is_running}
+                on_run={(command) => {
+                    set_cmd_input(command)
+                    exec_controller.set_command(command)
+                    handle_run(command)
+                }}
+            />
 
             {/* Output Panel Header */}
             <div className="flex items-center justify-between text-xs px-1 shrink-0">

@@ -1,5 +1,7 @@
 export * from "./views/ExecView"
 export * from "./views/TerminalView"
 export * from "./views/NodesView"
+export * from "./shortcuts"
+export * from "./modals"
 export * from "./LaunchAnimation"
 export * from "./icons"
