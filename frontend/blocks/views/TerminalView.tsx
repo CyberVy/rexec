@@ -53,6 +53,7 @@ const ACCESSORY_KEYS: AccessoryKey[] = [
     { label: "ESC", payload: "\x1b", title: "Escape" },
     { label: "TAB", payload: "\t", title: "Tab" },
     { label: "ENTER", payload: "\r", title: "Enter" },
+    { label: "DEL", payload: "\x7f", title: "Delete" },
     { label: "^C", payload: "\x03", title: "Interrupt (SIGINT)" },
     { label: "←", payload: "\x1b[D", title: "Left" },
     { label: "→", payload: "\x1b[C", title: "Right" },
