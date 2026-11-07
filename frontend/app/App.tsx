@@ -33,14 +33,16 @@ export default function App() {
                     icon: <TerminalIcon className="size-5" />,
                     label: "Terminal",
                     swipe_enabled: true,
-                    content: <TerminalView />
+                    content: <TerminalView />,
+                    overscroll_enabled: false
                 },
                 {
                     id: "exec",
                     icon: <ExecIcon className="size-5" />,
                     label: "Exec",
                     swipe_enabled: true,
-                    content: <ExecView />
+                    content: <ExecView />,
+                    overscroll_enabled: false
                 },
                 {
                     id: "nodes",
