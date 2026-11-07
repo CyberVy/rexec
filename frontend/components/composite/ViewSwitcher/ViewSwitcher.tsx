@@ -75,6 +75,7 @@ export function ViewSwitcher<T extends string = string>({
     const active_view_remember_scroll = active_view_keep_alive && (active_view?.remember_scroll ?? remember_scroll)
     const active_swipe_enabled = active_view?.swipe_enabled
     const should_hide_toolbar = active_view?.should_hide_toolbar
+    const active_overscroll_enabled = active_view?.overscroll_enabled ?? true
 
     const commit_view_change = useCallback(
         (view_id: T) => {
@@ -173,7 +174,8 @@ export function ViewSwitcher<T extends string = string>({
             is_toolbar_visible: true,
             is_transitioning,
             active_view_id: current_active_view_id,
-            target_view_id
+            target_view_id,
+            overscroll_enabled: active_overscroll_enabled
         })
     }, [switcher_instance_id])
 
@@ -182,9 +184,17 @@ export function ViewSwitcher<T extends string = string>({
         view_switcher_controller.update_instance(switcher_instance_id, {
             is_transitioning,
             active_view_id: current_active_view_id,
-            target_view_id
+            target_view_id,
+            overscroll_enabled: active_overscroll_enabled
         })
-    }, [switcher_instance_id, transition_state, current_active_view_id, is_transitioning, target_view_id])
+    }, [
+        switcher_instance_id,
+        transition_state,
+        current_active_view_id,
+        is_transitioning,
+        target_view_id,
+        active_overscroll_enabled
+    ])
 
     // React to event-driven "switch_view" CustomEvent from controller
     useEffect(() => {

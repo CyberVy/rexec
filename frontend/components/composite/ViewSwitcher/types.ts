@@ -21,6 +21,8 @@ export interface View<T extends string = string> {
     swipe_enabled?: boolean | "left" | "right" | "both" | "none"
     /** Control whether to hide the floating toolbar based on scroll position */
     should_hide_toolbar?: boolean | ((scroll_y: number) => boolean)
+    /** Whether overscroll (rubber-band) behavior is enabled on the root element for this view. Defaults to true. */
+    overscroll_enabled?: boolean
 }
 
 export type ViewSwitcherProps<T extends string = string> = Omit<
@@ -72,6 +74,7 @@ export interface ViewSwitcherState {
     has_other_transitioning: boolean
     active_view_id: string
     target_view_id: string | null
+    overscroll_enabled: boolean
 }
 
 export type ViewSwitcherInitState = Omit<ViewSwitcherState, "has_other_transitioning">

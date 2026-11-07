@@ -23,7 +23,8 @@ export const STATIC_EMPTY_VIEW_SWITCHER_STATE: ViewSwitcherState = {
     is_transitioning: false,
     has_other_transitioning: false,
     active_view_id: "",
-    target_view_id: null
+    target_view_id: null,
+    overscroll_enabled: true
 }
 
 export const INITIAL_VIEW_SWITCHER_REGISTRY_STATE: ViewSwitcherRegistryState = {
@@ -52,14 +53,16 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
                   is_transitioning: initial_state.is_transitioning,
                   active_view_id: initial_state.active_view_id,
                   target_view_id: initial_state.target_view_id,
-                  is_toolbar_visible: existing_raw.is_toolbar_visible
+                  is_toolbar_visible: existing_raw.is_toolbar_visible,
+                  overscroll_enabled: initial_state.overscroll_enabled
               }
             : {
                   id: initial_state.id,
                   is_toolbar_visible: initial_state.is_toolbar_visible,
                   is_transitioning: initial_state.is_transitioning,
                   active_view_id: initial_state.active_view_id,
-                  target_view_id: initial_state.target_view_id
+                  target_view_id: initial_state.target_view_id,
+                  overscroll_enabled: initial_state.overscroll_enabled
               }
 
         this.raw_instances[id] = raw_state
@@ -104,6 +107,11 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
             changed = true
         }
 
+        if (updates.overscroll_enabled !== undefined && updates.overscroll_enabled !== current_raw.overscroll_enabled) {
+            next_raw.overscroll_enabled = updates.overscroll_enabled
+            changed = true
+        }
+
         if (!changed) return
 
         if (updates.is_transitioning === false && id in this.pending_visibilities) {
@@ -143,7 +151,8 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
                 is_toolbar_visible: visible,
                 is_transitioning: false,
                 active_view_id: "",
-                target_view_id: null
+                target_view_id: null,
+                overscroll_enabled: true
             }
             this.recompute_state()
         }
@@ -213,7 +222,8 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
             is_transitioning: false,
             has_other_transitioning,
             active_view_id: "",
-            target_view_id: null
+            target_view_id: null,
+            overscroll_enabled: true
         }
         this.fallback_states[id] = new_fallback
         return new_fallback
@@ -267,7 +277,8 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
                 prev.is_transitioning === raw.is_transitioning &&
                 prev.has_other_transitioning === has_other_trans &&
                 prev.active_view_id === raw.active_view_id &&
-                prev.target_view_id === raw.target_view_id
+                prev.target_view_id === raw.target_view_id &&
+                prev.overscroll_enabled === raw.overscroll_enabled
             ) {
                 next_instances[id] = prev
             } else {
@@ -277,7 +288,8 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
                     is_transitioning: raw.is_transitioning,
                     has_other_transitioning: has_other_trans,
                     active_view_id: raw.active_view_id,
-                    target_view_id: raw.target_view_id
+                    target_view_id: raw.target_view_id,
+                    overscroll_enabled: raw.overscroll_enabled
                 }
                 any_instance_changed = true
             }
@@ -294,6 +306,20 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
             }
             this.dispatchEvent(new Event("change"))
         }
+
+        this.sync_root_overscroll()
+    }
+
+    private sync_root_overscroll(): void {
+        if (typeof document === "undefined") return
+        let should_disable = false
+        for (const raw of Object.values(this.raw_instances)) {
+            if (raw.overscroll_enabled === false) {
+                should_disable = true
+                break
+            }
+        }
+        document.documentElement.style.overscrollBehaviorY = should_disable ? "none" : ""
     }
 }
 
