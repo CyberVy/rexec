@@ -432,7 +432,7 @@ export function TerminalView() {
                             <button
                                 type="button"
                                 onClick={handle_connect}
-                                disabled={!session_state.agent_online && !session_state.is_checking}
+                                disabled={!session_state.agent_online}
                                 className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5 cursor-pointer"
                             >
                                 <RunIcon className="size-3" /> Connect
