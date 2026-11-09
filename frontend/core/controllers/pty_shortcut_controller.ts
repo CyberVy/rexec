@@ -26,7 +26,9 @@ const PTY_SHORTCUT_SEED: PtyShortcut[] = [
     { id: "pty_quit", label: "q", payload: "q", kind: "key" }
 ]
 
-function normalize_pty_draft(draft: PtyShortcutDraft): { label: string; payload: string; kind: PtyShortcutKind } | null {
+function normalize_pty_draft(
+    draft: PtyShortcutDraft
+): { label: string; payload: string; kind: PtyShortcutKind } | null {
     const payload = draft.kind === "key" ? draft.payload : draft.payload.trim()
     if (!payload) return null
     const label = draft.label.trim() || payload

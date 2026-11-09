@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { TerminalView, ExecView, NodesView, TerminalIcon, ExecIcon, NodesIcon } from "@/blocks"
+import { TerminalView, ExecView, NodesView, TerminalIcon, ExecIcon, NodesIcon, LaunchAnimation } from "@/blocks"
 import { ViewSwitcher } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 import { mount_debug_controllers } from "@/core/controllers/mount"
@@ -10,6 +10,7 @@ type ActiveView = "terminal" | "exec" | "nodes"
 
 export default function App() {
     const [active_view, set_active_view] = useState<ActiveView>("terminal")
+    const [show_launch_animation, set_show_launch_animation] = useState(true)
 
     useEffect(() => {
         mount_debug_controllers()
@@ -20,38 +21,43 @@ export default function App() {
     }, [])
 
     return (
-        <ViewSwitcher<ActiveView>
-            id="rexec_view_switcher"
-            className="select-none"
-            toolbar_layout="bottom-floating"
-            active_view_id={active_view}
-            on_view_change={set_active_view}
-            keep_alive_default={true}
-            views={[
-                {
-                    id: "terminal",
-                    icon: <TerminalIcon className="size-5" />,
-                    label: "Terminal",
-                    swipe_enabled: true,
-                    content: <TerminalView />,
-                    overscroll_enabled: false
-                },
-                {
-                    id: "exec",
-                    icon: <ExecIcon className="size-5" />,
-                    label: "Exec",
-                    swipe_enabled: true,
-                    content: <ExecView />,
-                    overscroll_enabled: false
-                },
-                {
-                    id: "nodes",
-                    icon: <NodesIcon className="size-5" />,
-                    label: "Nodes",
-                    swipe_enabled: true,
-                    content: <NodesView />
-                }
-            ]}
-        />
+        <>
+            <div className="select-none" {...(show_launch_animation ? { inert: true } : {})}>
+                <ViewSwitcher<ActiveView>
+                    id="rexec_view_switcher"
+                    className="select-none"
+                    toolbar_layout="bottom-floating"
+                    active_view_id={active_view}
+                    on_view_change={set_active_view}
+                    keep_alive_default={true}
+                    views={[
+                        {
+                            id: "terminal",
+                            icon: <TerminalIcon className="size-5" />,
+                            label: "Terminal",
+                            swipe_enabled: true,
+                            content: <TerminalView />,
+                            overscroll_enabled: false
+                        },
+                        {
+                            id: "exec",
+                            icon: <ExecIcon className="size-5" />,
+                            label: "Exec",
+                            swipe_enabled: true,
+                            content: <ExecView />,
+                            overscroll_enabled: false
+                        },
+                        {
+                            id: "nodes",
+                            icon: <NodesIcon className="size-5" />,
+                            label: "Nodes",
+                            swipe_enabled: true,
+                            content: <NodesView />
+                        }
+                    ]}
+                />
+            </div>
+            {show_launch_animation && <LaunchAnimation on_finish={() => set_show_launch_animation(false)} />}
+        </>
     )
 }
