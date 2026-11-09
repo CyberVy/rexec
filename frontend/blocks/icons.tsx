@@ -408,63 +408,63 @@ export function LaunchLogo({ size = 192, width, height, className = "", ...props
                     .rexec-path-lobe {
                         stroke-dasharray: 100;
                         stroke-dashoffset: 100;
-                        animation: rexec_draw_mesh 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.05s forwards;
+                        animation: rexec_draw_mesh 0.48s cubic-bezier(0.16, 1, 0.3, 1) 0.03s forwards;
                     }
                     .rexec-path-tail {
                         stroke-dasharray: 100;
                         stroke-dashoffset: 100;
-                        animation: rexec_draw_mesh 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.35s forwards;
+                        animation: rexec_draw_mesh 0.48s cubic-bezier(0.16, 1, 0.3, 1) 0.22s forwards;
                     }
                     .rexec-path-inner {
                         stroke-dasharray: 100;
                         stroke-dashoffset: 100;
-                        animation: rexec_draw_mesh 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+                        animation: rexec_draw_mesh 0.48s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
                     }
                     .rexec-path-radial {
                         stroke-dasharray: 100;
                         stroke-dashoffset: 100;
-                        animation: rexec_draw_mesh 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.25s forwards;
+                        animation: rexec_draw_mesh 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.16s forwards;
                     }
                     .rexec-node-spine, .rexec-node-outer, .rexec-node-inner, .rexec-node-tail {
                         opacity: 0;
                     }
                     .rexec-node-inner {
-                        animation: rexec_node_appear 0.35s ease-out 0.3s forwards;
+                        animation: rexec_node_appear 0.22s ease-out 0.19s forwards;
                     }
                     .rexec-node-outer {
-                        animation: rexec_node_appear 0.35s ease-out 0.45s forwards;
+                        animation: rexec_node_appear 0.22s ease-out 0.28s forwards;
                     }
                     .rexec-node-spine {
-                        animation: rexec_node_appear 0.35s ease-out 0.55s forwards;
+                        animation: rexec_node_appear 0.22s ease-out 0.35s forwards;
                     }
                     .rexec-node-tail {
-                        animation: rexec_node_appear 0.35s ease-out 0.65s forwards;
+                        animation: rexec_node_appear 0.22s ease-out 0.41s forwards;
                     }
                     .rexec-hub-halo {
                         transform: scale(0.3);
                         opacity: 0;
-                        animation: rexec_hub_glow 0.65s cubic-bezier(0.16, 1, 0.3, 1) 0.65s forwards,
-                                   rexec_hub_idle 2.2s ease-in-out 1.4s infinite alternate;
+                        animation: rexec_hub_glow 0.42s cubic-bezier(0.16, 1, 0.3, 1) 0.42s forwards,
+                                   rexec_hub_idle 1.8s ease-in-out 0.9s infinite alternate;
                     }
                     .rexec-hub-core {
                         transform: scale(0);
                         opacity: 0;
-                        animation: rexec_hub_core 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.72s forwards;
+                        animation: rexec_hub_core 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) 0.46s forwards;
                     }
                     .rexec-wave-primary {
                         stroke-dasharray: 100;
                         stroke-dashoffset: 100;
-                        animation: rexec_wave_shoot 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.9s forwards;
+                        animation: rexec_wave_shoot 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.58s forwards;
                     }
                     .rexec-wave-secondary {
                         stroke-dasharray: 100;
                         stroke-dashoffset: 100;
-                        animation: rexec_wave_shoot 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.95s forwards;
+                        animation: rexec_wave_shoot 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0.62s forwards;
                     }
                     .rexec-arrow-head {
                         transform: scale(0);
                         opacity: 0;
-                        animation: rexec_arrow_head 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 1.25s forwards;
+                        animation: rexec_arrow_head 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) 0.8s forwards;
                     }
                     @keyframes rexec_draw_mesh {
                         0% {
