@@ -124,26 +124,7 @@ export default defineConfig({
         service_worker_plugin(),
         react({
             compiler: true
-        }),
-        {
-            name: "native-entry-handler",
-            configureServer(server) {
-                server.middlewares.use((req, _res, next) => {
-                    if (req.url === "/native_entry" || req.url === "/native_entry/") {
-                        req.url = "/native_entry/index.html"
-                    }
-                    next()
-                })
-            },
-            closeBundle() {
-                const out_dir = path.resolve(import.meta.dirname, "dist")
-                const src_file = path.join(out_dir, "native_entry/index.html")
-                const dest_file = path.join(out_dir, "native_entry.html")
-                if (fs.existsSync(src_file)) {
-                    fs.copyFileSync(src_file, dest_file)
-                }
-            }
-        }
+        })
     ],
     resolve: {
         alias: {
@@ -163,8 +144,7 @@ export default defineConfig({
         emptyOutDir: false,
         rollupOptions: {
             input: {
-                main: path.resolve(import.meta.dirname, "frontend/app/index.html"),
-                native_entry: path.resolve(import.meta.dirname, "frontend/app/native_entry/index.html")
+                main: path.resolve(import.meta.dirname, "frontend/app/index.html")
             }
         }
     },
