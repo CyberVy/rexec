@@ -103,7 +103,6 @@ export class SessionController extends BaseController<SessionState> {
             active_agent_id: id,
             ...this.sync_active_snapshot(target)
         })
-        this.dispatchEvent(new Event("change"))
         this.dispatchEvent(new Event("status_change"))
         this.refresh_agent_status(id)
     }
@@ -142,7 +141,6 @@ export class SessionController extends BaseController<SessionState> {
             agents: next_agents,
             ...(is_first ? this.sync_active_snapshot(new_record) : {})
         })
-        this.dispatchEvent(new Event("change"))
         if (is_first) {
             this.dispatchEvent(new Event("status_change"))
         }
@@ -173,7 +171,6 @@ export class SessionController extends BaseController<SessionState> {
             agents: next_agents,
             ...this.sync_active_snapshot(active_agent)
         })
-        this.dispatchEvent(new Event("change"))
         this.dispatchEvent(new Event("status_change"))
         return true
     }
@@ -204,7 +201,6 @@ export class SessionController extends BaseController<SessionState> {
             agents: next_agents,
             ...(is_active ? this.sync_active_snapshot(updated_record) : {})
         })
-        this.dispatchEvent(new Event("change"))
         this.refresh_agent_status(id)
     }
 
@@ -253,7 +249,6 @@ export class SessionController extends BaseController<SessionState> {
                 agents: next_agents,
                 ...(is_active ? this.sync_active_snapshot(error_record) : {})
             })
-            this.dispatchEvent(new Event("change"))
             return null
         }
 
@@ -265,7 +260,6 @@ export class SessionController extends BaseController<SessionState> {
             agents: intermediate_agents,
             ...(is_active ? this.sync_active_snapshot(checking_record) : {})
         })
-        this.dispatchEvent(new Event("change"))
 
         const caller = new RexecCaller({
             hub_url: agent.hub_url,
@@ -304,7 +298,6 @@ export class SessionController extends BaseController<SessionState> {
                 agents: next_agents,
                 ...(is_active ? this.sync_active_snapshot(updated_record) : {})
             })
-            this.dispatchEvent(new Event("change"))
             this.dispatchEvent(new Event("status_change"))
             return status
         } catch (err) {
@@ -325,7 +318,6 @@ export class SessionController extends BaseController<SessionState> {
                 agents: next_agents,
                 ...(is_active ? this.sync_active_snapshot(failed_record) : {})
             })
-            this.dispatchEvent(new Event("change"))
             this.dispatchEvent(new Event("status_change"))
             return null
         }

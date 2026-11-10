@@ -78,13 +78,11 @@ export class PtyController extends BaseController<PtyState> {
     public async refresh_sessions(): Promise<PtySessionInfo[]> {
         if (!session_controller.state.hub_url) {
             this.update_state({ sessions: [], is_listing: false })
-            this.dispatchEvent(new Event("change"))
             return []
         }
 
         const caller = session_controller.get_caller()
         this.update_state({ is_listing: true })
-        this.dispatchEvent(new Event("change"))
         try {
             const sessions = await caller.list_ptys()
             const active_session = sessions.find((s) => s.session_id === this.state.session_id)
@@ -94,12 +92,10 @@ export class PtyController extends BaseController<PtyState> {
                 is_listing: false,
                 cwd: next_cwd
             })
-            this.dispatchEvent(new Event("change"))
             return sessions
         } catch (err) {
             logger.warn("Failed to list PTY sessions", err)
             this.update_state({ is_listing: false })
-            this.dispatchEvent(new Event("change"))
             return []
         }
     }
@@ -108,7 +104,6 @@ export class PtyController extends BaseController<PtyState> {
         const parsed = parse_osc7_path(osc_data)
         if (!parsed || parsed === this.state.cwd) return
         this.update_state({ cwd: parsed })
-        this.dispatchEvent(new Event("change"))
     }
 
     public async load_directory(target_path?: string): Promise<void> {
@@ -117,7 +112,6 @@ export class PtyController extends BaseController<PtyState> {
                 is_loading_dir: false,
                 dir_error: "Hub URL is required"
             })
-            this.dispatchEvent(new Event("change"))
             return
         }
 
@@ -133,7 +127,6 @@ export class PtyController extends BaseController<PtyState> {
             dir_error: null,
             ...(target_path ? { dir_path: target_path } : {})
         })
-        this.dispatchEvent(new Event("change"))
 
         try {
             const caller = session_controller.get_caller()
@@ -145,7 +138,6 @@ export class PtyController extends BaseController<PtyState> {
                 dir_error: null,
                 cwd: this.state.cwd ?? snapshot.resolved_cwd
             })
-            this.dispatchEvent(new Event("change"))
         } catch (err) {
             if (signal.aborted) return
             const message = err instanceof Error ? err.message : String(err)
@@ -154,7 +146,6 @@ export class PtyController extends BaseController<PtyState> {
                 is_loading_dir: false,
                 dir_error: message
             })
-            this.dispatchEvent(new Event("change"))
         } finally {
             if (this.dir_abort_controller?.signal === signal) {
                 this.dir_abort_controller = null
@@ -176,7 +167,6 @@ export class PtyController extends BaseController<PtyState> {
             cwd: target_path,
             dir_path: target_path
         })
-        this.dispatchEvent(new Event("change"))
     }
 
     public async kill_session(session_id: string): Promise<void> {
@@ -237,7 +227,6 @@ export class PtyController extends BaseController<PtyState> {
             cols,
             rows
         })
-        this.dispatchEvent(new Event("change"))
 
         try {
             const pty_client = await caller.open_pty({
@@ -263,7 +252,6 @@ export class PtyController extends BaseController<PtyState> {
                 session_id: pty_client.session_id,
                 error: null
             })
-            this.dispatchEvent(new Event("change"))
             this.dispatchEvent(new Event("ready"))
 
             // Refresh sessions in background
@@ -295,7 +283,6 @@ export class PtyController extends BaseController<PtyState> {
                         status: "exited",
                         exit_code: status.code
                     })
-                    this.dispatchEvent(new Event("change"))
                     this.dispatchEvent(new Event("exit"))
                     void this.refresh_sessions()
                 })
@@ -347,7 +334,6 @@ export class PtyController extends BaseController<PtyState> {
             status: "error",
             error: pty_taken_by_another_caller(err) ? "Session is open in another client" : message
         })
-        this.dispatchEvent(new Event("change"))
         if (from_open_session) this.dispatchEvent(new Event("exit"))
         void this.refresh_sessions()
     }
@@ -359,7 +345,6 @@ export class PtyController extends BaseController<PtyState> {
         logger.info(`Scheduling PTY reconnect in ${backoff}ms (attempt ${this.reconnect_attempts})`)
 
         this.update_state({ status: "connecting" })
-        this.dispatchEvent(new Event("change"))
 
         if (this.reconnect_timer) clearTimeout(this.reconnect_timer)
         this.reconnect_timer = setTimeout(() => {
@@ -403,7 +388,6 @@ export class PtyController extends BaseController<PtyState> {
             status: "disconnected",
             session_id: null
         })
-        this.dispatchEvent(new Event("change"))
         void this.refresh_sessions()
     }
 }

@@ -38,12 +38,10 @@ export class ExecController extends BaseController<ExecState> {
 
     public set_command(command: string): void {
         this.update_state({ command })
-        this.dispatchEvent(new Event("change"))
     }
 
     public set_cwd(cwd: string): void {
         this.update_state({ cwd })
-        this.dispatchEvent(new Event("change"))
     }
 
     public clear_output(): void {
@@ -53,7 +51,6 @@ export class ExecController extends BaseController<ExecState> {
             duration_ms: null,
             error: null
         })
-        this.dispatchEvent(new Event("change"))
     }
 
     public abort(): void {
@@ -64,7 +61,6 @@ export class ExecController extends BaseController<ExecState> {
                 is_running: false,
                 error: "Execution aborted by user"
             })
-            this.dispatchEvent(new Event("change"))
         }
     }
 
@@ -81,7 +77,6 @@ export class ExecController extends BaseController<ExecState> {
                 is_running: false,
                 error: "Hub URL is required"
             })
-            this.dispatchEvent(new Event("change"))
             return null
         }
 
@@ -100,7 +95,6 @@ export class ExecController extends BaseController<ExecState> {
             error: null,
             chunks: []
         })
-        this.dispatchEvent(new Event("change"))
 
         const start_time = performance.now()
 
@@ -122,7 +116,6 @@ export class ExecController extends BaseController<ExecState> {
                         chunks: [...current_chunks, chunk]
                     })
                     this.dispatchEvent(new Event("chunk"))
-                    this.dispatchEvent(new Event("change"))
                 }
             )
 
@@ -132,7 +125,6 @@ export class ExecController extends BaseController<ExecState> {
                 exit_code,
                 duration_ms: duration
             })
-            this.dispatchEvent(new Event("change"))
             this.dispatchEvent(new Event("finish"))
             return exit_code
         } catch (err) {
@@ -147,7 +139,6 @@ export class ExecController extends BaseController<ExecState> {
                 error: message,
                 duration_ms: duration
             })
-            this.dispatchEvent(new Event("change"))
             this.dispatchEvent(new Event("finish"))
             return null
         } finally {

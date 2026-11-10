@@ -47,7 +47,6 @@ export class ExecShortcutController extends BaseController<ExecShortcutState> {
     private commit(items: ExecShortcut[]): void {
         this.catalog.write(items)
         this.update_state({ items })
-        this.dispatchEvent(new Event("change"))
     }
 
     public add(draft: ExecShortcutDraft): void {

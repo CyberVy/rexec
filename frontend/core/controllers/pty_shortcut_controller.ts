@@ -46,7 +46,6 @@ export class PtyShortcutController extends BaseController<PtyShortcutState> {
     private commit(items: PtyShortcut[]): void {
         this.catalog.write(items)
         this.update_state({ items })
-        this.dispatchEvent(new Event("change"))
     }
 
     public add(draft: PtyShortcutDraft): void {
