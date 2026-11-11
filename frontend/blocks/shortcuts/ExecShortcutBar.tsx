@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
+import { view_switcher_controller } from "@/components"
 import { exec_shortcut_controller } from "@/core/controllers/exec_shortcut_controller"
 import { SHORTCUT_INPUT_CLASS, ShortcutEditorField, ShortcutEditorModal } from "../modals"
 import { ShortcutStrip } from "./ShortcutStrip"
@@ -24,10 +25,27 @@ export function ExecShortcutBar({ disabled = false, on_run }: ExecShortcutBarPro
     const [editing_id, set_editing_id] = useState<string | null>(null)
     const [form, set_form] = useState<ExecShortcutForm>(EMPTY_FORM)
 
-    const reset_form = () => {
+    const reset_form = useCallback(() => {
         set_editing_id(null)
         set_form(EMPTY_FORM)
-    }
+    }, [])
+
+    const handle_open_editor = useCallback(() => {
+        set_is_editor_open((prev) => {
+            if (prev) return prev
+            view_switcher_controller.hide_all_toolbars()
+            return true
+        })
+    }, [])
+
+    const handle_close_editor = useCallback(() => {
+        set_is_editor_open((prev) => {
+            if (!prev) return prev
+            view_switcher_controller.show_all_toolbars()
+            return false
+        })
+        reset_form()
+    }, [reset_form])
 
     const handle_save = (event: React.FormEvent) => {
         event.preventDefault()
@@ -55,7 +73,7 @@ export function ExecShortcutBar({ disabled = false, on_run }: ExecShortcutBarPro
                     if (!item) return
                     on_run(item.command)
                 }}
-                on_manage={() => set_is_editor_open(true)}
+                on_manage={handle_open_editor}
             />
             <ShortcutEditorModal
                 title="Exec Shortcuts"
@@ -66,10 +84,7 @@ export function ExecShortcutBar({ disabled = false, on_run }: ExecShortcutBarPro
                     label: item.label,
                     detail: item.command
                 }))}
-                on_close={() => {
-                    set_is_editor_open(false)
-                    reset_form()
-                }}
+                on_close={handle_close_editor}
                 on_edit={(id) => {
                     const item = shortcut_state.items.find((entry) => entry.id === id)
                     if (!item) return

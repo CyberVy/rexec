@@ -154,22 +154,6 @@ export function TerminalView() {
         })
     }, [])
 
-    const attach_sessions_modal_ref = useCallback((node: HTMLDivElement | null) => {
-        if (!node) return
-        view_switcher_controller.hide_all_toolbars()
-        return () => {
-            view_switcher_controller.show_all_toolbars()
-        }
-    }, [])
-
-    const attach_workspace_modal_ref = useCallback((node: HTMLDivElement | null) => {
-        if (!node) return
-        view_switcher_controller.hide_all_toolbars()
-        return () => {
-            view_switcher_controller.show_all_toolbars()
-        }
-    }, [])
-
     const [command_input, set_command_input] = useState("")
     const [command_history, set_command_history] = useState<string[]>([])
     const [history_index, set_history_index] = useState(-1)
@@ -657,7 +641,6 @@ export function TerminalView() {
                     className="fixed inset-0 z-50"
                 >
                     <FullscreenModalContainer
-                        ref={attach_sessions_modal_ref}
                         enable_escape={is_sessions_modal_open}
                         on_escape={handle_close_sessions_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
@@ -859,7 +842,6 @@ export function TerminalView() {
                     className="fixed inset-0 z-50"
                 >
                     <FullscreenModalContainer
-                        ref={attach_workspace_modal_ref}
                         enable_escape={is_workspace_modal_open}
                         on_escape={handle_close_workspace_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"

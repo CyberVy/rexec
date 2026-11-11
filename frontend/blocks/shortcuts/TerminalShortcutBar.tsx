@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
+import { view_switcher_controller } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { pty_shortcut_controller, type PtyShortcutKind } from "@/core/controllers/pty_shortcut_controller"
 import { SHORTCUT_INPUT_CLASS, ShortcutEditorField, ShortcutEditorModal } from "../modals"
@@ -36,10 +37,27 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
     const [editing_id, set_editing_id] = useState<string | null>(null)
     const [form, set_form] = useState<TerminalShortcutForm>(EMPTY_FORM)
 
-    const reset_form = () => {
+    const reset_form = useCallback(() => {
         set_editing_id(null)
         set_form(EMPTY_FORM)
-    }
+    }, [])
+
+    const handle_open_editor = useCallback(() => {
+        set_is_editor_open((prev) => {
+            if (prev) return prev
+            view_switcher_controller.hide_all_toolbars()
+            return true
+        })
+    }, [])
+
+    const handle_close_editor = useCallback(() => {
+        set_is_editor_open((prev) => {
+            if (!prev) return prev
+            view_switcher_controller.show_all_toolbars()
+            return false
+        })
+        reset_form()
+    }, [reset_form])
 
     const handle_save = (event: React.FormEvent) => {
         event.preventDefault()
@@ -70,7 +88,7 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                     if (!item) return
                     send_terminal_shortcut(item.kind, item.payload)
                 }}
-                on_manage={() => set_is_editor_open(true)}
+                on_manage={handle_open_editor}
             />
             <ShortcutEditorModal
                 title="Terminal Shortcuts"
@@ -81,10 +99,7 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                     label: item.label,
                     detail: item.kind === "key" ? `key  ${item.payload}` : item.payload
                 }))}
-                on_close={() => {
-                    set_is_editor_open(false)
-                    reset_form()
-                }}
+                on_close={handle_close_editor}
                 on_edit={(id) => {
                     const item = shortcut_state.items.find((entry) => entry.id === id)
                     if (!item) return

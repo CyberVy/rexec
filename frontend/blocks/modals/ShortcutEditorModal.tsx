@@ -1,6 +1,5 @@
 "use client"
 
-import { useCallback } from "react"
 import type { ReactNode } from "react"
 import {
     AnimationContainer,
@@ -8,8 +7,7 @@ import {
     BodyPortal,
     ButtonGroup,
     CloseIcon,
-    FullscreenModalContainer,
-    view_switcher_controller
+    FullscreenModalContainer
 } from "@/components"
 import { TrashIcon } from "../icons"
 
@@ -54,19 +52,6 @@ export function ShortcutEditorModal({
     on_move,
     children
 }: ShortcutEditorModalProps) {
-    const handle_close = useCallback(() => {
-        view_switcher_controller.show_all_toolbars()
-        on_close()
-    }, [on_close])
-
-    const attach_modal_ref = useCallback((node: HTMLDivElement | null) => {
-        if (!node) return
-        view_switcher_controller.hide_all_toolbars()
-        return () => {
-            view_switcher_controller.show_all_toolbars()
-        }
-    }, [])
-
     return (
         <BodyPortal>
             <AnimationContainer
@@ -78,9 +63,8 @@ export function ShortcutEditorModal({
                 className="fixed inset-0 z-50"
             >
                 <FullscreenModalContainer
-                    ref={attach_modal_ref}
                     enable_escape={open}
-                    on_escape={handle_close}
+                    on_escape={on_close}
                     className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
                 >
                     <div className="w-full max-w-xl mx-auto flex flex-col gap-4 py-2">
@@ -88,7 +72,7 @@ export function ShortcutEditorModal({
                             <span className="font-semibold text-base font-mono text-foreground">{title}</span>
                             <button
                                 type="button"
-                                onClick={handle_close}
+                                onClick={on_close}
                                 className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
                                 title="Close"
                             >
@@ -168,7 +152,7 @@ export function ShortcutEditorModal({
                         {
                             content: <BackIcon key="back" />,
                             className: "w-10 h-10",
-                            on_click: handle_close
+                            on_click: on_close
                         }
                     ]}
                 />
