@@ -40,13 +40,37 @@ function AnimationContainer({
         (element: HTMLDivElement | null) => {
             element_ref.current = element
 
-            if (typeof ref === "function") {
-                ref(element)
+            if (!element) {
+                if (typeof ref === "function") {
+                    ref(null)
+                } else if (ref) {
+                    ref.current = null
+                }
                 return
+            }
+
+            if (typeof ref === "function") {
+                const cleanup = ref(element)
+                return () => {
+                    element_ref.current = null
+                    if (typeof cleanup === "function") {
+                        cleanup()
+                    } else {
+                        ref(null)
+                    }
+                }
             }
 
             if (ref) {
                 ref.current = element
+                return () => {
+                    element_ref.current = null
+                    ref.current = null
+                }
+            }
+
+            return () => {
+                element_ref.current = null
             }
         },
         [ref]

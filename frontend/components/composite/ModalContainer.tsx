@@ -27,12 +27,38 @@ function FullscreenModalContainer({
     const set_container_ref = useCallback(
         (node: HTMLDivElement | null) => {
             container_ref.current = node
-            if (typeof ref === "function") {
-                ref(node)
+
+            if (!node) {
+                if (typeof ref === "function") {
+                    ref(null)
+                } else if (ref) {
+                    ref.current = null
+                }
                 return
             }
+
+            if (typeof ref === "function") {
+                const cleanup = ref(node)
+                return () => {
+                    container_ref.current = null
+                    if (typeof cleanup === "function") {
+                        cleanup()
+                    } else {
+                        ref(null)
+                    }
+                }
+            }
+
             if (ref) {
                 ref.current = node
+                return () => {
+                    container_ref.current = null
+                    ref.current = null
+                }
+            }
+
+            return () => {
+                container_ref.current = null
             }
         },
         [ref]

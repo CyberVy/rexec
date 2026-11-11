@@ -58,8 +58,39 @@ export function ViewSwitcher<T extends string = string>({
     const set_container_element_ref = useCallback(
         (element: HTMLDivElement | null) => {
             container_element_ref.current = element
-            if (typeof ref === "function") ref(element)
-            else if (ref) ref.current = element
+
+            if (!element) {
+                if (typeof ref === "function") {
+                    ref(null)
+                } else if (ref) {
+                    ref.current = null
+                }
+                return
+            }
+
+            if (typeof ref === "function") {
+                const cleanup = ref(element)
+                return () => {
+                    container_element_ref.current = null
+                    if (typeof cleanup === "function") {
+                        cleanup()
+                    } else {
+                        ref(null)
+                    }
+                }
+            }
+
+            if (ref) {
+                ref.current = element
+                return () => {
+                    container_element_ref.current = null
+                    ref.current = null
+                }
+            }
+
+            return () => {
+                container_element_ref.current = null
+            }
         },
         [ref]
     )
