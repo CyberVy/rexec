@@ -26,7 +26,11 @@ function send_terminal_shortcut(kind: PtyShortcutKind, payload: string): void {
     pty_controller.send(payload)
 }
 
-export function TerminalShortcutBar() {
+export interface TerminalShortcutBarProps {
+    disabled?: boolean
+}
+
+export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarProps = {}) {
     const shortcut_state = useController(pty_shortcut_controller, { events: ["change"] })
     const [is_editor_open, set_is_editor_open] = useState(false)
     const [editing_id, set_editing_id] = useState<string | null>(null)
@@ -58,8 +62,10 @@ export function TerminalShortcutBar() {
                     title: item.kind === "key" ? `Keys: ${item.payload}` : item.payload,
                     note: item.kind === "key" ? "key" : undefined
                 }))}
+                disabled={disabled}
                 manage_label="Edit terminal shortcuts"
                 on_select={(id) => {
+                    if (disabled) return
                     const item = shortcut_state.items.find((entry) => entry.id === id)
                     if (!item) return
                     send_terminal_shortcut(item.kind, item.payload)

@@ -5,3 +5,4 @@ export { ExecShortcutBar } from "./ExecShortcutBar"
 export type { ExecShortcutBarProps } from "./ExecShortcutBar"
 
 export { TerminalShortcutBar } from "./TerminalShortcutBar"
+export type { TerminalShortcutBarProps } from "./TerminalShortcutBar"

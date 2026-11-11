@@ -179,6 +179,7 @@ export function TerminalView() {
     const pty_state = useController(pty_controller, {
         events: ["change", "ready", "exit"]
     })
+    const is_connected = pty_state.status === "connected"
 
     const session_state = useController(session_controller, {
         events: ["change", "status_change"]
@@ -327,6 +328,7 @@ export function TerminalView() {
 
     const handle_command_submit = (e: React.FormEvent) => {
         e.preventDefault()
+        if (!is_connected) return
         const trimmed = command_input
         if (!trimmed) return
         pty_controller.send(trimmed + "\r")
@@ -362,6 +364,7 @@ export function TerminalView() {
     const handle_paste_event = (e: React.ClipboardEvent<HTMLInputElement>) => {
         const text = e.clipboardData.getData("text")
         if (text.includes("\n")) {
+            if (!is_connected) return
             e.preventDefault()
             if (term_ref.current) {
                 term_ref.current.paste(text)
@@ -576,42 +579,47 @@ export function TerminalView() {
                 )}
             </div>
 
-            {pty_state.status === "connected" && (
-                <>
-                    <TerminalShortcutBar />
-                    <form
-                        onSubmit={handle_command_submit}
-                        className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
-                    >
-                        <span className="text-muted-foreground select-none shrink-0 font-bold">$</span>
-                        <input
-                            ref={command_input_ref}
-                            type="text"
-                            value={command_input}
-                            onChange={(e) => {
-                                set_command_input(e.target.value)
-                                if (history_index !== -1) {
-                                    set_history_index(-1)
-                                }
-                            }}
-                            onKeyDown={handle_command_keydown}
-                            onPaste={handle_paste_event}
-                            placeholder="Type command or paste..."
-                            autoCapitalize="none"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            className="flex-1 bg-transparent border-none outline-hidden text-foreground placeholder:text-muted-foreground text-xs font-mono min-w-0"
-                        />
-                        <NaiveButton
-                            type="submit"
-                            disabled={!command_input.trim()}
-                            className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs hover:opacity-90 disabled:opacity-25 disabled:pointer-events-none shrink-0"
-                        >
-                            Send
-                        </NaiveButton>
-                    </form>
-                </>
-            )}
+            {/* Terminal Shortcut Chips Bar */}
+            <TerminalShortcutBar disabled={!is_connected} />
+
+            {/* Zero-latency Command Input Bar */}
+            <form
+                onSubmit={handle_command_submit}
+                className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
+            >
+                <span className="text-muted-foreground select-none shrink-0 font-bold">$</span>
+                <input
+                    ref={command_input_ref}
+                    type="text"
+                    value={command_input}
+                    onChange={(e) => {
+                        set_command_input(e.target.value)
+                        if (history_index !== -1) {
+                            set_history_index(-1)
+                        }
+                    }}
+                    onKeyDown={handle_command_keydown}
+                    onPaste={handle_paste_event}
+                    placeholder={
+                        is_connected
+                            ? "Type command or paste..."
+                            : pty_state.status === "connecting"
+                              ? "Connecting terminal (type to draft)..."
+                              : "Terminal disconnected (type to draft)..."
+                    }
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="flex-1 bg-transparent border-none outline-hidden text-foreground placeholder:text-muted-foreground text-xs font-mono min-w-0"
+                />
+                <NaiveButton
+                    type="submit"
+                    disabled={!is_connected || !command_input.trim()}
+                    className="px-2.5 py-1 rounded bg-foreground text-background font-medium text-xs hover:opacity-90 disabled:opacity-25 disabled:pointer-events-none shrink-0 transition"
+                >
+                    Send
+                </NaiveButton>
+            </form>
 
             {/* Accessory Virtual Keys Bar */}
             {is_accessory_bar_open && (
@@ -624,11 +632,13 @@ export function TerminalView() {
                             key={key.label}
                             type="button"
                             title={key.title}
+                            disabled={!is_connected}
                             onPointerDown={(e) => e.preventDefault()}
                             onClick={() => {
+                                if (!is_connected) return
                                 pty_controller.send(key.payload)
                             }}
-                            className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 text-foreground font-medium shrink-0"
+                            className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 text-foreground font-medium shrink-0 disabled:opacity-40 disabled:pointer-events-none"
                         >
                             {key.label}
                         </NaiveButton>
