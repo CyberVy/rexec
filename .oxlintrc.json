@@ -30,6 +30,7 @@
     "local/layering-restrictions": "error",
     "local/naming-conventions": "error",
     "local/no-sync-set-state-in-effect": "error",
+    "local/no-effects-in-blocks": "error",
     "local/jsx-text-indent": "error"
   }
 }

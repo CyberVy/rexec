@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useRef, useCallback } from "react"
 import { Terminal } from "@xterm/xterm"
 import type { ITheme } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
-import { useController, useMediaQuery } from "@/components/hooks"
+import { useController } from "@/components/hooks"
 import {
     FullscreenModalContainer,
     AnimationContainer,
@@ -154,21 +154,22 @@ export function TerminalView() {
         })
     }, [])
 
-    useEffect(() => {
+    const attach_sessions_modal_ref = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return
+        view_switcher_controller.hide_all_toolbars()
         return () => {
-            if (is_sessions_modal_open) {
-                view_switcher_controller.show_all_toolbars()
-            }
+            view_switcher_controller.show_all_toolbars()
         }
-    }, [is_sessions_modal_open])
+    }, [])
 
-    useEffect(() => {
+    const attach_workspace_modal_ref = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return
+        view_switcher_controller.hide_all_toolbars()
         return () => {
-            if (is_workspace_modal_open) {
-                view_switcher_controller.show_all_toolbars()
-            }
+            view_switcher_controller.show_all_toolbars()
         }
-    }, [is_workspace_modal_open])
+    }, [])
+
     const [command_input, set_command_input] = useState("")
     const [command_history, set_command_history] = useState<string[]>([])
     const [history_index, set_history_index] = useState(-1)
@@ -183,28 +184,32 @@ export function TerminalView() {
         events: ["change", "status_change"]
     })
 
-    const is_dark_mode = useMediaQuery("(prefers-color-scheme: dark)", true)
+    const attach_terminal_container = useCallback((container: HTMLDivElement | null) => {
+        container_ref.current = container
+        if (!container) return
 
-    useEffect(() => {
-        void pty_controller.refresh_sessions()
-        if (session_state.agent_online && !pty_controller.state.cwd) {
-            void pty_controller.load_directory()
-        }
-    }, [session_state.agent_online])
-
-    useEffect(() => {
-        if (!container_ref.current) return
+        const dark_media = window.matchMedia("(prefers-color-scheme: dark)")
+        let is_dark = dark_media.matches
 
         const term = new Terminal({
             cursorBlink: true,
             fontSize: 13,
             fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            theme: is_dark ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME,
+            minimumContrastRatio: is_dark ? 1 : LIGHT_MINIMUM_CONTRAST_RATIO
         })
+
+        const on_color_scheme_change = (e: MediaQueryListEvent) => {
+            is_dark = e.matches
+            term.options.theme = is_dark ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
+            term.options.minimumContrastRatio = is_dark ? 1 : LIGHT_MINIMUM_CONTRAST_RATIO
+        }
+        dark_media.addEventListener("change", on_color_scheme_change)
 
         const fit_addon = new FitAddon()
         term.loadAddon(fit_addon)
-        term.open(container_ref.current)
+        term.open(container)
 
         term_ref.current = term
         fit_addon_ref.current = fit_addon
@@ -263,10 +268,11 @@ export function TerminalView() {
                 // Ignore observer disconnect
             }
         })
-        resize_observer.observe(container_ref.current)
+        resize_observer.observe(container)
 
         return () => {
             clearTimeout(fit_timer)
+            dark_media.removeEventListener("change", on_color_scheme_change)
             remove_data_listener()
             on_data_sub.dispose()
             on_resize_sub.dispose()
@@ -277,13 +283,6 @@ export function TerminalView() {
             fit_addon_ref.current = null
         }
     }, [])
-
-    useEffect(() => {
-        const term = term_ref.current
-        if (!term) return
-        term.options.theme = is_dark_mode ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME
-        term.options.minimumContrastRatio = is_dark_mode ? 1 : LIGHT_MINIMUM_CONTRAST_RATIO
-    }, [is_dark_mode])
 
     const handle_connect = () => {
         const cols = term_ref.current?.cols ?? 80
@@ -508,7 +507,7 @@ export function TerminalView() {
 
             {/* XTerm Container */}
             <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white dark:bg-black shadow-inner p-2">
-                <div ref={container_ref} className="absolute inset-2" />
+                <div ref={attach_terminal_container} className="absolute inset-2" />
 
                 {pty_state.status === "disconnected" && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
@@ -648,6 +647,7 @@ export function TerminalView() {
                     className="fixed inset-0 z-50"
                 >
                     <FullscreenModalContainer
+                        ref={attach_sessions_modal_ref}
                         enable_escape={is_sessions_modal_open}
                         on_escape={handle_close_sessions_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
@@ -849,6 +849,7 @@ export function TerminalView() {
                     className="fixed inset-0 z-50"
                 >
                     <FullscreenModalContainer
+                        ref={attach_workspace_modal_ref}
                         enable_escape={is_workspace_modal_open}
                         on_escape={handle_close_workspace_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"

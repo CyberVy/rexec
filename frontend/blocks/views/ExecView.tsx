@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useCallback } from "react"
 import { useController } from "@/components/hooks"
 import { exec_controller } from "@/core/controllers/exec_controller"
 import { RunIcon, AbortIcon, ClearIcon, CopyIcon, CheckIcon } from "../icons"
@@ -23,11 +23,10 @@ export function ExecView() {
         was_near_bottom_ref.current = scrollHeight - scrollTop - clientHeight < 40
     }, [])
 
-    useEffect(() => {
-        if (output_ref.current && was_near_bottom_ref.current) {
-            output_ref.current.scrollTop = output_ref.current.scrollHeight
-        }
-    }, [exec_state.chunks.length, exec_state.is_running])
+    const attach_sentinel = useCallback((el: HTMLSpanElement | null) => {
+        if (!el || !output_ref.current || !was_near_bottom_ref.current) return
+        output_ref.current.scrollTop = output_ref.current.scrollHeight
+    }, [])
 
     const handle_run = (command_to_run?: string) => {
         const cmd = command_to_run ?? cmd_input
@@ -204,6 +203,8 @@ export function ExecView() {
                         Error: {exec_state.error}
                     </div>
                 )}
+
+                <span ref={attach_sentinel} />
             </div>
         </div>
     )

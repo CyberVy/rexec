@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect } from "react"
+import { useCallback } from "react"
 import type { ReactNode } from "react"
 import {
     AnimationContainer,
@@ -59,13 +59,13 @@ export function ShortcutEditorModal({
         on_close()
     }, [on_close])
 
-    useEffect(() => {
-        if (!open) return
+    const attach_modal_ref = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return
         view_switcher_controller.hide_all_toolbars()
         return () => {
             view_switcher_controller.show_all_toolbars()
         }
-    }, [open])
+    }, [])
 
     return (
         <BodyPortal>
@@ -78,6 +78,7 @@ export function ShortcutEditorModal({
                 className="fixed inset-0 z-50"
             >
                 <FullscreenModalContainer
+                    ref={attach_modal_ref}
                     enable_escape={open}
                     on_escape={handle_close}
                     className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"

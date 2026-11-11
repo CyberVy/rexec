@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
 import {
     FullscreenModalContainer,
@@ -26,28 +26,20 @@ export function NodesView() {
     const [show_tokens, set_show_tokens] = useState<Record<string, boolean>>({})
 
     const handle_open_add_modal = useCallback(() => {
-        set_is_add_modal_open((prev) => {
-            if (prev) return prev
-            view_switcher_controller.hide_all_toolbars()
-            return true
-        })
+        set_is_add_modal_open(true)
     }, [])
 
     const handle_close_add_modal = useCallback(() => {
-        set_is_add_modal_open((prev) => {
-            if (!prev) return prev
-            view_switcher_controller.show_all_toolbars()
-            return false
-        })
+        set_is_add_modal_open(false)
     }, [])
 
-    useEffect(() => {
+    const attach_modal_ref = useCallback((node: HTMLDivElement | null) => {
+        if (!node) return
+        view_switcher_controller.hide_all_toolbars()
         return () => {
-            if (is_add_modal_open) {
-                view_switcher_controller.show_all_toolbars()
-            }
+            view_switcher_controller.show_all_toolbars()
         }
-    }, [is_add_modal_open])
+    }, [])
 
     const online_count = Object.values(session.agents).filter((a) => a.is_online).length
     const total_count = session.agent_ids.length
@@ -264,6 +256,7 @@ export function NodesView() {
                     className="fixed inset-0 z-50"
                 >
                     <FullscreenModalContainer
+                        ref={attach_modal_ref}
                         enable_escape={is_add_modal_open}
                         on_escape={handle_close_add_modal}
                         className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
