@@ -3,14 +3,19 @@ import http from "node:http"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
-const TEST_DIRECTORY = path.dirname(fileURLToPath(import.meta.url))
-const CONFIG_FILE = path.resolve(TEST_DIRECTORY, "../../../.debug/frontend/config.json")
+const HOST_DIRECTORY = path.dirname(fileURLToPath(import.meta.url))
+const CONFIG_FILE = path.resolve(HOST_DIRECTORY, "../../../.debug/frontend/config.json")
 const DEBUG_HOST = "127.0.0.1"
 
-interface DebugResponse {
+export interface DebugEvalResponse {
     success: boolean
     result?: unknown
     error?: string
+}
+
+export interface EvalHttpResult {
+    status_code: number
+    payload: DebugEvalResponse
 }
 
 export function read_debug_port(): number {
@@ -32,7 +37,8 @@ export function read_debug_port(): number {
     return port
 }
 
-export function evaluate_in_browser<T>(port: number, code: string): Promise<T> {
+/** Send raw evaluation request to `/__debug/eval` without unwrapping `payload.result`. */
+export function request_eval_raw(port: number, code: string): Promise<EvalHttpResult> {
     return new Promise((resolve, reject) => {
         const post_data = JSON.stringify({ code })
         const request = http.request(
@@ -53,19 +59,23 @@ export function evaluate_in_browser<T>(port: number, code: string): Promise<T> {
                     response_body += chunk
                 })
                 response.on("end", () => {
-                    let payload: DebugResponse
+                    const status_code = response.statusCode ?? 0
                     try {
-                        payload = JSON.parse(response_body) as DebugResponse
+                        const payload = JSON.parse(response_body) as DebugEvalResponse
+                        resolve({ status_code, payload })
                     } catch {
+                        if (status_code !== 200) {
+                            resolve({
+                                status_code,
+                                payload: {
+                                    success: false,
+                                    error: response_body || `Debug bridge returned HTTP ${status_code}`
+                                }
+                            })
+                            return
+                        }
                         reject(new Error(`Invalid debug bridge response: ${response_body}`))
-                        return
                     }
-
-                    if (response.statusCode !== 200 || !payload.success) {
-                        reject(new Error(payload.error || `Debug bridge returned HTTP ${response.statusCode}`))
-                        return
-                    }
-                    resolve(payload.result as T)
                 })
             }
         )
@@ -77,6 +87,18 @@ export function evaluate_in_browser<T>(port: number, code: string): Promise<T> {
         request.write(post_data)
         request.end()
     })
+}
+
+export async function evaluate_in_browser<T>(port: number, code: string): Promise<T> {
+    const { status_code, payload } = await request_eval_raw(port, code)
+    if (status_code !== 200 || !payload.success) {
+        const err_detail =
+            payload.error ||
+            (payload.result !== undefined ? String(payload.result) : undefined) ||
+            `Debug bridge returned HTTP ${status_code}`
+        throw new Error(err_detail)
+    }
+    return payload.result as T
 }
 
 export function parse_numeric_option(args: string[], name: string, default_value: number): number {

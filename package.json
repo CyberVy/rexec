@@ -10,8 +10,9 @@
   },
   "scripts": {
     "tauri": "cargo tauri",
-    "debug:eval": "node cli/debug/eval.js",
-    "debug:lazy-container": "tsx cli/debug/tests/lazy_container_dimensions.ts",
+    "debug:eval": "tsx cli/debug/host/eval.ts",
+    "debug:ui": "tsx cli/debug/host/ui.ts",
+    "debug:lazy-container": "tsx cli/debug/checks/lazy_container_dimensions.ts",
     "dev": "vite",
     "build:frontend": "vite build",
     "start": "vite preview --port 5000 --outDir dist",

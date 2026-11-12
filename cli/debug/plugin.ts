@@ -3,13 +3,14 @@ import type http from "node:http"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import esbuild, { type BuildContext } from "esbuild"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DEBUG_DIR = path.resolve(__dirname, "../../.debug/frontend")
 const LOGS_FILE = path.join(DEBUG_DIR, "logs.jsonl")
 const HISTORY_FILE = path.join(DEBUG_DIR, "history.jsonl")
 const CONFIG_FILE = path.join(DEBUG_DIR, "config.json")
-const SCRIPT_FILE = path.join(__dirname, "debug_bridge.js")
+const RUNTIME_ENTRY_FILE = path.join(__dirname, "browser/index.ts")
 
 interface PendingEval {
     res: http.ServerResponse
@@ -20,6 +21,7 @@ interface PendingEval {
 export function debug_bridge_plugin(): Plugin {
     const pending_evals = new Map<string, PendingEval>()
     let client_res: http.ServerResponse | null = null
+    let bridge_build_ctx: BuildContext | null = null
 
     function log_eval_history(id: string, code: string, success: boolean, result: unknown) {
         try {
@@ -74,7 +76,7 @@ export function debug_bridge_plugin(): Plugin {
                 server.httpServer?.once("listening", write_config)
             }
 
-            server.middlewares.use((req, res, next) => {
+            server.middlewares.use(async (req, res, next) => {
                 const url = new URL(req.url || "", "http://localhost")
                 const pathname = url.pathname
 
@@ -83,18 +85,34 @@ export function debug_bridge_plugin(): Plugin {
                     return next()
                 }
 
-                // 1. Serve client script
+                // 1. Serve bundled client runtime script
                 if (pathname === "/debug_bridge.js") {
+                    if (req.method !== "GET" && req.method !== "HEAD") return next()
                     try {
-                        const content = fs.readFileSync(SCRIPT_FILE, "utf8")
+                        if (!bridge_build_ctx) {
+                            bridge_build_ctx = await esbuild.context({
+                                entryPoints: [RUNTIME_ENTRY_FILE],
+                                bundle: true,
+                                format: "iife",
+                                platform: "browser",
+                                target: "esnext",
+                                write: false
+                            })
+                        }
+                        const build_result = await bridge_build_ctx.rebuild()
+                        const content = build_result.outputFiles?.[0]?.text || ""
                         res.writeHead(200, {
                             "Content-Type": "application/javascript; charset=utf-8",
                             "Cache-Control": "no-cache"
                         })
-                        res.end(content)
-                    } catch {
-                        res.writeHead(404)
-                        res.end()
+                        if (req.method === "HEAD") {
+                            res.end()
+                        } else {
+                            res.end(content)
+                        }
+                    } catch (err) {
+                        res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" })
+                        res.end(String(err))
                     }
                     return
                 }
@@ -236,6 +254,8 @@ export function debug_bridge_plugin(): Plugin {
             })
 
             server.httpServer?.on("close", () => {
+                bridge_build_ctx?.dispose()
+                bridge_build_ctx = null
                 for (const [, pending] of pending_evals) {
                     clearTimeout(pending.timeout)
                     try {

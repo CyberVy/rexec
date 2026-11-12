@@ -1,4 +1,4 @@
-import { evaluate_in_browser, parse_numeric_option, read_debug_port } from "./debug_bridge_client"
+import { evaluate_in_browser, parse_numeric_option, read_debug_port } from "../host/bridge_client"
 
 const DEFAULT_TOLERANCE = 0
 const DEFAULT_SETTLE_MS = 500
