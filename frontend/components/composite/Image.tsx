@@ -1,6 +1,5 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { generate_cover_svg_data_uri, is_ios_device } from "@/infra"
 import { ContextMenu } from "@/components/composite/ContextMenuContainer"
 
@@ -20,6 +19,8 @@ export type ImageProps = Omit<ComponentPropsWithRef<"img">, "children" | "src"> 
 const DEFAULT_BLANK_PLACEHOLDER =
     "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 768 1024'%3E%3Crect width='100%25' height='100%25' fill='%23222222'/%3E%3C/svg%3E"
 
+const IS_IOS_DEVICE = typeof window !== "undefined" && is_ios_device()
+
 function Image({
     src,
     image_proxy_api,
@@ -33,12 +34,6 @@ function Image({
     ref,
     ...props
 }: ImageProps) {
-    const [is_ios, set_is_ios] = useState(false)
-
-    useEffect(() => {
-        set_is_ios(is_ios_device())
-    }, [])
-
     const get_fallback_url = () => {
         if (fallback_src) return fallback_src
         const title = fallback_title || alt
@@ -66,7 +61,7 @@ function Image({
             src={initial_url}
             alt={alt}
             onError={handle_error}
-            className={["[-webkit-touch-callout:none]", is_ios ? "[-webkit-user-drag:none]" : "", className]
+            className={["[-webkit-touch-callout:none]", IS_IOS_DEVICE ? "[-webkit-user-drag:none]" : "", className]
                 .filter(Boolean)
                 .join(" ")}
         />

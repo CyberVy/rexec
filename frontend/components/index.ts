@@ -56,15 +56,7 @@ export { AnimationContainer } from "./animation/AnimationContainer"
 export { BodyPortal } from "./base/Portal"
 
 // hooks.tsx
-export {
-    useAutoSyncRefAndState,
-    useOptimizedRotation,
-    usePersistedState,
-    usePersistedRefAndState,
-    useMediaQuery,
-    useController,
-    useKeyedController
-} from "./hooks"
+export { useAutoSyncRefAndState, useOptimizedRotation, useMediaQuery, useController, useKeyedController } from "./hooks"
 export type { UseControllerOptions } from "./hooks"
 
 // icons.tsx

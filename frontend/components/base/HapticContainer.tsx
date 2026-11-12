@@ -1,7 +1,6 @@
 "use client"
 
 import { is_ios_device, vibrate } from "@/infra"
-import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 
 export type HapticContainerProps = {
@@ -9,14 +8,10 @@ export type HapticContainerProps = {
     disabled?: boolean
 }
 
+const IS_IOS_DEVICE = typeof window !== "undefined" && is_ios_device()
+
 function HapticContainer({ children, disabled }: HapticContainerProps) {
-    const [is_in_ios_device, set_is_in_ios_device] = useState(false)
-
-    useEffect(() => {
-        set_is_in_ios_device(is_ios_device())
-    }, [])
-
-    if (is_in_ios_device) {
+    if (IS_IOS_DEVICE) {
         return (
             <label className="contents">
                 <input

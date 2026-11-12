@@ -1,10 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef } from "react"
 import { is_in_browser } from "@/infra/device.client"
 import { ScrollToBottomButton, ScrollToTopButton } from "@/components/composite/FixedScrollButtons"
 
 import type { ComponentPropsWithRef } from "react"
+
+const IS_IN_BROWSER = typeof window !== "undefined" && is_in_browser()
 
 export type FullscreenModalContainerProps = ComponentPropsWithRef<"div"> & {
     enable_scroll_button?: boolean
@@ -21,66 +23,58 @@ function FullscreenModalContainer({
     ref,
     ...props
 }: FullscreenModalContainerProps) {
-    const [in_browser, set_in_browser] = useState(true)
     const container_ref = useRef<HTMLDivElement | null>(null)
 
     const set_container_ref = useCallback(
         (node: HTMLDivElement | null) => {
             container_ref.current = node
 
-            if (!node) {
-                if (typeof ref === "function") {
-                    ref(null)
-                } else if (ref) {
-                    ref.current = null
-                }
-                return
+            let user_cleanup: (() => void) | void
+            if (typeof ref === "function") {
+                user_cleanup = ref(node)
+            } else if (ref) {
+                ref.current = node
             }
 
-            if (typeof ref === "function") {
-                const cleanup = ref(node)
+            if (!node) {
                 return () => {
                     container_ref.current = null
-                    if (typeof cleanup === "function") {
-                        cleanup()
-                    } else {
+                    if (typeof user_cleanup === "function") {
+                        user_cleanup()
+                    } else if (typeof ref === "function") {
                         ref(null)
+                    } else if (ref) {
+                        ref.current = null
                     }
                 }
             }
 
-            if (ref) {
-                ref.current = node
-                return () => {
-                    container_ref.current = null
-                    ref.current = null
+            let remove_escape_listener: (() => void) | undefined
+            if (enable_escape && on_escape) {
+                const handle_keydown = (e: KeyboardEvent) => {
+                    if (e.key === "Escape") {
+                        e.preventDefault()
+                        on_escape()
+                    }
                 }
+                window.addEventListener("keydown", handle_keydown)
+                remove_escape_listener = () => window.removeEventListener("keydown", handle_keydown)
             }
 
             return () => {
+                remove_escape_listener?.()
                 container_ref.current = null
+                if (typeof user_cleanup === "function") {
+                    user_cleanup()
+                } else if (typeof ref === "function") {
+                    ref(null)
+                } else if (ref) {
+                    ref.current = null
+                }
             }
         },
-        [ref]
+        [ref, enable_escape, on_escape]
     )
-
-    useEffect(() => {
-        set_in_browser(is_in_browser())
-    }, [])
-
-    useEffect(() => {
-        if (!enable_escape || !on_escape) return
-
-        const handle_keydown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                e.preventDefault()
-                on_escape()
-            }
-        }
-
-        window.addEventListener("keydown", handle_keydown)
-        return () => window.removeEventListener("keydown", handle_keydown)
-    }, [enable_escape, on_escape])
 
     return (
         <div
@@ -91,7 +85,7 @@ function FullscreenModalContainer({
                 // Keep 100vh as baseline in iOS containers without browser chrome (e.g. standalone/PWA).
                 // The issue is timing of dynamic viewport-related layout metrics (not dvh itself): values like offsetTop can settle later.
                 // Any CSS that depends on browser UI chrome, such as dvh or inset, can trigger the same delay.
-                in_browser ? "supports-[height:100dvh]:h-dvh" : "",
+                IS_IN_BROWSER ? "supports-[height:100dvh]:h-dvh" : "",
                 "pt-[env(safe-area-inset-top)]",
                 className
             ]
@@ -128,23 +122,56 @@ function FloatingModalContainer({
     onClick,
     ...props
 }: FloatingModalContainerProps) {
-    useEffect(() => {
-        if (!enable_escape || !on_escape) return
-
-        const handle_keydown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                e.preventDefault()
-                on_escape()
+    const set_floating_ref = useCallback(
+        (node: HTMLDivElement | null) => {
+            let user_cleanup: (() => void) | void
+            if (typeof ref === "function") {
+                user_cleanup = ref(node)
+            } else if (ref) {
+                ref.current = node
             }
-        }
 
-        window.addEventListener("keydown", handle_keydown)
-        return () => window.removeEventListener("keydown", handle_keydown)
-    }, [enable_escape, on_escape])
+            if (!node) {
+                return () => {
+                    if (typeof user_cleanup === "function") {
+                        user_cleanup()
+                    } else if (typeof ref === "function") {
+                        ref(null)
+                    } else if (ref) {
+                        ref.current = null
+                    }
+                }
+            }
+
+            let remove_escape_listener: (() => void) | undefined
+            if (enable_escape && on_escape) {
+                const handle_keydown = (e: KeyboardEvent) => {
+                    if (e.key === "Escape") {
+                        e.preventDefault()
+                        on_escape()
+                    }
+                }
+                window.addEventListener("keydown", handle_keydown)
+                remove_escape_listener = () => window.removeEventListener("keydown", handle_keydown)
+            }
+
+            return () => {
+                remove_escape_listener?.()
+                if (typeof user_cleanup === "function") {
+                    user_cleanup()
+                } else if (typeof ref === "function") {
+                    ref(null)
+                } else if (ref) {
+                    ref.current = null
+                }
+            }
+        },
+        [ref, enable_escape, on_escape]
+    )
 
     return (
         <div
-            ref={ref}
+            ref={set_floating_ref}
             className={[
                 "fixed z-51 pointer-events-auto",
                 center ? "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" : "",

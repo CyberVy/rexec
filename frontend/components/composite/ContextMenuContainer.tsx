@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import { vibrate } from "@/infra/device.client"
 import { create_press_gesture } from "@/infra/gestures.client"
 import { FullscreenModalContainer } from "@/components/composite/ModalContainer"
@@ -86,17 +86,21 @@ function ContextMenu({
         [disabled, has_context_menu]
     )
 
-    useLayoutEffect(() => {
-        if (!show_context_menu || !menu_element_ref.current) return
+    const attach_menu_element = useCallback(
+        (node: HTMLDivElement | null) => {
+            menu_element_ref.current = node
+            if (!node) return
 
-        const next_render_point = get_context_menu_render_point(menu_element_ref.current, context_menu_point)
-        set_context_menu_render_point((prev) => {
-            if (prev[0] === next_render_point[0] && prev[1] === next_render_point[1]) {
-                return prev
-            }
-            return next_render_point
-        })
-    }, [show_context_menu, context_menu_point])
+            const next_render_point = get_context_menu_render_point(node, context_menu_point)
+            set_context_menu_render_point((prev) => {
+                if (prev[0] === next_render_point[0] && prev[1] === next_render_point[1]) {
+                    return prev
+                }
+                return next_render_point
+            })
+        },
+        [context_menu_point]
+    )
 
     const press_gesture = create_press_gesture<PointerEvent<HTMLDivElement>>({
         enabled: (event) => {
@@ -126,27 +130,41 @@ function ContextMenu({
                 : undefined
     })
 
-    useEffect(() => {
-        return () => {
-            press_gesture.reset_press()
-        }
-    }, [press_gesture])
+    const attach_trigger_ref = useCallback(
+        (node: HTMLDivElement | null) => {
+            let user_cleanup: (() => void) | void
+            if (typeof ref === "function") {
+                user_cleanup = ref(node)
+            } else if (ref) {
+                ref.current = node
+            }
 
-    useEffect(() => {
-        if (!show_context_menu) return
+            if (!node) {
+                press_gesture.reset_press()
+                return () => {
+                    if (typeof user_cleanup === "function") {
+                        user_cleanup()
+                    } else if (typeof ref === "function") {
+                        ref(null)
+                    } else if (ref) {
+                        ref.current = null
+                    }
+                }
+            }
 
-        const close_on_escape = (event: KeyboardEvent) => {
-            if (event.key !== "Escape") return
-
-            close_context_menu()
-        }
-
-        window.addEventListener("keydown", close_on_escape)
-
-        return () => {
-            window.removeEventListener("keydown", close_on_escape)
-        }
-    }, [close_context_menu, show_context_menu])
+            return () => {
+                press_gesture.reset_press()
+                if (typeof user_cleanup === "function") {
+                    user_cleanup()
+                } else if (typeof ref === "function") {
+                    ref(null)
+                } else if (ref) {
+                    ref.current = null
+                }
+            }
+        },
+        [ref, press_gesture]
+    )
 
     const handle_context_menu = (event: React.MouseEvent<HTMLDivElement>) => {
         if (disabled || !has_context_menu) return
@@ -159,7 +177,7 @@ function ContextMenu({
     return (
         <>
             <div
-                ref={ref}
+                ref={attach_trigger_ref}
                 className={[className].filter(Boolean).join(" ")}
                 style={style}
                 onContextMenu={handle_context_menu}
@@ -185,6 +203,7 @@ function ContextMenu({
                         }}
                     >
                         <FullscreenModalContainer
+                            on_escape={close_context_menu}
                             onContextMenu={(event) => {
                                 event.preventDefault()
                                 event.stopPropagation()
@@ -230,7 +249,7 @@ function ContextMenu({
                                 onClick={(event) => {
                                     event.stopPropagation()
                                 }}
-                                ref={menu_element_ref}
+                                ref={attach_menu_element}
                                 sections={sections || []}
                                 enable_vibration={enable_vibration}
                                 on_select={(key, item) => {

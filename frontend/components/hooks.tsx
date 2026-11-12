@@ -1,10 +1,7 @@
 import type { RefObject } from "react"
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import type { BaseController, BaseKeyedController } from "@/infra"
 import { is_ios_device } from "@/infra/device.client"
-import { create_logger } from "@/infra/logger"
-
-const logger = create_logger("Hooks")
 
 export interface UseControllerOptions<State, Selected = State> {
     events: string | string[]
@@ -124,175 +121,38 @@ export function useAutoSyncRefAndState<T>(value: T): [RefObject<T>, (value: T | 
     return [state_ref, dispatch_func, state]
 }
 
-// beta feature
-// 1. screen rotation in iOS Safari (PWA and Webkit) may cause a crash when the document height is large
-// 2. provide a better rotation animation
-export function useOptimizedRotation() {
-    const [hidden, set_hidden] = useState(false)
+let is_hidden_during_rotation = false
+const rotation_subscribers = new Set<() => void>()
+let is_rotation_listener_initialized = false
+let is_portrait = false
 
-    useEffect(() => {
-        if (is_ios_device()) {
-            const height = document.documentElement.clientHeight
-            const width = document.documentElement.clientWidth
-            let is_portrait = height > width
-
-            const resize_callback = () => {
-                const height_after_resize = document.documentElement.clientHeight
-                const width_after_resize = document.documentElement.clientWidth
-                const is_portrait_after_resize = height_after_resize > width_after_resize
-
-                // not a rotation action
-                if (is_portrait == is_portrait_after_resize) return
-
-                // a rotation action is detected, update the is_portrait state
-                is_portrait = !is_portrait
-                set_hidden(true)
-                setTimeout(() => set_hidden(false), 200)
-            }
-            window.addEventListener("resize", resize_callback)
-            return () => window.removeEventListener("resize", resize_callback)
+const subscribe_rotation = (callback: () => void) => {
+    rotation_subscribers.add(callback)
+    if (!is_rotation_listener_initialized) {
+        is_rotation_listener_initialized = true
+        if (typeof window !== "undefined" && typeof document !== "undefined" && is_ios_device()) {
+            is_portrait = document.documentElement.clientHeight > document.documentElement.clientWidth
+            window.addEventListener("resize", () => {
+                const is_portrait_after = document.documentElement.clientHeight > document.documentElement.clientWidth
+                if (is_portrait === is_portrait_after) return
+                is_portrait = is_portrait_after
+                is_hidden_during_rotation = true
+                for (const sub of rotation_subscribers) sub()
+                setTimeout(() => {
+                    is_hidden_during_rotation = false
+                    for (const sub of rotation_subscribers) sub()
+                }, 200)
+            })
         }
-    }, [])
-
-    return hidden
+    }
+    return () => {
+        rotation_subscribers.delete(callback)
+    }
 }
 
-export interface PersistedParams<T> {
-    initial_value: T
-    on_load?: () => Promise<T | undefined> | T | undefined
-    on_save?: (value: T) => Promise<void> | void
-}
+const get_rotation_snapshot = () => is_hidden_during_rotation
 
-export function usePersistedState<T>({
-    initial_value,
-    on_load,
-    on_save
-}: PersistedParams<T>): [T, (value: T | ((prev: T) => T)) => void] {
-    const [state, set_state] = useState<T>(initial_value)
-    const is_initialized = useRef(false)
-    const user_has_set_state = useRef(false)
-
-    const set_state_wrapped = useCallback((value: T | ((prev: T) => T)) => {
-        user_has_set_state.current = true
-        is_initialized.current = true
-        set_state(value)
-    }, [])
-
-    useEffect(() => {
-        let active = true
-        if (!on_load) {
-            is_initialized.current = true
-            return
-        }
-
-        is_initialized.current = false
-        user_has_set_state.current = false
-
-        const load_value = async () => {
-            try {
-                const loaded_val = await on_load()
-                if (!active) return
-                if (!user_has_set_state.current && loaded_val !== undefined) {
-                    set_state(loaded_val)
-                }
-            } catch (err) {
-                logger.error("Failed to load persisted state", err)
-            } finally {
-                if (active) {
-                    is_initialized.current = true
-                }
-            }
-        }
-        load_value()
-
-        return () => {
-            active = false
-        }
-    }, [on_load])
-
-    useEffect(() => {
-        if (!is_initialized.current || !on_save) return
-        try {
-            const res = on_save(state)
-            if (res && typeof res.catch === "function") {
-                res.catch((err) => logger.error("Failed to save persisted state", err))
-            }
-        } catch (err) {
-            logger.error("Failed to save persisted state", err)
-        }
-    }, [state, on_save])
-
-    return [state, set_state_wrapped]
-}
-
-export function usePersistedRefAndState<T>({
-    initial_value,
-    on_load,
-    on_save
-}: PersistedParams<T>): [RefObject<T>, (value: T | ((prev: T) => T)) => void, T] {
-    const [state, set_state] = useState<T>(initial_value)
-    const state_ref = useRef<T>(initial_value)
-    const is_initialized = useRef(false)
-    const user_has_set_state = useRef(false)
-
-    const dispatch_func = useCallback((value: T | ((prev: T) => T)) => {
-        user_has_set_state.current = true
-        is_initialized.current = true
-        let next_val: T
-        if (typeof value !== "function") {
-            next_val = value
-        } else {
-            const f = value as (prev: T) => T
-            next_val = f(state_ref.current)
-        }
-        set_state(next_val)
-        state_ref.current = next_val
-    }, [])
-
-    useEffect(() => {
-        let active = true
-        if (!on_load) {
-            is_initialized.current = true
-            return
-        }
-
-        is_initialized.current = false
-        user_has_set_state.current = false
-
-        const load_value = async () => {
-            try {
-                const loaded_val = await on_load()
-                if (!active) return
-                if (!user_has_set_state.current && loaded_val !== undefined) {
-                    set_state(loaded_val)
-                    state_ref.current = loaded_val
-                }
-            } catch (err) {
-                logger.error("Failed to load persisted state", err)
-            } finally {
-                if (active) {
-                    is_initialized.current = true
-                }
-            }
-        }
-        load_value()
-
-        return () => {
-            active = false
-        }
-    }, [on_load])
-
-    useEffect(() => {
-        if (!is_initialized.current || !on_save) return
-        try {
-            const res = on_save(state)
-            if (res && typeof res.catch === "function") {
-                res.catch((err) => logger.error("Failed to save persisted state", err))
-            }
-        } catch (err) {
-            logger.error("Failed to save persisted state", err)
-        }
-    }, [state, on_save])
-
-    return [state_ref, dispatch_func, state]
+// beta feature: screen rotation in iOS Safari may cause a crash when document height is large
+export function useOptimizedRotation(): boolean {
+    return useSyncExternalStore(subscribe_rotation, get_rotation_snapshot, () => false)
 }
