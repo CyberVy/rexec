@@ -1,5 +1,12 @@
-import { HUB_ROUTES, PTY_CALLER_REPLACED_REASON } from "@/protocol"
-import { decode_pty_frame, encode_pty_frame } from "@/transport/framing"
+import {
+    HUB_ROUTES,
+    PTY_CALLER_REPLACED_REASON,
+    type PtyKillResMessage,
+    type PtyListResMessage,
+    type PtySessionInfo,
+    type PtyUpdateResMessage
+} from "@/protocol"
+import { SESSION_ID_BYTES, decode_pty_frame, encode_pty_frame } from "@/transport/framing"
 import { build_ws_url, WsClient } from "@/transport/ws"
 
 export { PTY_CALLER_REPLACED_REASON }
@@ -10,6 +17,11 @@ const PTY_PING_INTERVAL_MS = 20_000
 const PTY_IDLE_TIMEOUT_MS = PTY_PING_INTERVAL_MS * 3
 const PTY_RECONNECT_BASE_DELAY_MS = 1_000
 const PTY_RECONNECT_MAX_DELAY_MS = 10_000
+const PTY_RPC_TIMEOUT_MS = 10_000
+
+function generate_session_id(): string {
+    return crypto.randomUUID().replace(/-/g, "").slice(0, SESSION_ID_BYTES)
+}
 
 export class PtySocketClosed extends Error {
     readonly close_code: number
@@ -38,6 +50,425 @@ export function pty_session_missing(err: unknown): boolean {
     return err instanceof Error && err.message === PTY_SESSION_MISSING
 }
 
+interface RegisteredPtySession {
+    survive_agent_offline: boolean
+    on_data(data: Uint8Array): void
+    on_replay(info: PtyReplayInfo): void
+    on_exit(status: PtyExitStatus): void
+    on_error(err: Error): void
+    on_detached(reason: string): void
+    on_transport_closed(err: Error): void
+    on_agent_offline?(): void
+    get_reattach_params?(): { offset?: number; cols: number; rows: number }
+}
+
+interface PendingRpc<T = unknown> {
+    resolve(value: T): void
+    reject(err: Error): void
+    timer: ReturnType<typeof setTimeout>
+}
+
+export interface PtyMuxOptions {
+    hub_url: string
+    token: string
+    keep_alive?: boolean
+}
+
+/**
+ * Shared multiplexed `/ws/pty` transport carrying multiple interactive PTY
+ * sessions plus control RPCs (`list`, `kill`, `update`) over a single
+ * Caller<->Hub WebSocket connection.
+ */
+export class PtyMuxClient {
+    private readonly hub_url: string
+    private readonly token: string
+    private readonly keep_alive: boolean
+
+    private client: WsClient | null = null
+    private connect_promise: Promise<void> | null = null
+    private resolve_status: (() => void) | null = null
+    private reject_status: ((err: Error) => void) | null = null
+    private status_received = false
+    private agent_online = false
+    private leases = 0
+    private readonly sessions = new Map<string, RegisteredPtySession>()
+    private readonly pending_rpcs = new Map<string, PendingRpc>()
+
+    public constructor(options: PtyMuxOptions) {
+        this.hub_url = options.hub_url
+        this.token = options.token
+        this.keep_alive = Boolean(options.keep_alive)
+    }
+
+    public async list_ptys(): Promise<PtySessionInfo[]> {
+        return this.run_rpc<PtySessionInfo[]>(
+            (req_id) => ({ type: "pty:list_req", req_id }),
+            "Timed out listing PTY sessions"
+        )
+    }
+
+    public async kill_pty(session_id: string): Promise<void> {
+        await this.run_rpc<void>(
+            (req_id) => ({ type: "pty:kill", session_id, req_id }),
+            "Timed out killing PTY session"
+        )
+    }
+
+    public async update_pty(session_id: string, updates: { persistent: boolean }): Promise<void> {
+        await this.run_rpc<void>(
+            (req_id) => ({ type: "pty:update", session_id, persistent: updates.persistent, req_id }),
+            "Timed out updating PTY session"
+        )
+    }
+
+    public async acquire_session_transport(signal?: AbortSignal): Promise<void> {
+        await this.ensure_connected(signal)
+        this.leases += 1
+    }
+
+    public register_session(session_id: string, entry: RegisteredPtySession): void {
+        const existing = this.sessions.get(session_id)
+        if (existing) {
+            this.sessions.delete(session_id)
+            existing.on_detached(PTY_CALLER_REPLACED_REASON)
+        }
+        this.sessions.set(session_id, entry)
+    }
+
+    public unregister_session(session_id: string): boolean {
+        return this.sessions.delete(session_id)
+    }
+
+    public release_lease(): void {
+        if (this.leases > 0) {
+            this.leases -= 1
+        }
+        this.release_if_idle()
+    }
+
+    public send_json(data: unknown): void {
+        this.client?.send_json(data)
+    }
+
+    public send_binary(data: Uint8Array): void {
+        this.client?.send_binary(data)
+    }
+
+    public ping(): void {
+        this.client?.ping()
+    }
+
+    public close(): void {
+        const client = this.client
+        this.client = null
+        this.status_received = false
+        this.agent_online = false
+        this.leases = 0
+
+        const reject = this.reject_status
+        this.resolve_status = null
+        this.reject_status = null
+        reject?.(new PtySocketClosed(1000, "PTY client closed"))
+
+        this.fail_pending_rpcs(new PtySocketClosed(1000, "PTY client closed"))
+
+        const stale = [...this.sessions.values()]
+        this.sessions.clear()
+        for (const entry of stale) {
+            entry.on_transport_closed(new PtySocketClosed(1000, "PTY client closed"))
+        }
+
+        client?.close(1000, "PTY client closed")
+    }
+
+    private async run_rpc<T>(build_msg: (req_id: string) => unknown, timeout_message: string): Promise<T> {
+        await this.ensure_connected()
+        this.leases += 1
+        const req_id = generate_session_id()
+        try {
+            return await new Promise<T>((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    this.pending_rpcs.delete(req_id)
+                    reject(new Error(timeout_message))
+                }, PTY_RPC_TIMEOUT_MS)
+
+                this.pending_rpcs.set(req_id, {
+                    resolve: (val) => resolve(val as T),
+                    reject,
+                    timer
+                })
+                this.send_json(build_msg(req_id))
+            })
+        } finally {
+            this.release_lease()
+        }
+    }
+
+    private async ensure_connected(signal?: AbortSignal): Promise<void> {
+        if (signal?.aborted) {
+            throw new PtySocketClosed(1000, "PTY connection aborted")
+        }
+
+        if (this.client?.is_open && this.status_received) {
+            if (!this.agent_online) {
+                throw new Error("No agent connected for this token")
+            }
+            return
+        }
+
+        if (!this.connect_promise) {
+            this.connect_promise = this.open_transport().finally(() => {
+                this.connect_promise = null
+            })
+        }
+
+        if (!signal) {
+            await this.connect_promise
+            return
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            const on_abort = () => reject(new PtySocketClosed(1000, "PTY connection aborted"))
+            signal.addEventListener("abort", on_abort, { once: true })
+            this.connect_promise!.then(
+                () => {
+                    signal.removeEventListener("abort", on_abort)
+                    resolve()
+                },
+                (err) => {
+                    signal.removeEventListener("abort", on_abort)
+                    reject(err)
+                }
+            )
+        })
+    }
+
+    private async open_transport(): Promise<void> {
+        this.status_received = false
+        this.agent_online = false
+
+        const status_promise = new Promise<void>((resolve, reject) => {
+            this.resolve_status = resolve
+            this.reject_status = reject
+        })
+        status_promise.catch(() => {})
+
+        const client = new WsClient({
+            url: build_ws_url(this.hub_url, HUB_ROUTES.WS_PTY.path, this.token),
+            reconnect: false,
+            reset_on_close: true,
+            connect_timeout_ms: 10000,
+            ping_interval_ms: PTY_PING_INTERVAL_MS,
+            idle_timeout_ms: PTY_IDLE_TIMEOUT_MS,
+            on_message: (data) => this.handle_message(data),
+            on_binary: (bytes) => {
+                const decoded = decode_pty_frame(bytes)
+                if (decoded) {
+                    this.sessions.get(decoded.session_id)?.on_data(decoded.payload)
+                }
+            },
+            on_close: (event) => {
+                this.handle_transport_closed(client, new PtySocketClosed(event.code, event.reason || ""))
+            },
+            on_dead: (reason) => {
+                this.handle_transport_closed(client, new Error(reason || "PTY connection closed"))
+            }
+        })
+
+        this.client = client
+        try {
+            await client.connect()
+            await status_promise
+        } catch (err) {
+            if (this.client === client && !this.keep_alive && this.leases === 0 && this.sessions.size === 0) {
+                this.client = null
+                this.status_received = false
+                this.agent_online = false
+                client.close(1000, "PTY connect failed")
+            }
+            throw err
+        }
+    }
+
+    private handle_transport_closed(client: WsClient, err: Error): void {
+        if (this.client !== client) return
+        this.client = null
+        this.status_received = false
+        this.agent_online = false
+        this.leases = 0
+
+        const reject = this.reject_status
+        this.resolve_status = null
+        this.reject_status = null
+        reject?.(err)
+
+        this.fail_pending_rpcs(err)
+
+        const stale = [...this.sessions.values()]
+        this.sessions.clear()
+        for (const entry of stale) {
+            entry.on_transport_closed(err)
+        }
+    }
+
+    private handle_message(data: string): void {
+        try {
+            const msg = JSON.parse(data) as {
+                type?: string
+                agent_connected?: boolean
+                session_id?: string
+                req_id?: string
+                code?: number
+                signal?: number
+                error?: string
+                reason?: string
+                bytes?: number
+                reset?: boolean
+                offset?: number
+                sessions?: PtySessionInfo[]
+                killed?: boolean
+                updated?: boolean
+            }
+
+            if (msg.type === "hub:status") {
+                this.status_received = true
+                this.agent_online = Boolean(msg.agent_connected)
+                if (this.agent_online) {
+                    const resolve = this.resolve_status
+                    this.resolve_status = null
+                    this.reject_status = null
+                    resolve?.()
+                } else {
+                    const reject = this.reject_status
+                    this.resolve_status = null
+                    this.reject_status = null
+                    reject?.(new Error("No agent connected for this token"))
+                }
+                return
+            }
+
+            if (msg.type === "hub:agent_offline") {
+                this.agent_online = false
+                this.fail_pending_rpcs(new Error("Agent disconnected"))
+                for (const [session_id, entry] of Array.from(this.sessions)) {
+                    if (entry.survive_agent_offline) {
+                        entry.on_agent_offline?.()
+                    } else {
+                        this.sessions.delete(session_id)
+                        entry.on_error(new Error("Agent disconnected"))
+                    }
+                }
+                return
+            }
+
+            if (msg.type === "hub:agent_online") {
+                if (!this.status_received) return
+                this.agent_online = true
+                const resolve = this.resolve_status
+                this.resolve_status = null
+                this.reject_status = null
+                resolve?.()
+                for (const [session_id, entry] of Array.from(this.sessions)) {
+                    if (!entry.survive_agent_offline) continue
+                    const params = entry.get_reattach_params?.()
+                    if (!params) continue
+                    this.send_json({
+                        type: "pty:attach",
+                        session_id,
+                        cols: params.cols,
+                        rows: params.rows,
+                        ...(typeof params.offset === "number" ? { offset: params.offset } : {})
+                    })
+                }
+                return
+            }
+
+            if (msg.type === "pty:list_res" && msg.req_id) {
+                const rpc = this.pending_rpcs.get(msg.req_id)
+                if (rpc) {
+                    clearTimeout(rpc.timer)
+                    this.pending_rpcs.delete(msg.req_id)
+                    rpc.resolve((msg as PtyListResMessage).sessions)
+                }
+                return
+            }
+
+            if (msg.type === "pty:kill_res" && msg.req_id) {
+                const rpc = this.pending_rpcs.get(msg.req_id)
+                if (rpc) {
+                    clearTimeout(rpc.timer)
+                    this.pending_rpcs.delete(msg.req_id)
+                    void (msg as PtyKillResMessage)
+                    rpc.resolve(undefined)
+                }
+                return
+            }
+
+            if (msg.type === "pty:update_res" && msg.req_id) {
+                const rpc = this.pending_rpcs.get(msg.req_id)
+                if (rpc) {
+                    clearTimeout(rpc.timer)
+                    this.pending_rpcs.delete(msg.req_id)
+                    void (msg as PtyUpdateResMessage)
+                    rpc.resolve(undefined)
+                }
+                return
+            }
+
+            if (!msg.session_id) return
+            const entry = this.sessions.get(msg.session_id)
+            if (!entry) return
+
+            if (msg.type === "pty:replay" && typeof msg.bytes === "number") {
+                entry.on_replay({
+                    bytes: msg.bytes,
+                    reset: msg.reset !== false,
+                    offset: typeof msg.offset === "number" ? msg.offset : undefined
+                })
+                return
+            }
+
+            if (msg.type === "pty:exit") {
+                this.sessions.delete(msg.session_id)
+                entry.on_exit({ code: msg.code ?? 0, signal: msg.signal ?? 0 })
+                return
+            }
+
+            if (msg.type === "pty:error") {
+                this.sessions.delete(msg.session_id)
+                entry.on_error(new PtySessionError(msg.error || "PTY session failed"))
+                return
+            }
+
+            if (msg.type === "pty:detached") {
+                this.sessions.delete(msg.session_id)
+                entry.on_detached(msg.reason || PTY_CALLER_REPLACED_REASON)
+            }
+        } catch {
+            // Ignore malformed JSON
+        }
+    }
+
+    private fail_pending_rpcs(err: Error): void {
+        for (const [req_id, rpc] of this.pending_rpcs) {
+            clearTimeout(rpc.timer)
+            this.pending_rpcs.delete(req_id)
+            rpc.reject(err)
+        }
+    }
+
+    private release_if_idle(): void {
+        if (this.keep_alive || this.leases > 0 || this.sessions.size > 0 || this.pending_rpcs.size > 0) {
+            return
+        }
+        const client = this.client
+        this.client = null
+        this.status_received = false
+        this.agent_online = false
+        client?.close(1000, "PTY client idle")
+    }
+}
+
 export interface PtyClientOptions {
     hub_url: string
     token: string
@@ -52,6 +483,13 @@ export interface PtyClientOptions {
     orphan_ttl_ms?: number
     persistent?: boolean
     signal?: AbortSignal
+    transport?: PtyMuxClient
+}
+
+interface InternalPtyOpenOptions extends PtyClientOptions {
+    survive_agent_offline?: boolean
+    on_agent_offline?: () => void
+    get_reattach_params?: () => { offset?: number; cols: number; rows: number }
 }
 
 export interface PtyExitStatus {
@@ -74,6 +512,7 @@ export interface PtyClient {
     on_replay(callback: (info: PtyReplayInfo) => void): void
     detach(): void
     close(): void
+    readonly ready: Promise<string>
     readonly exited: Promise<PtyExitStatus>
     readonly detached: Promise<void>
 }
@@ -106,170 +545,140 @@ export interface PtyConnection {
 }
 
 export async function open_pty_session(options: PtyClientOptions): Promise<PtyClient> {
+    const internal = options as InternalPtyOpenOptions
     let data_handler: ((data: Uint8Array) => void) | null = null
     let replay_handler: ((info: PtyReplayInfo) => void) | null = null
-    let resolve_ready!: (session_id: string) => void
-    let reject_ready!: (err: Error) => void
-    const ready = new Promise<string>((resolve, reject) => {
-        resolve_ready = resolve
-        reject_ready = reject
-    })
-    ready.catch(() => {})
 
     let resolve_exit!: (status: PtyExitStatus) => void
     let reject_exit!: (err: Error) => void
     let settled = false
+    let lease_released = false
     const exited = new Promise<PtyExitStatus>((resolve, reject) => {
         resolve_exit = resolve
         reject_exit = reject
     })
     exited.catch(() => {})
+
     let resolve_detach!: () => void
     const detached = new Promise<void>((resolve) => {
         resolve_detach = resolve
     })
 
+    const mux =
+        options.transport ??
+        new PtyMuxClient({
+            hub_url: options.hub_url,
+            token: options.token,
+            keep_alive: false
+        })
+
+    const session_id = options.session_id || generate_session_id()
+
+    const release_lease_once = () => {
+        if (lease_released) return
+        lease_released = true
+        options.signal?.removeEventListener("abort", on_abort)
+        mux.release_lease()
+    }
+
     const finish = (result: PtyExitStatus | Error): void => {
+        release_lease_once()
         if (settled) return
         settled = true
         if (result instanceof Error) reject_exit(result)
         else resolve_exit(result)
     }
 
-    const base_url = build_ws_url(options.hub_url, HUB_ROUTES.WS_PTY.path, options.token)
-    const ws_url = options.session_id ? `${base_url}&session_id=${encodeURIComponent(options.session_id)}` : base_url
-
-    const client = new WsClient({
-        url: ws_url,
-        signal: options.signal,
-        reconnect: false,
-        reset_on_close: true,
-        connect_timeout_ms: 10000,
-        ping_interval_ms: PTY_PING_INTERVAL_MS,
-        idle_timeout_ms: PTY_IDLE_TIMEOUT_MS,
-        on_message(data) {
-            try {
-                const msg = JSON.parse(data) as {
-                    type?: string
-                    session_id?: string
-                    code?: number
-                    signal?: number
-                    error?: string
-                    bytes?: number
-                    reset?: boolean
-                    offset?: number
-                }
-                if (msg.type === "pty:ready" && msg.session_id) {
-                    resolve_ready(msg.session_id)
-                    return
-                }
-                if (msg.type === "pty:replay" && typeof msg.bytes === "number") {
-                    replay_handler?.({
-                        bytes: msg.bytes,
-                        reset: msg.reset !== false,
-                        offset: typeof msg.offset === "number" ? msg.offset : undefined
-                    })
-                    return
-                }
-                if (msg.type === "pty:exit") {
-                    finish({ code: msg.code ?? 0, signal: msg.signal ?? 0 })
-                    return
-                }
-                if (msg.type === "pty:error") {
-                    finish(new PtySessionError(msg.error || "PTY session failed"))
-                }
-            } catch {
-                // Ignore malformed JSON
+    const on_abort = () => {
+        if (!settled) {
+            if (mux.unregister_session(session_id)) {
+                mux.send_json({ type: "pty:detach", session_id })
             }
-        },
-        on_binary(bytes) {
-            const decoded = decode_pty_frame(bytes)
-            if (decoded) data_handler?.(decoded.payload)
-        },
-        on_close(event) {
-            const err = new PtySocketClosed(event.code, event.reason || "")
-            reject_ready(err)
-            finish(err)
-        },
-        on_dead(reason) {
-            const err = new Error(reason || "PTY connection closed")
-            reject_ready(err)
-            finish(err)
+            resolve_detach()
+            finish(new PtySocketClosed(1000, "PTY client aborted"))
         }
+    }
+
+    await mux.acquire_session_transport(options.signal)
+
+    mux.register_session(session_id, {
+        survive_agent_offline: Boolean(internal.survive_agent_offline),
+        on_data: (data) => data_handler?.(data),
+        on_replay: (info) => replay_handler?.(info),
+        on_exit: (status) => finish(status),
+        on_error: (err) => finish(err),
+        on_detached: (reason) => finish(new PtySocketClosed(1000, reason)),
+        on_transport_closed: (err) => finish(err),
+        on_agent_offline: internal.on_agent_offline,
+        get_reattach_params: internal.get_reattach_params
     })
 
-    try {
-        await client.connect()
-        let ready_timer: ReturnType<typeof setTimeout> | undefined
-        const ready_timeout = new Promise<string>((_, reject) => {
-            ready_timer = setTimeout(() => reject(new Error("Timed out waiting for the PTY session")), 10000)
-        })
-        ready_timeout.catch(() => {})
-        let session_id: string
-        try {
-            session_id = await Promise.race([ready, ready_timeout])
-        } finally {
-            clearTimeout(ready_timer)
-        }
+    if (options.signal?.aborted) {
+        on_abort()
+        throw new PtySocketClosed(1000, "PTY connection aborted")
+    }
+    options.signal?.addEventListener("abort", on_abort, { once: true })
 
-        if (options.session_id) {
-            client.send_json({
-                type: "pty:attach",
-                session_id,
-                cols: options.cols && options.cols > 0 ? options.cols : 80,
-                rows: options.rows && options.rows > 0 ? options.rows : 24,
-                ...(typeof options.offset === "number" ? { offset: options.offset } : {})
-            })
-        } else {
-            client.send_json({
-                type: "pty:open",
-                session_id,
-                file: options.file,
-                args: options.args,
-                cwd: options.cwd,
-                cols: options.cols && options.cols > 0 ? options.cols : 80,
-                rows: options.rows && options.rows > 0 ? options.rows : 24,
-                term: options.term,
-                orphan_ttl_ms: options.orphan_ttl_ms,
-                persistent: options.persistent
-            })
-        }
-
-        return {
+    if (options.session_id) {
+        mux.send_json({
+            type: "pty:attach",
             session_id,
-            send(data: Uint8Array) {
-                client.send_binary(encode_pty_frame(session_id, data))
-            },
-            resize(cols: number, rows: number) {
-                client.send_json({ type: "pty:resize", session_id, cols, rows })
-            },
-            ping() {
-                client.ping()
-            },
-            on_data(callback) {
-                data_handler = callback
-            },
-            on_replay(callback) {
-                replay_handler = callback
-            },
-            detach() {
-                resolve_detach()
-                client.close(1000, "PTY client detached")
-            },
-            close() {
-                try {
-                    client.send_json({ type: "pty:close", session_id })
-                } catch {
-                    // Ignore send error
-                }
-                client.close(1000, "PTY client closed")
-            },
-            exited,
-            detached
-        }
-    } catch (err) {
-        client.close(1000, "PTY client closed")
-        throw err
+            cols: options.cols && options.cols > 0 ? options.cols : 80,
+            rows: options.rows && options.rows > 0 ? options.rows : 24,
+            ...(typeof options.offset === "number" ? { offset: options.offset } : {})
+        })
+    } else {
+        mux.send_json({
+            type: "pty:open",
+            session_id,
+            file: options.file,
+            args: options.args,
+            cwd: options.cwd,
+            cols: options.cols && options.cols > 0 ? options.cols : 80,
+            rows: options.rows && options.rows > 0 ? options.rows : 24,
+            term: options.term,
+            orphan_ttl_ms: options.orphan_ttl_ms,
+            persistent: options.persistent
+        })
+    }
+
+    return {
+        session_id,
+        send(data: Uint8Array) {
+            if (settled) return
+            mux.send_binary(encode_pty_frame(session_id, data))
+        },
+        resize(cols: number, rows: number) {
+            if (settled) return
+            mux.send_json({ type: "pty:resize", session_id, cols, rows })
+        },
+        ping() {
+            mux.ping()
+        },
+        on_data(callback) {
+            data_handler = callback
+        },
+        on_replay(callback) {
+            replay_handler = callback
+        },
+        detach() {
+            if (settled) return
+            if (mux.unregister_session(session_id)) {
+                mux.send_json({ type: "pty:detach", session_id })
+            }
+            resolve_detach()
+            finish(new PtySocketClosed(1000, "PTY client detached"))
+        },
+        close() {
+            if (settled) return
+            if (mux.unregister_session(session_id)) {
+                mux.send_json({ type: "pty:close", session_id })
+            }
+            finish(new PtySocketClosed(1000, "PTY client closed"))
+        },
+        ready: Promise.resolve(session_id),
+        exited,
+        detached
     }
 }
 
@@ -291,6 +700,7 @@ export function connect_pty_session(options: PtyClientOptions): PtyConnection {
     let replay_remaining = 0
     let current_cols = options.cols && options.cols > 0 ? options.cols : 80
     let current_rows = options.rows && options.rows > 0 ? options.rows : 24
+    let is_reattaching = false
 
     let stop_reason: "detached" | "closed" | "finished" | null = null
     let reconnect_attempts = 0
@@ -487,7 +897,7 @@ export function connect_pty_session(options: PtyClientOptions): PtyConnection {
 
                 let opened: PtyClient
                 try {
-                    opened = await open_pty_session({
+                    const open_opts: InternalPtyOpenOptions = {
                         hub_url: options.hub_url,
                         token: options.token,
                         session_id: active_session_id,
@@ -500,8 +910,26 @@ export function connect_pty_session(options: PtyClientOptions): PtyConnection {
                         term: options.term,
                         orphan_ttl_ms: active_session_id ? undefined : options.orphan_ttl_ms,
                         persistent: active_session_id ? undefined : options.persistent,
-                        signal: attempt_ctrl.signal
-                    })
+                        signal: attempt_ctrl.signal,
+                        transport: options.transport,
+                        survive_agent_offline: true,
+                        on_agent_offline: () => {
+                            if (stop_reason !== null) return
+                            is_reattaching = true
+                            replay_remaining = 0
+                            emit_status({
+                                status: "connecting",
+                                session_id: active_session_id ?? null,
+                                attempt: 1
+                            })
+                        },
+                        get_reattach_params: () => ({
+                            offset: received_bytes,
+                            cols: current_cols,
+                            rows: current_rows
+                        })
+                    }
+                    opened = await open_pty_session(open_opts)
                 } catch (err) {
                     if (attempt_abort === attempt_ctrl) attempt_abort = null
                     if (stop_reason !== null) return
@@ -533,6 +961,7 @@ export function connect_pty_session(options: PtyClientOptions): PtyConnection {
                 }
                 reconnect_attempts = 0
                 replay_remaining = 0
+                is_reattaching = false
 
                 opened.on_replay((replay) => {
                     if (current_client !== opened) return
@@ -542,8 +971,12 @@ export function connect_pty_session(options: PtyClientOptions): PtyConnection {
                     } else if (replay.reset) {
                         received_bytes = undefined
                     }
-                    if (is_reconnect && replay.reset) {
+                    if ((is_reconnect || is_reattaching) && replay.reset) {
                         for (const cb of reset_listeners) cb()
+                    }
+                    if (is_reattaching) {
+                        is_reattaching = false
+                        emit_status({ status: "connected", session_id: active_session_id ?? null })
                     }
                 })
 

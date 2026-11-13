@@ -38,16 +38,16 @@ export function get_cors_headers(request?: Request): Record<string, string> {
 }
 
 const AUTHENTICATED_PATHS = new Set<string>([
-    HUB_ROUTES.WS.path,
+    HUB_ROUTES.WS_AGENT_PTY.path,
+    HUB_ROUTES.WS_AGENT_FORWARD.path,
+    HUB_ROUTES.WS_AGENT_EXEC.path,
+    HUB_ROUTES.WS_AGENT_FILE.path,
     HUB_ROUTES.EXEC.path,
     HUB_ROUTES.EXEC_KILL.path,
     HUB_ROUTES.FILE_PULL.path,
     HUB_ROUTES.FILE_PUSH.path,
     HUB_ROUTES.WS_FORWARD.path,
-    HUB_ROUTES.WS_PTY.path,
-    HUB_ROUTES.PTY_LIST.path,
-    HUB_ROUTES.PTY_KILL.path,
-    HUB_ROUTES.PTY_UPDATE.path
+    HUB_ROUTES.WS_PTY.path
 ])
 
 export function missing_token_response(request: Request): Response | null {

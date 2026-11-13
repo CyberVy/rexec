@@ -14,6 +14,7 @@ interface ManagedTunnel {
 
 export class ForwardManager implements vscode.Disposable {
     private readonly tunnels = new Map<number, ManagedTunnel>()
+    private readonly callers = new Map<string, RexecCaller>()
     private readonly on_tunnels_change_emitter = new vscode.EventEmitter<PortForwardInfo[]>()
     public readonly on_did_change_tunnels = this.on_tunnels_change_emitter.event
 
@@ -22,7 +23,7 @@ export class ForwardManager implements vscode.Disposable {
             throw new Error(`Port ${local_port} is already being forwarded by Rexec`)
         }
 
-        const caller = new RexecCaller({ hub_url, token })
+        const caller = this.get_caller(hub_url, token)
         const tunnel = await caller.forward(remote_port)
 
         const sockets = new Map<number, net.Socket>()
@@ -136,12 +137,26 @@ export class ForwardManager implements vscode.Disposable {
         }))
     }
 
+    private get_caller(hub_url: string, token: string): RexecCaller {
+        const key = `${hub_url.trim()}|${token.trim()}`
+        let caller = this.callers.get(key)
+        if (!caller) {
+            caller = new RexecCaller({ hub_url, token })
+            this.callers.set(key, caller)
+        }
+        return caller
+    }
+
     private notify_change(): void {
         this.on_tunnels_change_emitter.fire(this.get_active_tunnels())
     }
 
     public dispose(): void {
         void this.stop_all()
+        for (const caller of this.callers.values()) {
+            caller.close()
+        }
+        this.callers.clear()
         this.on_tunnels_change_emitter.dispose()
     }
 }

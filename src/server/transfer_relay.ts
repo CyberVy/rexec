@@ -8,7 +8,6 @@ import type {
     TransferErrorMessage
 } from "@/protocol"
 import { TRANSFER_ID_BYTES, decode_transfer_frame, encode_transfer_frame } from "@/transport"
-import type { AgentSession } from "./types"
 import { accepted_token, get_cors_headers } from "./utils"
 
 interface ActivePull {
@@ -33,17 +32,17 @@ export class TransferRelay {
     private active_pushes: Map<string, ActivePush> = new Map()
 
     public constructor(
-        private readonly send: (session: AgentSession, msg: HubToAgentMessage) => void,
-        private readonly get_open_agent: (token: string) => AgentSession | undefined
+        private readonly send: (ws: WebSocket, msg: HubToAgentMessage) => void,
+        private readonly get_open_ws: (token: string) => WebSocket | undefined
     ) {}
 
     public on_agent_message(
-        session: AgentSession,
+        token: string,
         msg: FilePullMetaMessage | FilePullEndMessage | FilePushEndMessage | TransferErrorMessage
     ): void {
         if (msg.type === "file:pull_meta") {
             const pull = this.active_pulls.get(msg.transfer_id)
-            if (pull && pull.token === session.token) {
+            if (pull && pull.token === token) {
                 pull.meta_received = true
                 pull.resolve_meta(msg.meta)
             }
@@ -52,7 +51,7 @@ export class TransferRelay {
 
         if (msg.type === "file:pull_end") {
             const pull = this.active_pulls.get(msg.transfer_id)
-            if (pull && pull.token === session.token) {
+            if (pull && pull.token === token) {
                 if (pull.timeout_id) clearTimeout(pull.timeout_id)
                 pull.write_queue.then(() => pull.writer.close()).catch(() => {})
                 this.active_pulls.delete(msg.transfer_id)
@@ -62,7 +61,7 @@ export class TransferRelay {
 
         if (msg.type === "file:push_end") {
             const push = this.active_pushes.get(msg.transfer_id)
-            if (push && push.token === session.token) {
+            if (push && push.token === token) {
                 if (push.timeout_id) clearTimeout(push.timeout_id)
                 push.resolve_push({ sha256: msg.sha256 })
                 this.active_pushes.delete(msg.transfer_id)
@@ -71,7 +70,7 @@ export class TransferRelay {
         }
 
         const pull = this.active_pulls.get(msg.transfer_id)
-        if (pull && pull.token === session.token) {
+        if (pull && pull.token === token) {
             if (pull.timeout_id) clearTimeout(pull.timeout_id)
             if (!pull.meta_received) {
                 pull.reject_meta(new Error(msg.error))
@@ -81,19 +80,19 @@ export class TransferRelay {
             this.active_pulls.delete(msg.transfer_id)
         }
         const push = this.active_pushes.get(msg.transfer_id)
-        if (push && push.token === session.token) {
+        if (push && push.token === token) {
             if (push.timeout_id) clearTimeout(push.timeout_id)
             push.reject_push(new Error(msg.error))
             this.active_pushes.delete(msg.transfer_id)
         }
     }
 
-    public relay_agent_binary(session: AgentSession, bytes: Uint8Array): void {
+    public relay_agent_binary(token: string, bytes: Uint8Array): void {
         const decoded = decode_transfer_frame(bytes)
         if (!decoded) return
 
         const pull = this.active_pulls.get(decoded.transfer_id)
-        if (pull && pull.token === session.token) {
+        if (pull && pull.token === token) {
             pull.write_queue = pull.write_queue.then(() => pull.writer.write(decoded.payload)).catch(() => {})
         }
     }
@@ -101,8 +100,8 @@ export class TransferRelay {
     public async handle_pull_request(request: Request, url: URL): Promise<Response> {
         const headers = get_cors_headers(request)
         const token = accepted_token(request, url)
-        const session = this.get_open_agent(token)
-        if (!session) {
+        const agent_ws = this.get_open_ws(token)
+        if (!agent_ws) {
             return Response.json(
                 { error: "No agent connected for this token. Please start rexec-agent first." },
                 { status: 503, headers }
@@ -153,13 +152,13 @@ export class TransferRelay {
             const pull = this.active_pulls.get(transfer_id)
             if (pull) {
                 if (pull.timeout_id) clearTimeout(pull.timeout_id)
-                this.send(session, { type: "transfer:error", transfer_id, error: "Client aborted request" })
+                this.send(agent_ws, { type: "transfer:error", transfer_id, error: "Client aborted request" })
                 pull.writer.abort(new Error("Client aborted")).catch(() => {})
                 this.active_pulls.delete(transfer_id)
             }
         })
 
-        this.send(session, {
+        this.send(agent_ws, {
             type: "file:pull_start",
             transfer_id,
             path: file_path,
@@ -197,8 +196,8 @@ export class TransferRelay {
         }
 
         const token = accepted_token(request, url)
-        const session = this.get_open_agent(token)
-        if (!session) {
+        const agent_ws = this.get_open_ws(token)
+        if (!agent_ws) {
             return Response.json(
                 { error: "No agent connected for this token. Please start rexec-agent first." },
                 { status: 503, headers }
@@ -241,7 +240,7 @@ export class TransferRelay {
             timeout_id
         })
 
-        this.send(session, {
+        this.send(agent_ws, {
             type: "file:push_start",
             transfer_id,
             path: file_path,
@@ -256,10 +255,10 @@ export class TransferRelay {
                 const { done, value } = await reader.read()
                 if (done) break
                 const packet = encode_transfer_frame(transfer_id, value)
-                session.ws.send(packet)
+                agent_ws.send(packet)
             }
 
-            this.send(session, {
+            this.send(agent_ws, {
                 type: "file:push_end",
                 transfer_id
             })
@@ -270,7 +269,7 @@ export class TransferRelay {
         } catch (err) {
             clearTimeout(timeout_id)
             this.active_pushes.delete(transfer_id)
-            this.send(session, {
+            this.send(agent_ws, {
                 type: "transfer:error",
                 transfer_id,
                 error: (err as Error).message
@@ -279,15 +278,15 @@ export class TransferRelay {
         }
     }
 
-    public stop_on_agent(session: AgentSession): void {
+    public stop_on_agent(token: string, ws: WebSocket): void {
         for (const [transfer_id, pull] of this.active_pulls) {
-            if (pull.token === session.token) {
-                this.send(session, { type: "transfer:error", transfer_id, error: "Agent session ended" })
+            if (pull.token === token) {
+                this.send(ws, { type: "transfer:error", transfer_id, error: "Agent session ended" })
             }
         }
         for (const [transfer_id, push] of this.active_pushes) {
-            if (push.token === session.token) {
-                this.send(session, { type: "transfer:error", transfer_id, error: "Agent session ended" })
+            if (push.token === token) {
+                this.send(ws, { type: "transfer:error", transfer_id, error: "Agent session ended" })
             }
         }
     }

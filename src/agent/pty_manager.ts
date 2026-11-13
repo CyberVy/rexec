@@ -2,14 +2,15 @@ import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import type {
-    AgentToHubMessage,
-    PtyAttachMessage,
-    PtyCloseMessage,
-    PtyOpenMessage,
-    PtyResizeMessage,
-    PtySessionInfo,
-    PtyUpdateMessage
+import {
+    PTY_CALLER_REPLACED_REASON,
+    type AgentToHubMessage,
+    type PtyAttachMessage,
+    type PtyCloseMessage,
+    type PtyOpenMessage,
+    type PtyResizeMessage,
+    type PtySessionInfo,
+    type PtyUpdateMessage
 } from "@/protocol"
 import { encode_pty_frame } from "@/transport"
 import { load_pty_binding, type PtyBinding } from "./pty_binding"
@@ -19,6 +20,9 @@ import { WindowsPtyProcess } from "./windows_pty"
 
 interface PtySlot {
     status: "attached" | "detached" | "closed"
+    owner_client_id?: string
+    send?: (msg: AgentToHubMessage) => void
+    send_binary?: (packet: Uint8Array) => void
     cols: number
     rows: number
     pending: Uint8Array[]
@@ -63,7 +67,8 @@ export class PtyManager {
         msg: PtyOpenMessage,
         base_workspace: string,
         send: (msg: AgentToHubMessage) => void,
-        send_binary: (packet: Uint8Array) => void
+        send_binary: (packet: Uint8Array) => void,
+        client_id?: string
     ): void {
         const session_id = msg.session_id
         const existing = this.sessions.get(session_id)
@@ -91,6 +96,9 @@ export class PtyManager {
             persistent
         }
         slot.status = "attached"
+        slot.owner_client_id = client_id
+        slot.send = send
+        slot.send_binary = send_binary
         slot.cols = dimension(msg.cols, slot.cols)
         slot.rows = dimension(msg.rows, slot.rows)
         slot.orphan_ttl_ms = orphan_ttl_ms
@@ -122,15 +130,15 @@ export class PtyManager {
             cwd,
             msg.term?.trim() || "xterm-256color",
             launch.shell,
-            send,
-            send_binary
+            send
         )
     }
 
     public attach(
         msg: PtyAttachMessage,
         send: (msg: AgentToHubMessage) => void,
-        send_binary: (packet: Uint8Array) => void
+        send_binary: (packet: Uint8Array) => void,
+        client_id?: string
     ): void {
         const session_id = msg.session_id
         const slot = this.sessions.get(session_id)
@@ -143,6 +151,18 @@ export class PtyManager {
             slot.orphan_timer = undefined
         }
         slot.detached_at = undefined
+
+        if (slot.status === "attached" && client_id && slot.owner_client_id && slot.owner_client_id !== client_id) {
+            slot.send?.({
+                type: "pty:detached",
+                session_id,
+                reason: PTY_CALLER_REPLACED_REASON
+            })
+        }
+
+        slot.owner_client_id = client_id
+        slot.send = send
+        slot.send_binary = send_binary
 
         const replay = slot.ring_buffer.read_from(msg.offset)
         console.log(
@@ -175,16 +195,20 @@ export class PtyManager {
         const next_rows = msg.rows ? dimension(msg.rows, 0) : 0
         const size_changed = next_cols > 0 && next_rows > 0 && (next_cols !== slot.cols || next_rows !== slot.rows)
         if (size_changed) {
-            this.resize({ type: "pty:resize", session_id, cols: next_cols, rows: next_rows })
+            this.resize({ type: "pty:resize", session_id, cols: next_cols, rows: next_rows }, client_id)
         } else if (replay.reset) {
             // Trigger SIGWINCH to redraw application state after a full reset/attach.
             slot.process?.resize(slot.cols, slot.rows)
         }
     }
 
-    public detach(session_id: string): void {
+    public detach(session_id: string, client_id?: string): void {
         const slot = this.sessions.get(session_id)
         if (!slot || slot.status === "closed" || slot.status === "detached") return
+        if (client_id && slot.owner_client_id && slot.owner_client_id !== client_id) return
+        slot.owner_client_id = undefined
+        slot.send = undefined
+        slot.send_binary = undefined
         slot.status = "detached"
         slot.detached_at = Date.now()
         if (slot.persistent) {
@@ -206,9 +230,17 @@ export class PtyManager {
         slot.orphan_timer.unref?.()
     }
 
-    public update(msg: PtyUpdateMessage): void {
+    public detach_client(client_id: string): void {
+        for (const [session_id, slot] of this.sessions) {
+            if (slot.status === "attached" && slot.owner_client_id === client_id) {
+                this.detach(session_id, client_id)
+            }
+        }
+    }
+
+    public update(msg: PtyUpdateMessage): boolean {
         const slot = this.sessions.get(msg.session_id)
-        if (!slot || slot.status === "closed") return
+        if (!slot || slot.status === "closed") return false
         slot.persistent = Boolean(msg.persistent)
         console.log(`[rexec-agent] [pty:${msg.session_id.slice(0, 8)}] Updated persistent status: ${slot.persistent}`)
         if (slot.persistent) {
@@ -224,6 +256,7 @@ export class PtyManager {
             }, slot.orphan_ttl_ms)
             slot.orphan_timer.unref?.()
         }
+        return true
     }
 
     public list(): PtySessionInfo[] {
@@ -251,9 +284,10 @@ export class PtyManager {
         return result
     }
 
-    public write(session_id: string, payload: Uint8Array): void {
+    public write(session_id: string, payload: Uint8Array, client_id?: string): void {
         const slot = this.sessions.get(session_id)
         if (!slot || slot.status === "closed" || payload.byteLength === 0) return
+        if (client_id && slot.owner_client_id && slot.owner_client_id !== client_id) return
         if (slot.process) {
             slot.process.write(payload)
             return
@@ -261,9 +295,10 @@ export class PtyManager {
         slot.pending.push(payload)
     }
 
-    public resize(msg: PtyResizeMessage): void {
+    public resize(msg: PtyResizeMessage, client_id?: string): void {
         const slot = this.sessions.get(msg.session_id)
         if (!slot || slot.status === "closed") return
+        if (client_id && slot.owner_client_id && slot.owner_client_id !== client_id) return
         const cols = dimension(msg.cols, 0)
         const rows = dimension(msg.rows, 0)
         if (!cols || !rows) return
@@ -272,7 +307,7 @@ export class PtyManager {
         slot.process?.resize(cols, rows)
     }
 
-    public close(msg: PtyCloseMessage): void {
+    public close(msg: PtyCloseMessage, notify_owner = false): boolean {
         const slot = this.sessions.get(msg.session_id)
         if (!slot) {
             this.sessions.set(msg.session_id, {
@@ -287,9 +322,14 @@ export class PtyManager {
                 started_at: 0,
                 persistent: false
             })
-            return
+            return false
         }
+        const was_attached = slot.status === "attached"
+        const prev_send = slot.send
         slot.status = "closed"
+        slot.owner_client_id = undefined
+        slot.send = undefined
+        slot.send_binary = undefined
         if (slot.orphan_timer) {
             clearTimeout(slot.orphan_timer)
             slot.orphan_timer = undefined
@@ -298,11 +338,18 @@ export class PtyManager {
         slot.ring_buffer.clear()
         slot.process?.kill()
         this.sessions.delete(msg.session_id)
+        if (notify_owner && was_attached && prev_send) {
+            prev_send({ type: "pty:exit", session_id: msg.session_id, code: 0, signal: 15 })
+        }
+        return true
     }
 
     public abort_all(): void {
         for (const slot of this.sessions.values()) {
             slot.status = "closed"
+            slot.owner_client_id = undefined
+            slot.send = undefined
+            slot.send_binary = undefined
             if (slot.orphan_timer) clearTimeout(slot.orphan_timer)
             slot.pending.length = 0
             slot.ring_buffer.clear()
@@ -319,8 +366,7 @@ export class PtyManager {
         cwd: string,
         term: string,
         default_shell: string | undefined,
-        send: (msg: AgentToHubMessage) => void,
-        send_binary: (packet: Uint8Array) => void
+        fallback_send: (msg: AgentToHubMessage) => void
     ): Promise<void> {
         try {
             this.binding ??= await load_pty_binding(this.hub_url)
@@ -335,7 +381,7 @@ export class PtyManager {
             const initial_osc7 = new TextEncoder().encode(`\x1b]7;file://localhost${cwd}\x07`)
             slot.ring_buffer.write(initial_osc7)
             if (slot.status === "attached") {
-                send_binary(encode_pty_frame(session_id, initial_osc7))
+                slot.send_binary?.(encode_pty_frame(session_id, initial_osc7))
             }
 
             const proc = open_pty_process(
@@ -357,7 +403,7 @@ export class PtyManager {
                     }
                     slot.ring_buffer.write(data)
                     if (slot.status === "attached") {
-                        send_binary(encode_pty_frame(session_id, data))
+                        slot.send_binary?.(encode_pty_frame(session_id, data))
                     }
                 },
                 (status) => {
@@ -367,7 +413,7 @@ export class PtyManager {
                     if (slot.orphan_timer) clearTimeout(slot.orphan_timer)
                     this.sessions.delete(session_id)
                     if (slot.status !== "closed") {
-                        send({
+                        slot.send?.({
                             type: "pty:exit",
                             session_id,
                             code: status.code,
@@ -387,7 +433,7 @@ export class PtyManager {
                 proc.write(chunk)
             }
         } catch (err) {
-            this.fail(session_id, (err as Error).message, send)
+            this.fail(session_id, (err as Error).message, slot.send ?? fallback_send)
         }
     }
 

@@ -247,7 +247,7 @@ const QUIET = {
 }
 
 function reconnected(peer: Peer, child: ChildProcess): boolean {
-    return child.exitCode === null && peer.connections >= 2 && peer.ended >= 1
+    return child.exitCode === null && peer.connections >= 8 && peer.ended >= 4
 }
 
 const CASES: HeartbeatCase[] = [
@@ -268,13 +268,13 @@ const CASES: HeartbeatCase[] = [
         mode: "pong",
         env: { ...FAST, REXEC_HEARTBEAT_INTERVAL_MS: PING_MS, REXEC_HEARTBEAT_TIMEOUT_MS: IDLE_MS },
         hold_ms: 1000,
-        pass: (peer, child) => child.exitCode === null && peer.connections === 1
+        pass: (peer, child) => child.exitCode === null && peer.connections === 4 && peer.ended === 0
     },
     {
         name: "test:heartbeat_token_takeover_exits",
         mode: "replaced",
         env: { ...FAST, ...QUIET },
-        pass: (peer, child) => child.exitCode === 0 && peer.connections === 1
+        pass: (peer, child) => child.exitCode === 0 && peer.connections >= 1 && peer.connections <= 4
     }
 ]
 

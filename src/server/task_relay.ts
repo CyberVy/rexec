@@ -7,7 +7,6 @@ import type {
     TaskChunkMessage,
     TaskExitMessage
 } from "@/protocol"
-import type { AgentSession } from "./types"
 import { accepted_token, get_cors_headers } from "./utils"
 
 interface ActiveTask {
@@ -22,8 +21,8 @@ export class TaskRelay {
     private active_tasks: Map<string, ActiveTask> = new Map()
 
     public constructor(
-        private readonly send: (session: AgentSession, msg: HubToAgentMessage) => void,
-        private readonly get_open_agent: (token: string) => AgentSession | undefined
+        private readonly send: (ws: WebSocket, msg: HubToAgentMessage) => void,
+        private readonly get_open_ws: (token: string) => WebSocket | undefined
     ) {}
 
     public get size(): number {
@@ -38,16 +37,16 @@ export class TaskRelay {
         return count
     }
 
-    public on_agent_message(session: AgentSession, msg: TaskChunkMessage | TaskExitMessage): void {
+    public on_agent_message(token: string, msg: TaskChunkMessage | TaskExitMessage): void {
         if (msg.type === "task:chunk") {
             const task = this.active_tasks.get(msg.task_id)
-            if (task && task.token === session.token) {
+            if (task && task.token === token) {
                 const payload = JSON.stringify({ stream: msg.stream, data: msg.data })
                 this.write_to_task(task, msg.task_id, `event: chunk\ndata: ${payload}\n\n`)
             }
         } else if (msg.type === "task:exit") {
             const task = this.active_tasks.get(msg.task_id)
-            if (task && task.token === session.token) {
+            if (task && task.token === token) {
                 if (task.timeout_id) clearTimeout(task.timeout_id)
                 const payload = JSON.stringify({ code: msg.code, signal: msg.signal })
                 task.write_queue = task.write_queue
@@ -62,8 +61,8 @@ export class TaskRelay {
     public async handle_exec_request(request: Request, url: URL): Promise<Response> {
         const headers = get_cors_headers(request)
         const token = accepted_token(request, url)
-        const session = this.get_open_agent(token)
-        if (!session) {
+        const agent_ws = this.get_open_ws(token)
+        if (!agent_ws) {
             return Response.json(
                 { error: "No agent connected for this token. Please start rexec-agent first." },
                 { status: 503, headers }
@@ -111,7 +110,7 @@ export class TaskRelay {
 
         this.write_to_task(task, task_id, `event: start\ndata: ${JSON.stringify({ task_id })}\n\n`)
 
-        this.send(session, {
+        this.send(agent_ws, {
             type: "task:exec",
             task_id,
             cmd: body.cmd,
@@ -153,11 +152,11 @@ export class TaskRelay {
         return Response.json(success_res, { headers })
     }
 
-    public stop_on_agent(session: AgentSession): void {
+    public stop_on_agent(token: string, ws: WebSocket): void {
         for (const task_id of this.active_tasks.keys()) {
             const task = this.active_tasks.get(task_id)
-            if (task && task.token === session.token) {
-                this.send(session, { type: "task:kill", task_id, signal: "SIGTERM" })
+            if (task && task.token === token) {
+                this.send(ws, { type: "task:kill", task_id, signal: "SIGTERM" })
             }
         }
     }
@@ -181,8 +180,8 @@ export class TaskRelay {
         if (!task) return
         if (task.timeout_id) clearTimeout(task.timeout_id)
         this.active_tasks.delete(task_id)
-        const agent = this.get_open_agent(task.token)
-        if (agent) this.send(agent, { type: "task:kill", task_id, signal: "SIGTERM" })
+        const agent_ws = this.get_open_ws(task.token)
+        if (agent_ws) this.send(agent_ws, { type: "task:kill", task_id, signal: "SIGTERM" })
         task.writer.close().catch(() => {})
     }
 

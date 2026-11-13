@@ -163,7 +163,12 @@ export interface PtyCloseMessage {
     session_id: string
 }
 
-/** Hub closes the previous caller socket with this reason when another caller takes the session. */
+export type AgentChannelName = "pty" | "forward" | "exec" | "file"
+
+export const AGENT_REPLACED_REASON = "Replaced by new connection"
+export const AGENT_CHANNEL_REPLACED_REASON = "Replaced by channel reconnect"
+
+/** Agent detaches the previous caller for a session with this reason when another caller takes it. */
 export const PTY_CALLER_REPLACED_REASON = "Replaced by new connection"
 
 export interface PtyDetachMessage {
@@ -221,6 +226,35 @@ export interface PtyUpdateMessage {
     type: "pty:update"
     session_id: string
     persistent: boolean
+    req_id?: string
+}
+
+export interface PtyUpdateResMessage {
+    type: "pty:update_res"
+    req_id: string
+    session_id: string
+    updated: boolean
+    error?: string
+}
+
+export interface PtyKillMessage {
+    type: "pty:kill"
+    session_id: string
+    req_id?: string
+}
+
+export interface PtyKillResMessage {
+    type: "pty:kill_res"
+    req_id: string
+    session_id: string
+    killed: boolean
+    error?: string
+}
+
+export interface PtyDetachedMessage {
+    type: "pty:detached"
+    session_id: string
+    reason: string
 }
 
 export interface PtyListReqMessage {
@@ -232,6 +266,23 @@ export interface PtyListResMessage {
     type: "pty:list_res"
     req_id: string
     sessions: PtySessionInfo[]
+}
+
+export interface HubStatusMessage {
+    type: "hub:status"
+    agent_connected: boolean
+}
+
+export interface HubAgentOnlineMessage {
+    type: "hub:agent_online"
+}
+
+export interface HubAgentOfflineMessage {
+    type: "hub:agent_offline"
+}
+
+export interface ClientCloseMessage {
+    type: "client:close"
 }
 
 // ==========================================
@@ -252,10 +303,14 @@ export type AgentToHubMessage =
     | PtyExitMessage
     | PtyErrorMessage
     | PtyReplayMessage
+    | PtyDetachedMessage
     | PtyListResMessage
+    | PtyKillResMessage
+    | PtyUpdateResMessage
 
 export type HubToAgentMessage =
     | HubRegisteredMessage
+    | ClientCloseMessage
     | TaskExecMessage
     | TaskKillMessage
     | PingMessage
@@ -270,6 +325,7 @@ export type HubToAgentMessage =
     | PtyOpenMessage
     | PtyResizeMessage
     | PtyCloseMessage
+    | PtyKillMessage
     | PtyDetachMessage
     | PtyAttachMessage
     | PtyListReqMessage
@@ -280,14 +336,14 @@ export type HubToAgentMessage =
 // ==========================================
 export const HUB_ROUTES = {
     HEALTH: { path: "/health", method: "GET" },
-    PTY_LIST: { path: "/pty/list", method: "GET" },
-    PTY_KILL: { path: "/pty/kill", method: "POST" },
-    PTY_UPDATE: { path: "/pty/update", method: "POST" },
     EXEC: { path: "/exec", method: "POST" },
     EXEC_KILL: { path: "/exec/kill", method: "POST" },
     FILE_PULL: { path: "/file/pull", method: "GET" },
     FILE_PUSH: { path: "/file/push", method: "POST" },
-    WS: { path: "/ws", method: "WS" },
+    WS_AGENT_PTY: { path: "/ws/agent/pty", method: "WS" },
+    WS_AGENT_FORWARD: { path: "/ws/agent/forward", method: "WS" },
+    WS_AGENT_EXEC: { path: "/ws/agent/exec", method: "WS" },
+    WS_AGENT_FILE: { path: "/ws/agent/file", method: "WS" },
     WS_FORWARD: { path: "/ws/forward", method: "WS" },
     WS_PTY: { path: "/ws/pty", method: "WS" }
 } as const
@@ -307,6 +363,13 @@ export interface ApiErrorResponse {
     error: string
 }
 
+export interface HubChannelHealth {
+    pty: boolean
+    forward: boolean
+    exec: boolean
+    file: boolean
+}
+
 // 1. /health
 export interface HubHealthResponse {
     status: "ok"
@@ -314,6 +377,7 @@ export interface HubHealthResponse {
     active_tasks: number
     node_id?: string
     connected_agents?: number
+    channels?: HubChannelHealth
 }
 
 export type HubStatus = HubHealthResponse
@@ -355,25 +419,7 @@ export interface ExecKillResponse {
     status: "ok"
 }
 
-// 3. /pty/kill and /pty/update (Note: /pty/list returns PtySessionInfo[])
-export interface PtyKillRequestPayload {
-    session_id: string
-}
-
-export interface PtyKillResponse {
-    status: "ok"
-}
-
-export interface PtyUpdateRequestPayload {
-    session_id: string
-    persistent: boolean
-}
-
-export interface PtyUpdateResponse {
-    status: "ok"
-}
-
-// 4. /file/push
+// 3. /file/push
 export interface FilePushResponse {
     status: "ok"
     size: number

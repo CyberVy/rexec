@@ -75,14 +75,16 @@ async function run(): Promise<void> {
                 "--experimental-websocket",
                 "-e",
                 `
+                    const crypto = require("node:crypto")
                     const ws = new WebSocket(${JSON.stringify(pty_url)})
                     ws.onmessage = (ev) => {
                         if (typeof ev.data !== "string") return
                         const msg = JSON.parse(ev.data)
-                        if (msg.type !== "pty:ready") return
+                        if (msg.type !== "hub:status" || !msg.agent_connected) return
+                        const session_id = crypto.randomUUID().replace(/-/g, "").slice(0, 16)
                         ws.send(JSON.stringify({
                             type: "pty:open",
-                            session_id: msg.session_id,
+                            session_id,
                             file: "bash",
                             args: ["-c", ${JSON.stringify(`exec -a ${hold_marker} sleep 120 & wait`)}],
                             cols: 80,

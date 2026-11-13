@@ -6,9 +6,53 @@ export const enum ChannelDomain {
 
 export const TRANSFER_ID_BYTES = 16
 export const SESSION_ID_BYTES = 16
+export const CLIENT_ID_BYTES = 16
+export const BROADCAST_CLIENT_ID = "****************"
+export const LINK_PONG_PAYLOAD = '{"type":"pong"}'
 export const FORWARD_HEADER_BYTES = 1 + SESSION_ID_BYTES + 4 // 21 bytes (1B domain + 16B session_id + 4B uint32 conn_id)
 export const TRANSFER_HEADER_BYTES = 1 + TRANSFER_ID_BYTES // 17 bytes (1B domain + 16B transfer_id)
 export const PTY_HEADER_BYTES = 1 + SESSION_ID_BYTES // 17 bytes (1B domain + 16B session_id)
+
+export function is_link_ping(raw: string): boolean {
+    return raw.length <= 64 && raw.startsWith('{"type":"ping"')
+}
+
+export function wrap_client_text(client_id: string, payload: string): string {
+    return `${client_id}:${payload}`
+}
+
+export function unwrap_client_text(raw: string): { client_id: string; payload: string } | null {
+    if (raw.length <= CLIENT_ID_BYTES || raw[0] === "{" || raw[CLIENT_ID_BYTES] !== ":") {
+        return null
+    }
+    return {
+        client_id: raw.slice(0, CLIENT_ID_BYTES),
+        payload: raw.slice(CLIENT_ID_BYTES + 1)
+    }
+}
+
+export function wrap_client_binary(client_id: string, payload: Uint8Array): Uint8Array {
+    const frame = new Uint8Array(CLIENT_ID_BYTES + payload.byteLength)
+    for (let i = 0; i < CLIENT_ID_BYTES; i++) {
+        frame[i] = client_id.charCodeAt(i)
+    }
+    frame.set(payload, CLIENT_ID_BYTES)
+    return frame
+}
+
+export function unwrap_client_binary(frame: Uint8Array): { client_id: string; payload: Uint8Array } | null {
+    if (frame.byteLength < CLIENT_ID_BYTES) {
+        return null
+    }
+    let client_id = ""
+    for (let i = 0; i < CLIENT_ID_BYTES; i++) {
+        client_id += String.fromCharCode(frame[i]!)
+    }
+    return {
+        client_id,
+        payload: frame.subarray(CLIENT_ID_BYTES)
+    }
+}
 
 /**
  * Encodes a file transfer binary chunk with domain prefix and 16-byte transfer_id.

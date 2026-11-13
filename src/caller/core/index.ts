@@ -1,7 +1,14 @@
 import { exec_command } from "./exec"
-import { open_forward_tunnel, type ForwardTunnelClient } from "./forward"
+import { ForwardMuxClient, open_forward_tunnel, type ForwardTunnelClient } from "./forward"
 import { pull_http, push_http } from "./file"
-import { connect_pty_session, open_pty_session, type PtyClient, type PtyClientOptions, type PtyConnection } from "./pty"
+import {
+    PtyMuxClient,
+    connect_pty_session,
+    open_pty_session,
+    type PtyClient,
+    type PtyClientOptions,
+    type PtyConnection
+} from "./pty"
 import {
     HUB_ROUTES,
     type CallerOptions,
@@ -11,10 +18,8 @@ import {
     type PullResult,
     type PushOptions,
     type PushResult,
-    type PtyKillRequestPayload,
     type PtyOptions,
     type PtySessionInfo,
-    type PtyUpdateRequestPayload,
     type TransferSink,
     type TransferSource
 } from "./types"
@@ -42,10 +47,14 @@ export function format_http_url(url_str: string): string {
 export class RexecCaller {
     public readonly hub_url: string
     public readonly token: string
+    private readonly keep_alive: boolean
+    private pty_mux: PtyMuxClient | null = null
+    private forward_mux: ForwardMuxClient | null = null
 
     public constructor(options: CallerOptions) {
         this.hub_url = format_http_url(options.hub_url)
         this.token = options.token.trim()
+        this.keep_alive = Boolean(options.keep_alive)
     }
 
     /**
@@ -105,7 +114,8 @@ export class RexecCaller {
             token: this.token,
             remote_port,
             signal: options?.signal,
-            timeout_ms: options?.timeout_ms
+            timeout_ms: options?.timeout_ms,
+            transport: this.get_forward_mux()
         })
     }
 
@@ -138,7 +148,8 @@ export class RexecCaller {
             term: options.term,
             orphan_ttl_ms: options.orphan_ttl_ms,
             persistent: options.persistent,
-            signal: options.signal
+            signal: options.signal,
+            transport: this.get_pty_mux()
         }
     }
 
@@ -146,50 +157,21 @@ export class RexecCaller {
      * List all active and detached PTY sessions on the remote agent.
      */
     public async list_ptys(): Promise<PtySessionInfo[]> {
-        const url = new URL(HUB_ROUTES.PTY_LIST.path, this.hub_url)
-        url.searchParams.set("token", this.token)
-        const res = await fetch(url.toString())
-        if (!res.ok) {
-            throw new Error(`Failed to list PTY sessions (${res.status})`)
-        }
-        return (await res.json()) as PtySessionInfo[]
+        return this.get_pty_mux().list_ptys()
     }
 
     /**
      * Terminate and clean up a remote PTY session by session_id.
      */
     public async kill_pty(session_id: string): Promise<void> {
-        const url = new URL(HUB_ROUTES.PTY_KILL.path, this.hub_url)
-        url.searchParams.set("token", this.token)
-        const payload: PtyKillRequestPayload = { session_id }
-        const res = await fetch(url.toString(), {
-            method: HUB_ROUTES.PTY_KILL.method,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        })
-        if (!res.ok) {
-            throw new Error(await pty_http_error(res, "kill PTY session"))
-        }
+        return this.get_pty_mux().kill_pty(session_id)
     }
 
     /**
      * Update configuration for a remote PTY session (e.g. toggle persistence).
      */
     public async update_pty(session_id: string, updates: { persistent: boolean }): Promise<void> {
-        const url = new URL(HUB_ROUTES.PTY_UPDATE.path, this.hub_url)
-        url.searchParams.set("token", this.token)
-        const payload: PtyUpdateRequestPayload = {
-            session_id,
-            persistent: updates.persistent
-        }
-        const res = await fetch(url.toString(), {
-            method: HUB_ROUTES.PTY_UPDATE.method,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        })
-        if (!res.ok) {
-            throw new Error(await pty_http_error(res, "update PTY session"))
-        }
+        return this.get_pty_mux().update_pty(session_id, updates)
     }
 
     /**
@@ -198,15 +180,32 @@ export class RexecCaller {
     public async set_pty_persistent(session_id: string, persistent: boolean): Promise<void> {
         await this.update_pty(session_id, { persistent })
     }
-}
 
-async function pty_http_error(res: Response, action: string): Promise<string> {
-    let detail = ""
-    try {
-        const body = (await res.json()) as { error?: string }
-        if (body.error) detail = `: ${body.error}`
-    } catch {
-        // Response body is not JSON.
+    /**
+     * Close shared WebSocket transports maintained by this caller instance.
+     */
+    public close(): void {
+        this.pty_mux?.close()
+        this.pty_mux = null
+        this.forward_mux?.close()
+        this.forward_mux = null
     }
-    return `Failed to ${action} (${res.status})${detail}`
+
+    private get_pty_mux(): PtyMuxClient {
+        this.pty_mux ??= new PtyMuxClient({
+            hub_url: this.hub_url,
+            token: this.token,
+            keep_alive: this.keep_alive
+        })
+        return this.pty_mux
+    }
+
+    private get_forward_mux(): ForwardMuxClient {
+        this.forward_mux ??= new ForwardMuxClient({
+            hub_url: this.hub_url,
+            token: this.token,
+            keep_alive: this.keep_alive
+        })
+        return this.forward_mux
+    }
 }

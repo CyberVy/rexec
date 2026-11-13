@@ -2,7 +2,7 @@
 
 Ultra-lightweight edge-routed remote execution engine.
 
-`rexec` allows you to execute shell commands on any remote machine (GPU instances, Google Colab notebooks, cloud VMs, or containers) directly from your local terminal. Powered by Cloudflare Workers and Durable Objects, it routes traffic through the edge, eliminating the need for public IP addresses, inbound firewall rules, or complex reverse proxy setups.
+`rexec` allows you to execute shell commands on any remote machine (GPU instances, cloud VMs, or containers) directly from your local terminal. Powered by Cloudflare Workers and Durable Objects, it routes traffic through the edge, eliminating the need for public IP addresses, inbound firewall rules, or complex reverse proxy setups.
 
 ---
 
@@ -11,13 +11,13 @@ Ultra-lightweight edge-routed remote execution engine.
 - **Serverless Edge Relay**: Built on Cloudflare Workers and Durable Objects, providing global low-latency routing without maintaining self-hosted relays.
 - **Zero-Dependency Runtimes**: Both the remote worker agent and local terminal caller run on standard Node.js without any third-party npm dependencies.
 - **Three-Tier Architecture**:
-  - **Caller** (`rexec` CLI & universal `RexecCaller` SDK): Initiates executions and file transfers using 100% Web standard APIs.
-  - **Hub** (Cloudflare Worker & Durable Object): Edge routing and streaming relay between callers and worker nodes.
-  - **Agent** (`rexec-agent`): Remote daemon running on target worker nodes that maintains a persistent WebSocket connection and manages child process lifecycles.
-- **Real-Time Streaming & Process Fidelity**: Chunked execution output streamed via WebSocket and Server-Sent Events (SSE). Clean process termination and signal forwarding on `Ctrl+C` (SIGINT).
-- **Interactive PTY**: `rexec tty` runs a remote command in a pseudoterminal and attaches your local terminal. The agent downloads the native binding on the first session.
-- **Full-Duplex Port Forwarding**: Multiplexed TCP tunneling over WebSocket (`rexec forward [local_port:]remote_port`), seamlessly routing local ports to remote web services (Jupyter, Gradio, ComfyUI, TensorBoard) without public IP or inbound firewalls.
-- **Streaming File & Directory Transfers**: Bi-directional file and directory transfers powered by WHATWG Web Streams and streaming `tar` pipelines with real-time transfer progress bars.
+  - **Caller** (`rexec` CLI & universal `RexecCaller` SDK): Initiates command executions, file transfers, multiplexed PTY sessions, and TCP tunnels using 100% Web standard APIs.
+  - **Hub** (Cloudflare Worker & Durable Object): Edge routing and streaming relay between callers and worker nodes, featuring zero-parse `client_id` passthrough (`TunnelRelay`) for interactive PTY and port-forwarding channels.
+  - **Agent** (`rexec-agent`): Remote daemon running on target worker nodes that maintains **4 dedicated persistent WebSocket channels** (`pty`, `forward`, `exec`, `file`) grouped by a process-level `instance_id` to eliminate head-of-line blocking across domains.
+- **Real-Time Streaming & Process Fidelity**: Chunked execution output streamed via dedicated `exec` WebSocket and Server-Sent Events (SSE). Clean process termination and signal forwarding on `Ctrl+C` (SIGINT).
+- **Multiplexed Interactive PTY**: `rexec tty` opens remote pseudoterminals (defaulting to the remote login shell), supports detach/re-attach (`Ctrl-]`), byte-offset incremental replay on reconnect, and multiplexes all concurrent sessions and management RPCs (`list`, `kill`, `persist`) over a single `/ws/pty` connection.
+- **Full-Duplex Port Forwarding**: Multiplexed TCP tunneling over a single shared `/ws/forward` WebSocket (`rexec forward [local_port:]remote_port`), seamlessly routing local ports to remote web services (Jupyter, Gradio, ComfyUI, TensorBoard) without public IP or inbound firewalls.
+- **Streaming File & Directory Transfers**: Bi-directional file and directory transfers over the dedicated `file` channel, powered by WHATWG Web Streams and streaming `tar` pipelines with real-time transfer progress bars.
 
 ---
 
@@ -25,28 +25,34 @@ Ultra-lightweight edge-routed remote execution engine.
 
 ```mermaid
 flowchart LR
-    subgraph Client["Caller (Local Terminal / Web)"]
-        Caller["rexec (Terminal Caller)\n/ Web Client"]
+    subgraph Client["Caller (CLI / Web / VS Code)"]
+        Caller["RexecCaller\n(rexec CLI / Web UI / Extension)"]
     end
 
     subgraph Edge["Cloudflare Edge Network"]
-        Hub["Cloudflare Worker Hub\n(Durable Object / WebSocket / SSE)"]
+        Hub["RexecHub (Durable Object)\nTunnelRelay · TaskRelay · TransferRelay"]
     end
 
-    subgraph Remote["Remote Node (Colab / GPU VM / Container)"]
-        Agent["rexec-agent (Node.js)"]
-        Task["Subprocess\n(Python, Bash, etc.)"]
-        FS["Filesystem\n(Files & Directories)"]
+    subgraph Remote["Remote Node (GPU VM / Container)"]
+        Agent["rexec-agent (Node.js)\ninstance_id group"]
+        PTY["PtyManager\n(RingBuffer & PTYs)"]
+        Fwd["ForwardManager\n(Local TCP Sockets)"]
+        Task["TaskManager\n(Subprocesses)"]
+        FS["TransferManager\n(Files & tar Streams)"]
     end
 
-    Caller -- "1. POST /exec (HTTP SSE)\nGET/POST /file (Web Streams)" --> Hub
-    Agent -- "2. Persistent WebSocket" --> Hub
-    Hub -- "3. Dispatch Task / Transfer" --> Agent
-    Agent --> Task
+    Caller -- "1a. /ws/pty (Multiplexed PTY + RPCs)\n1b. /ws/forward (Multiplexed TCP Tunnels)" <--> Hub
+    Caller -- "1c. POST /exec (HTTP SSE)\n1d. GET/POST /file/* (Web Streams)" <--> Hub
+
+    Hub -- "2a. /ws/agent/pty (client_id passthrough)" <--> Agent
+    Hub -- "2b. /ws/agent/forward (client_id passthrough)" <--> Agent
+    Hub -- "2c. /ws/agent/exec" <--> Agent
+    Hub -- "2d. /ws/agent/file" <--> Agent
+
+    Agent <--> PTY
+    Agent <--> Fwd
+    Agent <--> Task
     Agent <--> FS
-    Task -- "4. Stream stdout/stderr" --> Agent
-    Agent -- "5. WebSocket Chunks" --> Hub
-    Hub -- "6. SSE / HTTP Stream" --> Caller
 ```
 
 ---
@@ -86,7 +92,7 @@ You can connect to the official public Hub directly, or deploy your own relay se
 
 ### 3. Start the Remote Agent (`rexec-agent`)
 
-On your target machine (e.g., Google Colab, remote GPU VM, or container), install and start `rexec-agent`:
+On your target machine (e.g., remote GPU VM, or container), install and start `rexec-agent`:
 
 #### Install `rexec-agent`
 
@@ -106,12 +112,12 @@ rexec-agent --hub https://rexec.edgetool.workers.dev
 rexec-agent --hub <hub-url> --token <custom-secret>
 ```
 
-The agent reconnects with the same hub, token, workspace, and node id when application pings go unanswered, or the socket sits in `CLOSING` (a proxy delivered a close frame but did not finish TCP). A local proxy can keep the process's TCP session looking open after the Hub has already dropped it. Liveness is the WebSocket pong. `GET /health` stays available for `rexec status` and other callers; the agent does not poll it.
+The agent opens 4 independent WebSocket channels (`pty`, `forward`, `exec`, `file`) grouped under a single process `instance_id`. Each channel independently sends link-level pings answered directly by the Hub (`pong`) and reconnects with the same `instance_id` if pings go unanswered or the socket sits in `CLOSING` — replacing only that single channel without disturbing the other 3 channels. Starting a new `rexec-agent` process with the same token generates a new `instance_id` and cleanly takes over all 4 channels. `GET /health` returns both overall `agent_connected` status and per-channel health (`channels: { pty, forward, exec, file }`).
 
 Timers are milliseconds. `0` disables that one check. Defaults are in parentheses.
 
-- `REXEC_HEARTBEAT_INTERVAL_MS` — application ping interval (`5000`)
-- `REXEC_HEARTBEAT_TIMEOUT_MS` — reconnect if no Hub frame arrives (`15000`, or 3× the ping interval when only the interval is set)
+- `REXEC_HEARTBEAT_INTERVAL_MS` — application ping interval (`20000`)
+- `REXEC_HEARTBEAT_TIMEOUT_MS` — reconnect if no Hub frame arrives (`60000`, or 3× the ping interval when only the interval is set)
 - `REXEC_RECONNECT_DELAY_MS` — wait before the next attempt (`3000`)
 - `REXEC_CONNECT_TIMEOUT_MS` — handshake deadline for every attempt (`10000`)
 
@@ -120,7 +126,7 @@ Timers are milliseconds. `0` disables that one check. Defaults are in parenthese
 When started without `--token`, `rexec-agent` automatically generates a secure session token and outputs ready-to-use local execution commands:
 
 ```text
-[rexec-agent] Connected to hub. Node ID: colab-gpu-01
+[rexec-agent] Connected to hub. Node ID: gpu-vm-01
 [rexec-agent] Session Token: rexec_sec_e4b1a82f3c4d5e6f7a8b9c0d1e2f3a4b
 
 ======================================================
@@ -155,7 +161,9 @@ Example output:
 
 ```text
 Hub Status: ok
+Node ID: gpu-vm-01
 Agent Connected: YES (Online)
+Channels: pty=on forward=on exec=on file=on
 Active Tasks: 0
 ```
 
@@ -183,13 +191,27 @@ rexec -- pull origin main
 
 #### Interactive Terminal
 
-`rexec tty` executes the command directly (argv, not a shell string) with a PTY, and attaches the terminal you opened locally. Keystrokes, including Ctrl-C, go to the remote process. Window resizes are forwarded.
+`rexec tty` opens a remote pseudoterminal (defaulting to the remote user's login shell when no command is given, or executing argv directly) and attaches your local terminal. Keystrokes (including `Ctrl-C`) and window resizes go directly to the remote process. Press `Ctrl-]` to detach while leaving the remote session running.
 
 ```bash
+# Open the remote default login shell ($SHELL -l)
+rexec tty
+
+# Run an interactive command in a PTY
 rexec tty codex
-rexec tty bash
 rexec tty bash -lc "htop"
+
+# Open a persistent session (no orphan TTL after detach)
+rexec tty --persistent bash
+
+# List, re-attach, toggle persistence, or kill remote PTY sessions
+rexec tty list
+rexec tty attach <session_id>
+rexec tty persist <session_id> on
+rexec tty kill <session_id>
 ```
+
+All concurrent PTY sessions and management RPCs (`list`, `kill`, `persist`) within a caller instance are multiplexed over a single shared `/ws/pty` connection. If the connection drops, `rexec tty` automatically reconnects and performs byte-offset incremental replay from the agent's ring buffer without losing output. If another caller attaches to the same `session_id`, only that specific session is detached (`pty:detached`) on the previous caller without dropping its WebSocket or affecting its other open terminals.
 
 The first session makes the agent download the platform PTY native module from the Hub (`/install/pty/`) into `~/.cache/rexec`. Linux, macOS, and Windows (x64 and arm64) are supported. `/exec` is unchanged and still runs one-shot commands without a PTY.
 
@@ -228,7 +250,7 @@ rexec forward 8080
 rexec forward 9000:8000
 ```
 
-`rexec forward` sends application pings every 20 seconds. If the tunnel socket closes, or no Hub frame arrives for 60 seconds, it reconnects. The Hub assigns a new session id. The caller adopts that id and closes local connections from the previous session so clients dial again. In-flight TCP byte streams are not resumed.
+`rexec forward` multiplexes all port-forwarding rules and concurrent TCP streams over a shared `/ws/forward` WebSocket (`ForwardMuxClient`), sending link-level pings every 20 seconds. Each local TCP connection is assigned a caller-generated `session_id` and routed by the Hub via `client_id` passthrough (`${client_id}:${session_id}` on the agent). If the tunnel socket closes or no Hub frame arrives for 60 seconds, the caller closes active local TCP sockets from the broken transport so local clients can dial again over a reconnected WebSocket.
 
 ---
 
@@ -241,7 +263,11 @@ Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
   rexec forward [options] <port...>   Forward local port to remote agent port
-  rexec tty [options] <command...>    Run an interactive command in a remote PTY
+  rexec tty [options] [command...]    Open a remote PTY (default login shell) and attach
+  rexec tty list                      List remote PTY sessions
+  rexec tty attach <session>          Attach to a session by id or unique prefix
+  rexec tty kill <session>            Kill a remote PTY session
+  rexec tty persist <session> on|off  Keep a session after detach, or restore orphan TTL
   rexec pull [options] <remote> [loc] Download a file or directory from remote agent
   rexec push [options] <loc> [remote] Upload a file or directory to remote agent
   rexec status [options]              Check connection and agent status
@@ -254,6 +280,7 @@ Options:
   --timeout <ms>     Command execution timeout in milliseconds (default: 300000)
   -r, --recursive    Transfer directories recursively via streaming tar
   -f, --force        Overwrite local target file when pulling
+  --persistent       Keep a new PTY session after the local client detaches
   -h, --help         Show this help message
 ```
 

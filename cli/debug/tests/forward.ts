@@ -97,17 +97,17 @@ async function run(): Promise<void> {
         await Promise.all(concurrent_reqs)
         console.log(`✓ 20 concurrent requests across 2 simultaneous tunnels successfully multiplexed!`)
 
-        console.log(`[test:forward] Dropping caller tunnel sockets so the hub mints a new session...`)
+        console.log(`[test:forward] Dropping shared caller forward socket and verifying reconnect...`)
         const hub = hub_port(config.hub_url)
         const dropped = drop_hub_sockets(hub)
-        if (dropped < 2) {
-            throw new Error(`Expected both forward sockets on hub port ${hub}, dropped ${dropped}`)
+        if (dropped !== 1) {
+            throw new Error(`Expected 1 shared forward socket on hub port ${hub}, dropped ${dropped}`)
         }
         await wait_for_hub_sockets(hub, (count) => count === 0)
-        await wait_for_hub_sockets(hub, (count) => count >= 2)
+        await wait_for_hub_sockets(hub, (count) => count === 1)
         await wait_until_forward_responds(LOCAL_PORT, "/reconnect-check")
         await wait_until_forward_responds(LOCAL_PORT_2, "/reconnect-check")
-        console.log(`✓ Both tunnels accepted a new session id after the WebSocket dropped`)
+        console.log(`✓ Both tunnels shared 1 WS and recovered after WebSocket drop`)
 
         record_history({
             test_name: "port_forward",

@@ -16,6 +16,12 @@ async function handle_status(caller: RexecCaller): Promise<void> {
             console.log(`Node ID: ${data.node_id}`)
         }
         console.log(`Agent Connected: ${data.agent_connected ? "YES (Online)" : "NO (Offline)"}`)
+        if (data.channels) {
+            const c = data.channels
+            console.log(
+                `Channels: pty=${c.pty ? "on" : "off"} forward=${c.forward ? "on" : "off"} exec=${c.exec ? "on" : "off"} file=${c.file ? "on" : "off"}`
+            )
+        }
         console.log(`Active Tasks: ${data.active_tasks}`)
         process.exit(data.agent_connected ? 0 : 1)
     } catch (err) {

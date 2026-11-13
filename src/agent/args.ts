@@ -17,8 +17,8 @@ Options:
   -h, --help           Show this help message
 
 Environment (milliseconds, 0 disables that check):
-  REXEC_HEARTBEAT_INTERVAL_MS   Application ping interval (default 5000)
-  REXEC_HEARTBEAT_TIMEOUT_MS    Reconnect when no hub frame arrives (default 15000,
+  REXEC_HEARTBEAT_INTERVAL_MS   Application ping interval (default 20000)
+  REXEC_HEARTBEAT_TIMEOUT_MS    Reconnect when no hub frame arrives (default 60000,
                                 or 3x the ping interval when only the interval is set)
   REXEC_RECONNECT_DELAY_MS      Delay before the next connection attempt (default 3000)
   REXEC_CONNECT_TIMEOUT_MS      Handshake deadline for every attempt (default 10000)

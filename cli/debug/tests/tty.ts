@@ -616,7 +616,19 @@ async function run(): Promise<void> {
         }
         console.log("✓ connect_pty resume(), offline resize, and incremental replay passed")
 
-        console.log("[test:tty] Checking connect_pty fails fast on caller takeover...")
+        console.log("[test:tty] Checking multi-PTY WS sharing and cross-caller takeover isolation...")
+        const shared_handles_before = new Set(get_active_handles())
+        const unrelated_conn = caller.connect_pty({
+            file: "sh",
+            args: ["-c", "echo UNRELATED_READY; read line; echo UNRELATED_ECHO:$line; sleep 5"],
+            orphan_ttl_ms: 5000
+        })
+        let unrelated_out = ""
+        unrelated_conn.on_data((data) => {
+            unrelated_out += Buffer.from(data).toString("utf8")
+        })
+        await unrelated_conn.ready
+
         const take_conn = caller.connect_pty({
             file: "sh",
             args: ["-c", "echo TAKEOVER_READY; sleep 30"],
@@ -629,11 +641,18 @@ async function run(): Promise<void> {
             }
         })
         const take_id = await take_conn.ready
+        const shared_sockets = get_active_handles().filter(
+            (h) => !shared_handles_before.has(h) && h.remotePort === hub_port && !h.destroyed
+        )
+        if (shared_sockets.length !== 1) {
+            throw new Error(`Expected 1 shared PTY WebSocket for 2 sessions, found ${shared_sockets.length}`)
+        }
         const take_deadline = Date.now() + 5000
-        while (!take_ready && Date.now() < take_deadline) {
+        while ((!take_ready || !unrelated_out.includes("UNRELATED_READY")) && Date.now() < take_deadline) {
             await new Promise((resolve) => setTimeout(resolve, 30))
         }
-        const taker = await caller.open_pty({ session_id: take_id })
+        const caller_2 = new RexecCaller({ hub_url: config.hub_url, token: DEBUG_TOKEN })
+        const taker = await caller_2.open_pty({ session_id: take_id })
         let take_err = ""
         try {
             await Promise.race([
@@ -646,9 +665,22 @@ async function run(): Promise<void> {
             taker.close()
         }
         if (take_err !== "Session is open in another client" || take_conn.status !== "error") {
+            unrelated_conn.close()
             throw new Error(`Expected takeover error, got err=${JSON.stringify(take_err)} status=${take_conn.status}`)
         }
-        console.log("✓ connect_pty caller takeover failed without reconnecting")
+        unrelated_conn.send(new TextEncoder().encode("still_alive\n"))
+        const echo_deadline = Date.now() + 5000
+        while (!unrelated_out.includes("UNRELATED_ECHO:still_alive") && Date.now() < echo_deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 30))
+        }
+        unrelated_conn.close()
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        if (!unrelated_out.includes("UNRELATED_ECHO:still_alive") || unrelated_conn.status !== "closed") {
+            throw new Error(
+                `Expected unrelated PTY session on same WS to stay alive, out=${JSON.stringify(unrelated_out)}`
+            )
+        }
+        console.log("✓ multi-PTY WS sharing & cross-caller takeover isolation passed")
 
         console.log("[test:tty] Checking connect_pty fires on_reset and marks replay_bytes when ring buffer wraps...")
         const ovf_handles_before = new Set(get_active_handles())

@@ -1,7 +1,7 @@
 import { BaseController } from "@/infra/base_controller"
 import { LocalStorageMap } from "@/infra/storage/kv.client"
 import { create_logger } from "@/infra/logger"
-import { RexecCaller, type HubStatus } from "@rexec/caller/core"
+import { RexecCaller, type HubChannelHealth, type HubStatus } from "@rexec/caller/core"
 
 const logger = create_logger("SessionController")
 
@@ -12,6 +12,7 @@ export interface AgentRecord {
     token: string
     node_id?: string
     is_online: boolean
+    channels?: HubChannelHealth
     latency_ms: number | null
     is_checking: boolean
     last_checked_at: number | null
@@ -28,6 +29,7 @@ export interface SessionState {
     token: string
     is_checking: boolean
     agent_online: boolean
+    channels?: HubChannelHealth
     latency_ms: number | null
     error: string | null
     last_checked_at: number | null
@@ -40,6 +42,7 @@ const active_store = new LocalStorageMap<string>("rexec_active_agent")
 
 export class SessionController extends BaseController<SessionState> {
     private check_timer: ReturnType<typeof setTimeout> | null = null
+    private readonly callers = new Map<string, { hub_url: string; token: string; caller: RexecCaller }>()
 
     constructor() {
         super()
@@ -87,11 +90,19 @@ export class SessionController extends BaseController<SessionState> {
             token: active_agent?.token ?? "",
             is_checking: active_agent?.is_checking ?? false,
             agent_online: active_agent?.is_online ?? false,
+            channels: active_agent?.channels,
             latency_ms: active_agent?.latency_ms ?? null,
             error: active_agent?.error ?? null,
             last_checked_at: active_agent?.last_checked_at ?? null,
             current_agent_id: active_agent?.node_id || active_agent?.id
         }
+    }
+
+    private dispose_caller(key: string): void {
+        const entry = this.callers.get(key)
+        if (!entry) return
+        this.callers.delete(key)
+        entry.caller.close()
     }
 
     public select_agent(id: string): void {
@@ -151,6 +162,7 @@ export class SessionController extends BaseController<SessionState> {
     public remove_agent(id: string): boolean {
         if (!this.state.agents[id]) return false
 
+        this.dispose_caller(id)
         agent_store.delete(id)
         const next_ids = this.state.agent_ids.filter((item_id) => item_id !== id)
         order_store.set("agents", next_ids)
@@ -194,6 +206,10 @@ export class SessionController extends BaseController<SessionState> {
             error: null
         }
 
+        if (existing.hub_url !== updated_stored.hub_url || existing.token !== updated_stored.token) {
+            this.dispose_caller(id)
+        }
+
         const next_agents = { ...this.state.agents, [id]: updated_record }
         const is_active = id === this.state.active_agent_id
 
@@ -225,10 +241,21 @@ export class SessionController extends BaseController<SessionState> {
     public get_caller(agent_id?: string): RexecCaller {
         const target_id = agent_id ?? this.state.active_agent_id
         const agent = this.state.agents[target_id]
-        return new RexecCaller({
-            hub_url: agent?.hub_url ?? this.state.hub_url,
-            token: agent?.token ?? this.state.token
+        const hub_url = agent?.hub_url ?? this.state.hub_url
+        const token = agent?.token ?? this.state.token
+        const cache_key = target_id || "__default__"
+        const cached = this.callers.get(cache_key)
+        if (cached && cached.hub_url === hub_url && cached.token === token) {
+            return cached.caller
+        }
+        cached?.caller.close()
+        const caller = new RexecCaller({
+            hub_url,
+            token,
+            keep_alive: true
         })
+        this.callers.set(cache_key, { hub_url, token, caller })
+        return caller
     }
 
     public async refresh_agent_status(agent_id: string): Promise<HubStatus | null> {
@@ -240,6 +267,7 @@ export class SessionController extends BaseController<SessionState> {
             const error_record: AgentRecord = {
                 ...agent,
                 is_online: false,
+                channels: undefined,
                 is_checking: false,
                 error: "Hub URL is empty"
             }
@@ -261,10 +289,7 @@ export class SessionController extends BaseController<SessionState> {
             ...(is_active ? this.sync_active_snapshot(checking_record) : {})
         })
 
-        const caller = new RexecCaller({
-            hub_url: agent.hub_url,
-            token: agent.token
-        })
+        const caller = this.get_caller(agent_id)
         const start_time = performance.now()
 
         try {
@@ -288,6 +313,7 @@ export class SessionController extends BaseController<SessionState> {
                 node_id: resolved_node_id,
                 is_checking: false,
                 is_online: status.agent_connected,
+                channels: status.channels,
                 latency_ms: latency,
                 error: null,
                 last_checked_at: Date.now()
@@ -308,6 +334,7 @@ export class SessionController extends BaseController<SessionState> {
                 ...agent,
                 is_checking: false,
                 is_online: false,
+                channels: undefined,
                 latency_ms: null,
                 error: message,
                 last_checked_at: Date.now()

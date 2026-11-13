@@ -1,6 +1,6 @@
 {
   "name": "rexec",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Ultra-lightweight edge-routed remote execution engine",
   "type": "module",
   "private": true,

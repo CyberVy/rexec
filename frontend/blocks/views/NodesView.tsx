@@ -163,7 +163,15 @@ export function NodesView() {
                                                 </span>
                                             )}
                                             <span className="text-xs font-mono text-muted-foreground">
-                                                {agent.is_online ? "Online" : "Offline"}
+                                                {agent.is_online
+                                                    ? "Online"
+                                                    : agent.channels &&
+                                                        (agent.channels.pty ||
+                                                            agent.channels.exec ||
+                                                            agent.channels.file ||
+                                                            agent.channels.forward)
+                                                      ? "Partial"
+                                                      : "Offline"}
                                             </span>
                                         </div>
                                     </div>
@@ -199,6 +207,31 @@ export function NodesView() {
                                             )}
                                         </div>
                                     </div>
+
+                                    {agent.channels && (
+                                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono">
+                                            {(["pty", "exec", "file", "forward"] as const).map((channel) => {
+                                                const active = agent.channels![channel]
+                                                return (
+                                                    <span
+                                                        key={channel}
+                                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${
+                                                            active
+                                                                ? "border-black/15 dark:border-white/15 bg-black/5 dark:bg-white/10 text-foreground"
+                                                                : "border-black/10 dark:border-white/10 text-muted-foreground opacity-50"
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`size-1.5 rounded-full ${
+                                                                active ? "bg-foreground" : "bg-foreground/25"
+                                                            }`}
+                                                        />
+                                                        {channel}
+                                                    </span>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
 
                                     {/* Card Actions */}
                                     <div className="flex items-center justify-between gap-2 pt-0.5">

@@ -1,4 +1,4 @@
-import { print_verdict, read_debug_config, record_history, run_rexec } from "./helpers"
+import { DEBUG_TOKEN, print_verdict, read_debug_config, record_history, run_rexec } from "./helpers"
 
 async function run_basic_tests(): Promise<boolean> {
     const config = read_debug_config()
@@ -7,15 +7,32 @@ async function run_basic_tests(): Promise<boolean> {
     // 1. Health Status Test
     const test_1 = "test:hub_health"
     try {
-        const res = await fetch(`${config.hub_url}/health`)
-        const data = (await res.json()) as { status: string; agent_connected: boolean }
-        const passed = res.ok && data.status === "ok" && data.agent_connected === true
-        print_verdict(test_1, passed, passed ? undefined : JSON.stringify(data))
+        const [res_global, res_token] = await Promise.all([
+            fetch(`${config.hub_url}/health`),
+            fetch(`${config.hub_url}/health?token=${encodeURIComponent(DEBUG_TOKEN)}`)
+        ])
+        const data_global = (await res_global.json()) as { status: string; agent_connected: boolean }
+        const data_token = (await res_token.json()) as {
+            status: string
+            agent_connected: boolean
+            channels?: { pty: boolean; forward: boolean; exec: boolean; file: boolean }
+        }
+        const passed =
+            res_global.ok &&
+            res_token.ok &&
+            data_global.status === "ok" &&
+            data_global.agent_connected === true &&
+            data_token.agent_connected === true &&
+            data_token.channels?.pty === true &&
+            data_token.channels?.forward === true &&
+            data_token.channels?.exec === true &&
+            data_token.channels?.file === true
+        print_verdict(test_1, passed, passed ? undefined : JSON.stringify({ data_global, data_token }))
         record_history({
             test_name: test_1,
             command: "GET /health",
             verdict: passed ? "PASS" : "FAIL",
-            exit_code: res.status,
+            exit_code: res_token.status,
             duration_ms: 0
         })
         if (!passed) all_passed = false
@@ -91,12 +108,12 @@ async function run_basic_tests(): Promise<boolean> {
     // 4. Reject Unauthenticated Registration Test
     const test_4 = "test:reject_unauthenticated_registration"
     try {
-        const res = await fetch(`${config.hub_url}/ws`)
+        const res = await fetch(`${config.hub_url}/ws/agent/pty`)
         const passed = res.status === 401 || res.status === 400
         print_verdict(test_4, passed, `status: ${res.status} (expected 401)`)
         record_history({
             test_name: test_4,
-            command: "GET /ws (no token)",
+            command: "GET /ws/agent/pty (no token)",
             verdict: passed ? "PASS" : "FAIL",
             exit_code: res.status,
             duration_ms: 0
@@ -106,7 +123,7 @@ async function run_basic_tests(): Promise<boolean> {
         print_verdict(test_4, false, (err as Error).message)
         record_history({
             test_name: test_4,
-            command: "GET /ws (no token)",
+            command: "GET /ws/agent/pty (no token)",
             verdict: "FAIL",
             exit_code: 1,
             duration_ms: 0,
@@ -115,18 +132,17 @@ async function run_basic_tests(): Promise<boolean> {
         all_passed = false
     }
 
-    // 5. Verify Authorization Header Accepted on /ws
+    // 5. Verify Authorization Header Accepted on /ws/agent/pty
     const test_5 = "test:auth_header_accepted_for_ws"
     try {
-        // A GET /ws with Authorization header passes the auth barrier (fails with 426 Upgrade Required, NOT 401)
-        const res = await fetch(`${config.hub_url}/ws`, {
+        const res = await fetch(`${config.hub_url}/ws/agent/pty`, {
             headers: { Authorization: `Bearer test-token` }
         })
         const passed = res.status === 426
         print_verdict(test_5, passed, `status: ${res.status} (expected 426 Upgrade Required)`)
         record_history({
             test_name: test_5,
-            command: "GET /ws (with Authorization header)",
+            command: "GET /ws/agent/pty (with Authorization header)",
             verdict: passed ? "PASS" : "FAIL",
             exit_code: res.status,
             duration_ms: 0
@@ -136,7 +152,7 @@ async function run_basic_tests(): Promise<boolean> {
         print_verdict(test_5, false, (err as Error).message)
         record_history({
             test_name: test_5,
-            command: "GET /ws (with Authorization header)",
+            command: "GET /ws/agent/pty (with Authorization header)",
             verdict: "FAIL",
             exit_code: 1,
             duration_ms: 0,
@@ -145,43 +161,70 @@ async function run_basic_tests(): Promise<boolean> {
         all_passed = false
     }
 
-    // 6. Token Session Takeover Test (Preemption / Last Write Wins)
+    // 6. Token Session Takeover Test (instance_id preemption + same-instance multi-channel)
     const test_6 = "test:token_session_takeover"
     try {
         const takeover_token = "rexec-takeover-token"
-        const ws_base = `${config.hub_url.replace(/^http/, "ws")}/ws?token=${takeover_token}&node_id=initial-node`
-        const ws1 = new WebSocket(ws_base)
-        await new Promise<void>((resolve, reject) => {
-            ws1.addEventListener("open", () => resolve())
-            ws1.addEventListener("error", (e) => reject(e))
+        const ws_origin = config.hub_url.replace(/^http/, "ws")
+        const open_ws = (url: string) =>
+            new Promise<WebSocket>((resolve, reject) => {
+                const ws = new WebSocket(url)
+                ws.addEventListener("open", () => resolve(ws))
+                ws.addEventListener("error", (e) => reject(e))
+            })
+
+        const ws1_pty = await open_ws(
+            `${ws_origin}/ws/agent/pty?token=${takeover_token}&node_id=initial-node&instance_id=inst-1`
+        )
+        const ws1_exec = await open_ws(
+            `${ws_origin}/ws/agent/exec?token=${takeover_token}&node_id=initial-node&instance_id=inst-1`
+        )
+
+        let ws1_pty_closed = false
+        let ws1_exec_closed = false
+        ws1_pty.addEventListener("close", (e) => {
+            if (e.code === 1000) ws1_pty_closed = true
+        })
+        ws1_exec.addEventListener("close", (e) => {
+            if (e.code === 1000) ws1_exec_closed = true
         })
 
-        let ws1_closed_cleanly = false
-        ws1.addEventListener("close", (e) => {
-            if (e.code === 1000) ws1_closed_cleanly = true
-        })
-
-        const ws2_base = `${config.hub_url.replace(/^http/, "ws")}/ws?token=${takeover_token}&node_id=reconnected-node`
-        const ws2 = new WebSocket(ws2_base)
-        const ws2_opened = await new Promise<boolean>((resolve) => {
-            ws2.addEventListener("open", () => resolve(true))
-            ws2.addEventListener("error", () => resolve(false))
-            setTimeout(() => resolve(false), 3000)
-        })
+        const ws2_pty = await open_ws(
+            `${ws_origin}/ws/agent/pty?token=${takeover_token}&node_id=reconnected-node&instance_id=inst-2`
+        )
+        const ws2_forward = await open_ws(
+            `${ws_origin}/ws/agent/forward?token=${takeover_token}&node_id=reconnected-node&instance_id=inst-2`
+        )
 
         await new Promise((resolve) => setTimeout(resolve, 200))
 
-        const passed = ws2_opened && ws1_closed_cleanly
-        print_verdict(test_6, passed, `ws2_opened: ${ws2_opened}, ws1_closed_cleanly: ${ws1_closed_cleanly}`)
+        const health_res = await fetch(`${config.hub_url}/health?token=${takeover_token}`)
+        const health = (await health_res.json()) as {
+            channels?: { pty: boolean; forward: boolean; exec: boolean; file: boolean }
+        }
+        const passed =
+            ws2_pty.readyState === WebSocket.OPEN &&
+            ws2_forward.readyState === WebSocket.OPEN &&
+            ws1_pty_closed &&
+            ws1_exec_closed &&
+            health.channels?.pty === true &&
+            health.channels?.forward === true &&
+            health.channels?.exec === false
+        print_verdict(
+            test_6,
+            passed,
+            `ws1_pty_closed=${ws1_pty_closed}, ws1_exec_closed=${ws1_exec_closed}, channels=${JSON.stringify(health.channels)}`
+        )
         record_history({
             test_name: test_6,
-            command: "Token session takeover (last write wins)",
+            command: "Token session takeover (instance_id isolation)",
             verdict: passed ? "PASS" : "FAIL",
             exit_code: passed ? 0 : 1,
             duration_ms: 0
         })
         if (!passed) all_passed = false
-        ws2.close()
+        ws2_pty.close()
+        ws2_forward.close()
     } catch (err) {
         print_verdict(test_6, false, (err as Error).message)
         record_history({

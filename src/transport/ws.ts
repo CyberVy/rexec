@@ -275,7 +275,7 @@ export class WsClient {
         this.send_ping()
     }
 
-    private send_text(payload: string): void {
+    public send_text(payload: string): void {
         if (!this.is_open || !this.ws) return
         this.ws.send(payload)
     }

@@ -1,25 +1,24 @@
 export interface CallerOptions {
     hub_url: string
     token: string
+    keep_alive?: boolean
 }
 
 export { HUB_ROUTES } from "@/protocol"
 export type {
+    AgentChannelName,
     ApiErrorResponse,
     ApiSuccessResponse,
     ExecKillRequestPayload,
     ExecKillResponse,
     ExecRequestPayload,
     FilePushResponse,
+    HubChannelHealth,
     HubHealthResponse,
     HubRouteKey,
     HubRoutePath,
     HubStatus,
-    PtyKillRequestPayload,
-    PtyKillResponse,
-    PtySessionInfo,
-    PtyUpdateRequestPayload,
-    PtyUpdateResponse
+    PtySessionInfo
 } from "@/protocol"
 
 export interface PtyOptions {
