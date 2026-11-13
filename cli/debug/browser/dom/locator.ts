@@ -466,10 +466,11 @@ export function build_readable_locator_for_entry(
 
 export function resolve_target(
     raw_target: TargetInput | string,
-    options?: { allow_multiple?: boolean; include_hidden?: boolean }
+    options?: { allow_multiple?: boolean; include_hidden?: boolean; root?: Element }
 ): ResolveResult {
     const input = normalize_target_input(raw_target)
     const include_hidden = options?.include_hidden ?? false
+    const search_root = options?.root ?? document.body
 
     if (input.point) {
         const x = Math.round(input.point.x_unit === "%" ? (window.innerWidth * input.point.x) / 100 : input.point.x)
@@ -510,8 +511,8 @@ export function resolve_target(
         }
     }
 
-    const cached_entries = collect_element_entries(document.body, include_hidden)
-    let matches = resolve_steps_recursive(document.body, input.steps, 0, include_hidden, cached_entries)
+    const cached_entries = collect_element_entries(search_root, include_hidden)
+    let matches = resolve_steps_recursive(search_root, input.steps, 0, include_hidden, cached_entries)
     if (input.nth !== undefined) {
         matches = pick_nth(matches, input.nth)
     }
@@ -527,7 +528,7 @@ export function resolve_target(
         }
     }
 
-    const locator_cache = include_hidden ? undefined : cached_entries
+    const locator_cache = include_hidden || search_root !== document.body ? undefined : cached_entries
 
     if (matches.length > 1 && !options?.allow_multiple) {
         const label = typeof raw_target === "string" ? raw_target : JSON.stringify(raw_target)

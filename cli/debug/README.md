@@ -20,7 +20,7 @@ Communication runs purely on standard web protocols (Server-Sent Events & HTTP P
     - `index.ts`: Bridge initialization (console/error capture, SSE command loop, `window.__debug_ui__` wiring).
     - `listener_registry.ts`: Passive DOM `addEventListener`/`removeEventListener` listener tracking.
     - `dom/`: Framework-agnostic DOM/ARIA classification, occlusion/hit testing, locator resolution (`locator.ts`), and snapshot summaries (`snapshot.ts`).
-    - `gestures/`: Pointer & touch interaction runners (`pointer_common.ts`, `pointer_tap.ts`, `swipe_drag.ts`).
+    - `gestures/`: Pointer, touch, and scroll interaction runners (`pointer_common.ts`, `pointer_tap.ts`, `swipe_drag.ts`, `scroll.ts`).
 - **`cli/debug/checks/`** (Frontend Page Checks): Automated frontend verification scripts built on `host/bridge_client.ts` (`lazy_container_dimensions.ts`).
 - **`.debug/frontend/`** (Git-Ignored Frontend Runtime Data): Contains `config.json` (active Vite port), `logs.jsonl` (captured console/errors), and `history.jsonl` (eval audit trail).
 
@@ -50,6 +50,9 @@ npm run debug:ui -- click "<target>"
 npm run debug:ui -- swipe left
 npm run debug:ui -- swipe "swipeable#1" right 240 --speed fast
 npm run debug:ui -- drag "clickable#1@10%,50%" --to "@80%,50%"
+npm run debug:ui -- scroll down 80%
+npm run debug:ui -- scroll "scrollable#1" right 240
+npm run debug:ui -- scroll --to "Footer" --align center
 ```
 
 ### Arbitrary JS Evaluation (`npm run debug:eval`)

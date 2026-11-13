@@ -160,6 +160,16 @@ export interface InspectResult {
         overflow_x: string
         overflow_y: string
     }
+    scroll: {
+        x: number
+        y: number
+        max_x: number
+        max_y: number
+        client_w: number
+        client_h: number
+        scroll_w: number
+        scroll_h: number
+    }
     listeners: string[]
     attributes: Record<string, string>
 }
@@ -248,6 +258,55 @@ export interface GestureResult {
     to_target?: TargetElementSummary
 }
 
+export type ScrollEdge = "top" | "bottom" | "left" | "right"
+export type ScrollAlign = "start" | "center" | "end" | "nearest"
+
+export interface ScrollEdgeState {
+    top: boolean
+    bottom: boolean
+    left: boolean
+    right: boolean
+}
+
+export interface ScrollOptions {
+    direction?: GestureDirection
+    distance?: GestureDistance
+    to?: ScrollEdge | TargetInput | string
+    by?: Point2D
+    align?: ScrollAlign
+    speed?: GestureSpeed
+    duration_ms?: number
+    /** Target scroll velocity in px/ms (mutually exclusive with duration_ms, speed, and instant). */
+    velocity?: number
+    curve?: GestureCurve
+    instant?: boolean
+    wheel?: boolean
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface ScrollResult {
+    mode: "scroll"
+    dry_run: boolean
+    instant: boolean
+    wheel: boolean
+    direction?: GestureDirection
+    edge?: ScrollEdge
+    curve: GestureCurve
+    before: Point2D
+    after: Point2D
+    max: Point2D
+    requested_delta: Point2D
+    actual_delta: Point2D
+    distance_px: number
+    requested_duration_ms: number
+    actual_duration_ms: number
+    frames: number
+    at_edge: ScrollEdgeState
+    target: TargetElementSummary
+    to_target?: TargetElementSummary
+}
+
 export type DebugUiCommand =
     | { action: "snap"; options?: SnapOptions }
     | { action: "find"; target: TargetInput | string; options?: FindOptions }
@@ -256,6 +315,7 @@ export type DebugUiCommand =
     | { action: "click"; target: TargetInput | string; options?: TapOptions }
     | { action: "swipe"; target?: TargetInput | string; options: SwipeOptions }
     | { action: "drag"; target: TargetInput | string; options: DragOptions }
+    | { action: "scroll"; target?: TargetInput | string; options: ScrollOptions }
 
 export interface DebugUiRuntime {
     snap: (options?: SnapOptions) => Promise<ActionResult<SnapResult>>
@@ -265,6 +325,7 @@ export interface DebugUiRuntime {
     click: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
     swipe: (target: TargetInput | string | undefined, options: SwipeOptions) => Promise<ActionResult<GestureResult>>
     drag: (target: TargetInput | string, options: DragOptions) => Promise<ActionResult<GestureResult>>
+    scroll: (target: TargetInput | string | undefined, options: ScrollOptions) => Promise<ActionResult<ScrollResult>>
     exec: (command: DebugUiCommand) => Promise<ActionResult<unknown>>
 }
 
@@ -604,4 +665,17 @@ export function parse_point_delta(raw: string): Point2D | null {
     const y = Number(match[2])
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null
     return { x, y }
+}
+
+const SCROLL_EDGES = new Set<ScrollEdge>(["top", "bottom", "left", "right"])
+const SCROLL_ALIGNS = new Set<ScrollAlign>(["start", "center", "end", "nearest"])
+
+export function parse_scroll_edge(raw: string): ScrollEdge | null {
+    const normalized = raw.trim().toLowerCase()
+    return SCROLL_EDGES.has(normalized as ScrollEdge) ? (normalized as ScrollEdge) : null
+}
+
+export function parse_scroll_align(raw: string): ScrollAlign | null {
+    const normalized = raw.trim().toLowerCase()
+    return SCROLL_ALIGNS.has(normalized as ScrollAlign) ? (normalized as ScrollAlign) : null
 }

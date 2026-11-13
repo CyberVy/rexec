@@ -3,6 +3,8 @@ import {
     parse_gesture_direction,
     parse_gesture_distance,
     parse_point_delta,
+    parse_scroll_align,
+    parse_scroll_edge,
     parse_target_string,
     type ActionResult,
     type DebugUiCommand,
@@ -16,6 +18,10 @@ import {
     type GestureSpeed,
     type InspectResult,
     type LogEntry,
+    type ScrollAlign,
+    type ScrollEdge,
+    type ScrollOptions,
+    type ScrollResult,
     type SnapNode,
     type SnapOptions,
     type SnapResult,
@@ -49,7 +55,8 @@ const VALUE_FLAGS = new Set([
     "velocity",
     "curve",
     "hold-start",
-    "hold-end"
+    "hold-end",
+    "align"
 ])
 
 const VALID_SPEEDS = new Set<GestureSpeed>(["fast", "normal", "slow"])
@@ -143,14 +150,15 @@ function parse_pointer_flag(flags: Map<string, string | boolean>): "mouse" | "to
     return pointer_raw
 }
 
-function parse_gesture_flags(flags: Map<string, string | boolean>): {
+function parse_kinematics_flags(
+    flags: Map<string, string | boolean>,
+    allow_instant: boolean
+): {
     speed?: GestureSpeed
     duration_ms?: number
     velocity?: number
     curve?: GestureCurve
-    pointer?: "touch" | "mouse"
-    hold_start_ms?: number
-    hold_end_ms?: number
+    instant?: boolean
     scroll_into_view: boolean
     dry_run: boolean
 } {
@@ -165,9 +173,16 @@ function parse_gesture_flags(flags: Map<string, string | boolean>): {
 
     const duration_ms = get_float_flag(flags, "duration", true)
     const velocity = get_float_flag(flags, "velocity", true)
-    const timing_count = [speed, duration_ms, velocity].filter((v) => v !== undefined).length
+    const instant = allow_instant ? get_boolean_flag(flags, "instant") : false
+    const timing_count = [speed !== undefined, duration_ms !== undefined, velocity !== undefined, instant].filter(
+        Boolean
+    ).length
     if (timing_count > 1) {
-        throw new Error("Flags --speed, --duration, and --velocity are mutually exclusive.")
+        throw new Error(
+            allow_instant
+                ? "Flags --speed, --duration, --velocity, and --instant are mutually exclusive."
+                : "Flags --speed, --duration, and --velocity are mutually exclusive."
+        )
     }
 
     const curve_raw = get_string_flag(flags, "curve")
@@ -181,21 +196,62 @@ function parse_gesture_flags(flags: Map<string, string | boolean>): {
         curve = curve_raw as GestureCurve
     }
 
-    const pointer = parse_pointer_flag(flags)
-    const hold_start_ms = get_float_flag(flags, "hold-start", false)
-    const hold_end_ms = get_float_flag(flags, "hold-end", false)
-
     return {
         ...(speed ? { speed } : {}),
         ...(duration_ms !== undefined ? { duration_ms } : {}),
         ...(velocity !== undefined ? { velocity } : {}),
         ...(curve ? { curve } : {}),
-        ...(pointer ? { pointer } : {}),
-        ...(hold_start_ms !== undefined ? { hold_start_ms } : {}),
-        ...(hold_end_ms !== undefined ? { hold_end_ms } : {}),
+        ...(instant ? { instant: true } : {}),
         scroll_into_view: !get_boolean_flag(flags, "no-scroll"),
         dry_run: get_boolean_flag(flags, "dry-run")
     }
+}
+
+function parse_gesture_flags(flags: Map<string, string | boolean>): {
+    speed?: GestureSpeed
+    duration_ms?: number
+    velocity?: number
+    curve?: GestureCurve
+    pointer?: "touch" | "mouse"
+    hold_start_ms?: number
+    hold_end_ms?: number
+    scroll_into_view: boolean
+    dry_run: boolean
+} {
+    const kinematics = parse_kinematics_flags(flags, false)
+    const pointer = parse_pointer_flag(flags)
+    const hold_start_ms = get_float_flag(flags, "hold-start", false)
+    const hold_end_ms = get_float_flag(flags, "hold-end", false)
+
+    return {
+        ...kinematics,
+        ...(pointer ? { pointer } : {}),
+        ...(hold_start_ms !== undefined ? { hold_start_ms } : {}),
+        ...(hold_end_ms !== undefined ? { hold_end_ms } : {})
+    }
+}
+
+function resolve_optional_target_from_cli(
+    raw_target: string | undefined,
+    flags: Map<string, string | boolean>
+): TargetInput | undefined {
+    if (raw_target !== undefined) {
+        return build_target_from_cli([raw_target], flags)
+    }
+    if (get_string_flag(flags, "css") || get_string_flag(flags, "role")) {
+        return build_target_from_cli([], flags)
+    }
+    if (get_string_flag(flags, "in")) {
+        return apply_target_modifiers(parse_target_string(get_string_flag(flags, "in")!), {
+            exact: get_boolean_flag(flags, "exact"),
+            nth: get_number_flag(flags, "nth"),
+            anchor: get_string_flag(flags, "at")
+        })
+    }
+    if (get_string_flag(flags, "at")) {
+        throw new Error("Flag --at requires a target element.")
+    }
+    return undefined
 }
 
 function build_target_from_cli(positionals: string[], flags: Map<string, string | boolean>): TargetInput {
@@ -269,20 +325,7 @@ function parse_swipe_command(
         distance = dist2
     }
 
-    let target: TargetInput | undefined
-    if (raw_target !== undefined) {
-        target = build_target_from_cli([raw_target], flags)
-    } else if (get_string_flag(flags, "css") || get_string_flag(flags, "role")) {
-        target = build_target_from_cli([], flags)
-    } else if (get_string_flag(flags, "in")) {
-        target = apply_target_modifiers(parse_target_string(get_string_flag(flags, "in")!), {
-            exact: get_boolean_flag(flags, "exact"),
-            nth: get_number_flag(flags, "nth"),
-            anchor: get_string_flag(flags, "at")
-        })
-    } else if (get_string_flag(flags, "at")) {
-        throw new Error("Flag --at requires a target element.")
-    }
+    const target = resolve_optional_target_from_cli(raw_target, flags)
 
     const kinematics = parse_gesture_flags(flags)
     return {
@@ -290,6 +333,135 @@ function parse_swipe_command(
         options: {
             direction,
             ...(distance ? { distance } : {}),
+            ...kinematics
+        }
+    }
+}
+
+function parse_scroll_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target?: TargetInput; options: ScrollOptions } {
+    const to_raw = get_string_flag(flags, "to")
+    const by_raw = get_string_flag(flags, "by")
+    const align_raw = get_string_flag(flags, "align")
+    const wheel = get_boolean_flag(flags, "wheel")
+
+    let align: ScrollAlign | undefined
+    if (align_raw !== undefined) {
+        align = parse_scroll_align(align_raw) ?? undefined
+        if (!align) {
+            throw new Error(`Invalid --align value: ${align_raw} (expected "start", "center", "end", or "nearest")`)
+        }
+    }
+
+    let raw_target: string | undefined
+    let direction: GestureDirection | undefined
+    let distance: GestureDistance | undefined
+    let to: ScrollEdge | TargetInput | undefined
+    let by: { x: number; y: number } | undefined
+
+    if (to_raw !== undefined || by_raw !== undefined) {
+        if (to_raw !== undefined && by_raw !== undefined) {
+            throw new Error("Scroll accepts only one of --to or --by.")
+        }
+        if (positionals.length > 1) {
+            throw new Error(
+                "Invalid scroll arguments. Place the target container locator in a single argument when using --to or --by."
+            )
+        }
+        if (positionals.length === 1) {
+            if (parse_gesture_direction(positionals[0]) || parse_scroll_edge(positionals[0])) {
+                throw new Error(`Cannot combine positional "${positionals[0]}" with --to or --by.`)
+            }
+            raw_target = positionals[0]
+        }
+
+        if (to_raw !== undefined) {
+            const trimmed = to_raw.trim()
+            const maybe_edge = parse_scroll_edge(trimmed)
+            if (maybe_edge && trimmed.toLowerCase() === maybe_edge) {
+                to = maybe_edge
+            } else {
+                to = parse_target_string(trimmed)
+            }
+        } else if (by_raw !== undefined) {
+            const parsed_by = parse_point_delta(by_raw)
+            if (!parsed_by) {
+                throw new Error(`Invalid --by value "${by_raw}". Expected dx,dy in pixels (e.g. "0,400" or "-120,0").`)
+            }
+            by = parsed_by
+        }
+    } else {
+        if (positionals.length === 0 || positionals.length > 3) {
+            throw new Error(
+                "Invalid scroll arguments. Usage: scroll [<target>] (<left|right|up|down> [distance] | top | bottom | --to <target> | --by <dx,dy>)"
+            )
+        }
+
+        if (positionals.length === 1) {
+            const dir0 = parse_gesture_direction(positionals[0])
+            const edge0 = parse_scroll_edge(positionals[0])
+            if (dir0) {
+                direction = dir0
+            } else if (edge0 === "top" || edge0 === "bottom") {
+                to = edge0
+            } else {
+                throw new Error(
+                    `Invalid scroll direction or edge "${positionals[0]}". Expected up, down, left, right, top, or bottom (or use --to <target> / --by <dx,dy>).`
+                )
+            }
+        } else if (positionals.length === 2) {
+            const dir0 = parse_gesture_direction(positionals[0])
+            const dist1 = parse_gesture_distance(positionals[1])
+            if (dir0 && dist1) {
+                direction = dir0
+                distance = dist1
+            } else {
+                const dir1 = parse_gesture_direction(positionals[1])
+                const edge1 = parse_scroll_edge(positionals[1])
+                if (dir1) {
+                    raw_target = positionals[0]
+                    direction = dir1
+                } else if (edge1 === "top" || edge1 === "bottom") {
+                    raw_target = positionals[0]
+                    to = edge1
+                } else {
+                    throw new Error(
+                        `Invalid scroll arguments "${positionals.join(" ")}". Expected [<target>] <direction> [distance] or [<target>] <top|bottom>.`
+                    )
+                }
+            }
+        } else {
+            raw_target = positionals[0]
+            const dir1 = parse_gesture_direction(positionals[1])
+            const dist2 = parse_gesture_distance(positionals[2])
+            if (!dir1 || !dist2) {
+                throw new Error(
+                    `Invalid scroll arguments "${positionals.join(" ")}". Expected <target> <direction> <distance>.`
+                )
+            }
+            direction = dir1
+            distance = dist2
+        }
+    }
+
+    if (align && (!to || typeof to === "string")) {
+        throw new Error("Flag --align requires an element --to <target>.")
+    }
+
+    const target = resolve_optional_target_from_cli(raw_target, flags)
+    const kinematics = parse_kinematics_flags(flags, true)
+
+    return {
+        target,
+        options: {
+            ...(direction ? { direction } : {}),
+            ...(distance ? { distance } : {}),
+            ...(to !== undefined ? { to } : {}),
+            ...(by ? { by } : {}),
+            ...(align ? { align } : {}),
+            ...(wheel ? { wheel: true } : {}),
             ...kinematics
         }
     }
@@ -467,8 +639,13 @@ function print_inspect_result(res: ActionResult<InspectResult>): void {
         `Hit test @(${d.center.x},${d.center.y}): ${d.hit_test.ok ? "PASS" : "OBSCURED"} (hit: ${d.hit_test.hit_element})`
     )
     console.log(
-        `Styles: display=${d.styles.display} visibility=${d.styles.visibility} opacity=${d.styles.opacity} pointerEvents=${d.styles.pointer_events} cursor=${d.styles.cursor} touchAction=${d.styles.touch_action}`
+        `Styles: display=${d.styles.display} visibility=${d.styles.visibility} opacity=${d.styles.opacity} pointerEvents=${d.styles.pointer_events} cursor=${d.styles.cursor} touchAction=${d.styles.touch_action} overflow=${d.styles.overflow_x}/${d.styles.overflow_y}`
     )
+    if (d.scroll.max_x > 0 || d.scroll.max_y > 0) {
+        console.log(
+            `Scroll: x=${d.scroll.x}/${d.scroll.max_x} y=${d.scroll.y}/${d.scroll.max_y} (client=${d.scroll.client_w}x${d.scroll.client_h}, content=${d.scroll.scroll_w}x${d.scroll.scroll_h})`
+        )
+    }
     console.log(`Listeners: ${d.listeners.length > 0 ? d.listeners.join(", ") : "(none direct)"}`)
     const attr_pairs = Object.entries(d.attributes).map(([k, v]) => `${k}="${v}"`)
     if (attr_pairs.length > 0) {
@@ -513,6 +690,46 @@ function print_gesture_result(res: ActionResult<GestureResult>): void {
     }
 }
 
+function print_scroll_result(res: ActionResult<ScrollResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const target_desc =
+        d.target.role === "viewport" ? "viewport" : `${d.target.role}${d.target.name ? ` "${d.target.name}"` : ""}`
+    const dest_desc = d.to_target ? ` -> ${d.to_target.role}${d.to_target.name ? ` "${d.to_target.name}"` : ""}` : ""
+    const subject = d.direction
+        ? d.target.role === "viewport"
+            ? d.direction
+            : `${d.direction} on ${target_desc}`
+        : d.edge
+          ? d.target.role === "viewport"
+              ? d.edge
+              : `${d.edge} on ${target_desc}`
+          : `${target_desc}${dest_desc}`
+
+    const edges: string[] = []
+    if (d.max.y > 0) {
+        if (d.at_edge.top) edges.push("top")
+        if (d.at_edge.bottom) edges.push("bottom")
+    }
+    if (d.max.x > 0) {
+        if (d.at_edge.left) edges.push("left")
+        if (d.at_edge.right) edges.push("right")
+    }
+    const edge_str = edges.length > 0 ? edges.join(",") : "none"
+
+    const extra_parts: string[] = []
+    if (d.instant) extra_parts.push("instant")
+    if (d.wheel) extra_parts.push("via=wheel")
+    const extra_str = extra_parts.length > 0 ? `, ${extra_parts.join(", ")}` : ""
+
+    console.log(
+        `OK scroll${dry_tag} ${subject} @ (${d.before.x},${d.before.y}) -> (${d.after.x},${d.after.y}) [dx=${d.actual_delta.x}, dy=${d.actual_delta.y}, dist=${d.distance_px}px, max=${d.max.x},${d.max.y}, edge=${edge_str}, duration=${d.actual_duration_ms}ms, frames=${d.frames}, curve=${d.curve}${extra_str}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
 function print_help(): void {
     console.log(`Usage:
   npm run debug:ui -- snap [--all] [--text] [--in <scope>] [--depth <n>] [--json]
@@ -522,6 +739,7 @@ function print_help(): void {
   npm run debug:ui -- click <target> [--button left|right] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--dry-run] [--json]
   npm run debug:ui -- swipe [<target>] <left|right|up|down> [distance] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-end <ms>] [--pointer touch|mouse] [--dry-run] [--json]
   npm run debug:ui -- drag <from> (--to <target> | --by <dx,dy>) [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-start <ms>] [--hold-end <ms>] [--pointer mouse|touch] [--dry-run] [--json]
+  npm run debug:ui -- scroll [<target>] (<left|right|up|down> [distance] | top | bottom | --to <top|bottom|left|right|target> | --by <dx,dy>) [--align start|center|end|nearest] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms> | --instant] [--curve linear|ease-in|ease-out|ease-in-out] [--wheel] [--no-scroll] [--dry-run] [--json]
 
 Target syntax examples:
   "Player"                       Exact or unambiguous substring text match
@@ -538,7 +756,12 @@ Gesture examples:
   npm run debug:ui -- swipe "swipeable#1" right 240 --speed fast
   npm run debug:ui -- swipe left 40 --velocity 0.35 --curve ease-in
   npm run debug:ui -- drag "clickable#1@10%,50%" --to "@80%,50%"
-  npm run debug:ui -- drag "clickable#1@50%,50%" --by "180,0" --hold-end 120`)
+  npm run debug:ui -- drag "clickable#1@50%,50%" --by "180,0" --hold-end 120
+  npm run debug:ui -- scroll down
+  npm run debug:ui -- scroll down 80% --speed fast
+  npm run debug:ui -- scroll "scrollable#1" right 240
+  npm run debug:ui -- scroll bottom --instant
+  npm run debug:ui -- scroll --to "Footer" --align center`)
 }
 
 async function run_command_in_browser(command: DebugUiCommand): Promise<ActionResult<unknown>> {
@@ -618,6 +841,13 @@ async function main(): Promise<void> {
             target: parsed.target,
             options: parsed.options
         }
+    } else if (command === "scroll") {
+        const parsed = parse_scroll_command(positionals, flags)
+        rpc_command = {
+            action: "scroll",
+            ...(parsed.target ? { target: parsed.target } : {}),
+            options: parsed.options
+        }
     } else {
         throw new Error(`Unknown command "${command}". Run with "help" to see usage.`)
     }
@@ -650,6 +880,9 @@ async function main(): Promise<void> {
         case "swipe":
         case "drag":
             print_gesture_result(result as ActionResult<GestureResult>)
+            break
+        case "scroll":
+            print_scroll_result(result as ActionResult<ScrollResult>)
             break
     }
 }

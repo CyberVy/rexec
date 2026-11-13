@@ -1,18 +1,26 @@
 import {
     normalize_target_input,
     type ActionError,
+    type GestureCurve,
+    type GestureSpeed,
     type Point2D,
     type RectBox,
+    type TargetElementSummary,
     type TargetInput
 } from "../../shared/protocol"
 import {
+    classify_element,
     describe_element_brief,
+    get_accessible_name_info,
+    get_explicit_container_name,
+    get_scrolling_element,
     hit_test_point,
     is_element_disabled,
     is_rect_in_viewport,
-    to_rect_box
+    to_rect_box,
+    truncate_text
 } from "../dom/dom_utils"
-import { compute_anchor_point, resolve_target } from "../dom/locator"
+import { build_readable_locator_for_entry, compute_anchor_point, resolve_target } from "../dom/locator"
 
 let next_pointer_id = 10
 
@@ -375,4 +383,148 @@ export function append_overlay_line(overlay: HTMLElement, from: Point2D, to: Poi
         "opacity:0.9"
     ].join(";")
     overlay.appendChild(line)
+}
+
+export const SPEED_DURATION_MS: Record<GestureSpeed, number> = {
+    fast: 110,
+    normal: 260,
+    slow: 650
+}
+
+export const MAX_TOTAL_GESTURE_MS = 12000
+
+export function invalid_options(message: string): { ok: false; error: ActionError } {
+    return {
+        ok: false,
+        error: {
+            code: "INVALID_OPTIONS",
+            message
+        }
+    }
+}
+
+export function evaluate_curve(curve: GestureCurve, progress: number): number {
+    const t = Math.max(0, Math.min(1, progress))
+    switch (curve) {
+        case "linear":
+            return t
+        case "ease-in":
+            return t * t
+        case "ease-out":
+            return 1 - (1 - t) * (1 - t)
+        case "ease-in-out":
+            return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
+    }
+}
+
+export function clip_rect_to_viewport(rect: RectBox): RectBox {
+    const left = Math.max(0, rect.x)
+    const top = Math.max(0, rect.y)
+    const right = Math.min(window.innerWidth, rect.x + rect.w)
+    const bottom = Math.min(window.innerHeight, rect.y + rect.h)
+    if (right <= left || bottom <= top) {
+        return rect
+    }
+    return {
+        x: Math.round(left),
+        y: Math.round(top),
+        w: Math.round(right - left),
+        h: Math.round(bottom - top)
+    }
+}
+
+export function resolve_timing_options(
+    params: {
+        speed?: GestureSpeed
+        duration_ms?: number
+        velocity?: number
+        instant?: boolean
+        hold_start_ms?: number
+        hold_end_ms?: number
+    },
+    default_hold_end_ms: number,
+    distance_px: number
+): { ok: true; duration_ms: number; hold_start_ms: number; hold_end_ms: number } | { ok: false; error: ActionError } {
+    const timing_mode_count = [
+        params.speed !== undefined,
+        params.duration_ms !== undefined,
+        params.velocity !== undefined,
+        params.instant === true
+    ].filter(Boolean).length
+    if (timing_mode_count > 1) {
+        return invalid_options("Options speed, duration_ms, velocity, and instant are mutually exclusive.")
+    }
+
+    const hold_start_ms = params.hold_start_ms ?? 0
+    const hold_end_ms = params.hold_end_ms ?? default_hold_end_ms
+    if (!Number.isFinite(hold_start_ms) || hold_start_ms < 0) {
+        return invalid_options(`hold_start_ms must be a non-negative number, got: ${String(params.hold_start_ms)}`)
+    }
+    if (!Number.isFinite(hold_end_ms) || hold_end_ms < 0) {
+        return invalid_options(`hold_end_ms must be a non-negative number, got: ${String(params.hold_end_ms)}`)
+    }
+
+    let duration_ms: number
+    if (params.instant) {
+        duration_ms = 0
+    } else if (params.duration_ms !== undefined) {
+        if (!Number.isFinite(params.duration_ms) || params.duration_ms <= 0) {
+            return invalid_options(`duration_ms must be a positive number, got: ${String(params.duration_ms)}`)
+        }
+        duration_ms = Math.max(16, Math.round(params.duration_ms))
+    } else if (params.velocity !== undefined) {
+        if (!Number.isFinite(params.velocity) || params.velocity <= 0) {
+            return invalid_options(`velocity (px/ms) must be a positive number, got: ${String(params.velocity)}`)
+        }
+        duration_ms = distance_px > 0 ? Math.max(16, Math.round(distance_px / params.velocity)) : 0
+    } else {
+        const speed = params.speed ?? "normal"
+        duration_ms = SPEED_DURATION_MS[speed]
+    }
+
+    const total_ms = hold_start_ms + duration_ms + hold_end_ms
+    if (total_ms > MAX_TOTAL_GESTURE_MS) {
+        return invalid_options(
+            `Total gesture time (${total_ms}ms) exceeds bridge safety limit (${MAX_TOTAL_GESTURE_MS}ms).`
+        )
+    }
+
+    return {
+        ok: true,
+        duration_ms,
+        hold_start_ms: Math.round(hold_start_ms),
+        hold_end_ms: Math.round(hold_end_ms)
+    }
+}
+
+export function summarize_dom_element(
+    el: Element,
+    hit_el?: Element | null,
+    scrolling_el = get_scrolling_element()
+): TargetElementSummary {
+    if (el === scrolling_el) {
+        return {
+            role: "viewport",
+            name: document.title || "",
+            locator: "viewport",
+            hit_element: describe_element_brief(hit_el ?? el),
+            rect: { x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }
+        }
+    }
+
+    const style = getComputedStyle(el)
+    const cls = classify_element(el, style, false)
+    const role = cls?.role || el.tagName.toLowerCase()
+    const is_container = cls?.kind === "landmark" || cls?.kind === "container"
+    const name_info = get_accessible_name_info(el)
+    const raw_name = is_container ? get_explicit_container_name(el) || name_info.name : name_info.name
+    const primary_name = is_container ? get_explicit_container_name(el) || name_info.primary : name_info.primary
+
+    return {
+        role,
+        name: truncate_text(raw_name, 64),
+        locator: build_readable_locator_for_entry(el, role, primary_name),
+        hit_element: describe_element_brief(hit_el ?? el),
+        rect: to_rect_box(el.getBoundingClientRect())
+    }
 }

@@ -6,7 +6,6 @@ import {
     type GestureDirection,
     type GestureDistance,
     type GestureResult,
-    type GestureSpeed,
     type Point2D,
     type RectBox,
     type SwipeOptions,
@@ -21,69 +20,25 @@ import {
     append_overlay_dot,
     append_overlay_line,
     begin_synthetic_pointer,
+    clip_rect_to_viewport,
     dispatch_touch_event,
     end_synthetic_pointer,
+    evaluate_curve,
     get_captured_element,
+    invalid_options,
     make_mouse_event,
     make_pointer_event,
     mount_debug_overlay,
     resolve_and_prepare_target,
+    resolve_timing_options,
     wait_frames,
     wait_ms
 } from "./pointer_common"
-
-const SPEED_DURATION_MS: Record<GestureSpeed, number> = {
-    fast: 110,
-    normal: 260,
-    slow: 650
-}
-
-const MAX_TOTAL_GESTURE_MS = 12000
 
 interface TrajectorySample {
     t: number
     x: number
     y: number
-}
-
-function invalid_options(message: string): { ok: false; error: ActionError } {
-    return {
-        ok: false,
-        error: {
-            code: "INVALID_OPTIONS",
-            message
-        }
-    }
-}
-
-function evaluate_curve(curve: GestureCurve, progress: number): number {
-    const t = Math.max(0, Math.min(1, progress))
-    switch (curve) {
-        case "linear":
-            return t
-        case "ease-in":
-            return t * t
-        case "ease-out":
-            return 1 - (1 - t) * (1 - t)
-        case "ease-in-out":
-            return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
-    }
-}
-
-function clip_rect_to_viewport(rect: RectBox): RectBox {
-    const left = Math.max(0, rect.x)
-    const top = Math.max(0, rect.y)
-    const right = Math.min(window.innerWidth, rect.x + rect.w)
-    const bottom = Math.min(window.innerHeight, rect.y + rect.h)
-    if (right <= left || bottom <= top) {
-        return rect
-    }
-    return {
-        x: Math.round(left),
-        y: Math.round(top),
-        w: Math.round(right - left),
-        h: Math.round(bottom - top)
-    }
 }
 
 function compute_default_swipe_start(rect: RectBox, direction: GestureDirection): Point2D {
@@ -125,61 +80,6 @@ function compute_swipe_end(
             return { x: from.x, y: from.y - dist_px }
         case "down":
             return { x: from.x, y: from.y + dist_px }
-    }
-}
-
-function resolve_timing_options(
-    params: {
-        speed?: GestureSpeed
-        duration_ms?: number
-        velocity?: number
-        hold_start_ms?: number
-        hold_end_ms?: number
-    },
-    default_hold_end_ms: number,
-    distance_px: number
-): { ok: true; duration_ms: number; hold_start_ms: number; hold_end_ms: number } | { ok: false; error: ActionError } {
-    if (params.duration_ms !== undefined && params.velocity !== undefined) {
-        return invalid_options("Cannot specify both duration_ms and velocity.")
-    }
-
-    const hold_start_ms = params.hold_start_ms ?? 0
-    const hold_end_ms = params.hold_end_ms ?? default_hold_end_ms
-    if (!Number.isFinite(hold_start_ms) || hold_start_ms < 0) {
-        return invalid_options(`hold_start_ms must be a non-negative number, got: ${String(params.hold_start_ms)}`)
-    }
-    if (!Number.isFinite(hold_end_ms) || hold_end_ms < 0) {
-        return invalid_options(`hold_end_ms must be a non-negative number, got: ${String(params.hold_end_ms)}`)
-    }
-
-    let duration_ms: number
-    if (params.duration_ms !== undefined) {
-        if (!Number.isFinite(params.duration_ms) || params.duration_ms <= 0) {
-            return invalid_options(`duration_ms must be a positive number, got: ${String(params.duration_ms)}`)
-        }
-        duration_ms = Math.max(16, Math.round(params.duration_ms))
-    } else if (params.velocity !== undefined) {
-        if (!Number.isFinite(params.velocity) || params.velocity <= 0) {
-            return invalid_options(`velocity (px/ms) must be a positive number, got: ${String(params.velocity)}`)
-        }
-        duration_ms = Math.max(16, Math.round(distance_px / params.velocity))
-    } else {
-        const speed = params.speed ?? "normal"
-        duration_ms = SPEED_DURATION_MS[speed]
-    }
-
-    const total_ms = hold_start_ms + duration_ms + hold_end_ms
-    if (total_ms > MAX_TOTAL_GESTURE_MS) {
-        return invalid_options(
-            `Total gesture time (${total_ms}ms) exceeds bridge safety limit (${MAX_TOTAL_GESTURE_MS}ms).`
-        )
-    }
-
-    return {
-        ok: true,
-        duration_ms,
-        hold_start_ms: Math.round(hold_start_ms),
-        hold_end_ms: Math.round(hold_end_ms)
     }
 }
 

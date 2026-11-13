@@ -7,6 +7,7 @@ import type {
     DragOptions,
     FindOptions,
     LogEntry,
+    ScrollOptions,
     SnapOptions,
     SwipeOptions,
     TapOptions,
@@ -14,6 +15,7 @@ import type {
 } from "../shared/protocol"
 import { install_listener_registry } from "./listener_registry"
 import { perform_tap_or_click } from "./gestures/pointer_tap"
+import { perform_scroll } from "./gestures/scroll"
 import { perform_drag, perform_swipe } from "./gestures/swipe_drag"
 import { build_snapshot, find_targets, inspect_target } from "./dom/snapshot"
 
@@ -168,6 +170,8 @@ function init_debug_bridge(): void {
             run_with_meta(() => perform_swipe(target, options)),
         drag: (target: TargetInput | string, options: DragOptions) =>
             run_with_meta(() => perform_drag(target, options)),
+        scroll: (target: TargetInput | string | undefined, options: ScrollOptions) =>
+            run_with_meta(() => perform_scroll(target, options)),
         exec: (command: DebugUiCommand): Promise<ActionResult<unknown>> => {
             switch (command.action) {
                 case "snap":
@@ -184,6 +188,8 @@ function init_debug_bridge(): void {
                     return runtime.swipe(command.target, command.options)
                 case "drag":
                     return runtime.drag(command.target, command.options)
+                case "scroll":
+                    return runtime.scroll(command.target, command.options)
             }
         }
     }

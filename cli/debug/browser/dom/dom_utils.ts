@@ -109,6 +109,49 @@ export function is_rect_in_viewport(rect: RectBox): boolean {
     )
 }
 
+export interface ElementScrollMetrics {
+    x: number
+    y: number
+    max_x: number
+    max_y: number
+    client_w: number
+    client_h: number
+    scroll_w: number
+    scroll_h: number
+}
+
+export function get_scrolling_element(): Element | null {
+    return document.scrollingElement || document.documentElement || document.body
+}
+
+export function get_element_scroll_metrics(el: Element, scrolling_el = get_scrolling_element()): ElementScrollMetrics {
+    if (el === scrolling_el) {
+        const client_w = Math.min(el.clientWidth || window.innerWidth, window.innerWidth)
+        const client_h = Math.min(el.clientHeight || window.innerHeight, window.innerHeight)
+        return {
+            x: Math.round(window.scrollX),
+            y: Math.round(window.scrollY),
+            max_x: Math.max(0, Math.round(el.scrollWidth - client_w)),
+            max_y: Math.max(0, Math.round(el.scrollHeight - client_h)),
+            client_w: Math.round(client_w),
+            client_h: Math.round(client_h),
+            scroll_w: Math.round(el.scrollWidth),
+            scroll_h: Math.round(el.scrollHeight)
+        }
+    }
+
+    return {
+        x: Math.round(el.scrollLeft),
+        y: Math.round(el.scrollTop),
+        max_x: Math.max(0, Math.round(el.scrollWidth - el.clientWidth)),
+        max_y: Math.max(0, Math.round(el.scrollHeight - el.clientHeight)),
+        client_w: Math.round(el.clientWidth),
+        client_h: Math.round(el.clientHeight),
+        scroll_w: Math.round(el.scrollWidth),
+        scroll_h: Math.round(el.scrollHeight)
+    }
+}
+
 export function is_element_disabled(el: Element): boolean {
     if ((el as HTMLButtonElement).disabled === true) return true
     if (el.getAttribute("aria-disabled") === "true") return true

@@ -14,6 +14,7 @@ import {
     classify_element,
     describe_element_brief,
     get_accessible_name_info,
+    get_element_scroll_metrics,
     get_element_states,
     get_explicit_container_name,
     hit_test_point,
@@ -110,7 +111,7 @@ function collect_snapshot_nodes(
             const reachable = in_vp ? is_element_reachable(child, rect) : options.all
 
             if (cls.kind === "landmark" || cls.kind === "container") {
-                const keep_empty = cls.role === "dialog" || cls.role === "swipeable"
+                const keep_empty = cls.role === "dialog" || cls.role === "swipeable" || cls.role === "scrollable"
                 if (child_nodes.length === 0 && !keep_empty) {
                     continue
                 }
@@ -336,6 +337,7 @@ export function inspect_target(
                 overflow_x: style.overflowX,
                 overflow_y: style.overflowY
             },
+            scroll: get_element_scroll_metrics(el),
             listeners: get_direct_listeners(el),
             attributes: attrs
         }
