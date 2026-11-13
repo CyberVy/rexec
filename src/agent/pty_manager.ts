@@ -1,3 +1,6 @@
+import { execFileSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import type {
     AgentToHubMessage,
@@ -30,7 +33,21 @@ interface PtySlot {
     persistent: boolean
 }
 
-const STRIPPED_ENV = ["TMUX", "TMUX_PANE", "STY", "WINDOW", "WINDOWID", "TERMCAP", "COLUMNS", "LINES"]
+const STRIPPED_ENV = [
+    "TMUX",
+    "TMUX_PANE",
+    "STY",
+    "WINDOW",
+    "WINDOWID",
+    "TERMCAP",
+    "COLUMNS",
+    "LINES",
+    "NO_COLOR",
+    "FORCE_COLOR"
+]
+const LOGIN_FLAG_SHELLS = new Set(["bash", "sh", "zsh", "fish", "dash", "ash", "ksh", "mksh", "csh", "tcsh"])
+const NON_LOGIN_SHELLS = new Set(["nologin", "false"])
+const DEFAULT_UNIX_SHELLS = ["/bin/bash", "/bin/zsh", "/bin/sh"]
 const DEFAULT_ORPHAN_TTL_MS = 10 * 60 * 1000 // 10 minutes
 
 export class PtyManager {
@@ -88,20 +105,26 @@ export class PtyManager {
         }
         this.sessions.set(session_id, slot)
 
-        let file = msg.file?.trim() ?? ""
-        if (process.platform === "win32" && (file === "/bin/bash" || file === "/bin/sh" || file.length === 0)) {
-            file = process.env.COMSPEC || "cmd.exe"
-        }
-        if (!file) {
+        const launch = resolve_launch(msg.file, msg.args)
+        if (!launch.file) {
             this.fail(session_id, "Missing command", send)
             return
         }
 
         const cwd = msg.cwd ? path.resolve(base_workspace, msg.cwd) : base_workspace
         slot.cwd = cwd
-        const args = Array.isArray(msg.args) ? msg.args.map((arg) => String(arg)) : []
-        slot.command = [file, ...args].filter(Boolean).join(" ") || file
-        void this.spawn(session_id, slot, file, args, cwd, msg.term?.trim() || "xterm-256color", send, send_binary)
+        slot.command = [launch.file, ...launch.args].filter(Boolean).join(" ") || launch.file
+        void this.spawn(
+            session_id,
+            slot,
+            launch.file,
+            launch.args,
+            cwd,
+            msg.term?.trim() || "xterm-256color",
+            launch.shell,
+            send,
+            send_binary
+        )
     }
 
     public attach(
@@ -287,6 +310,7 @@ export class PtyManager {
         args: string[],
         cwd: string,
         term: string,
+        default_shell: string | undefined,
         send: (msg: AgentToHubMessage) => void,
         send_binary: (packet: Uint8Array) => void
     ): Promise<void> {
@@ -312,7 +336,7 @@ export class PtyManager {
                     file,
                     args,
                     cwd,
-                    env: build_env(term, cwd),
+                    env: build_env(term, cwd, default_shell),
                     cols: slot.cols,
                     rows: slot.rows,
                     helper_path: this.binding.helper_path
@@ -385,7 +409,102 @@ function dimension(value: number, fallback: number): number {
     return value
 }
 
-function build_env(term: string, cwd: string): string[] {
+function resolve_launch(raw_file?: string, raw_args?: string[]): { file: string; args: string[]; shell?: string } {
+    const requested = raw_file?.trim() ?? ""
+    const explicit_args = Array.isArray(raw_args) ? raw_args.map((arg) => String(arg)) : undefined
+
+    if (process.platform === "win32") {
+        if (requested === "/bin/bash" || requested === "/bin/sh" || requested.length === 0) {
+            return {
+                file: process.env.COMSPEC || "cmd.exe",
+                args: explicit_args ?? []
+            }
+        }
+        return { file: requested, args: explicit_args ?? [] }
+    }
+
+    const user_info = safe_user_info()
+    const default_shell = resolve_default_unix_shell(user_info)
+    if (!requested) {
+        if (!default_shell) {
+            return { file: "", args: explicit_args ?? [] }
+        }
+        const default_args =
+            explicit_args !== undefined
+                ? explicit_args
+                : LOGIN_FLAG_SHELLS.has(path.posix.basename(default_shell))
+                  ? ["-l"]
+                  : []
+        return { file: default_shell, args: default_args, shell: default_shell }
+    }
+
+    return { file: requested, args: explicit_args ?? [], shell: default_shell ?? undefined }
+}
+
+function resolve_default_unix_shell(user_info: os.UserInfo<string> | null): string | null {
+    const candidates = [process.env.SHELL, user_info?.shell, ...DEFAULT_UNIX_SHELLS]
+    for (const raw of candidates) {
+        const candidate = raw?.trim()
+        if (!candidate || !is_usable_shell(candidate)) continue
+        return candidate
+    }
+    return null
+}
+
+function is_usable_shell(shell_path: string): boolean {
+    if (!path.isAbsolute(shell_path)) return false
+    if (NON_LOGIN_SHELLS.has(path.posix.basename(shell_path))) return false
+    try {
+        if (!fs.statSync(shell_path).isFile()) return false
+        fs.accessSync(shell_path, fs.constants.X_OK)
+        return true
+    } catch {
+        return false
+    }
+}
+
+function safe_user_info(): os.UserInfo<string> | null {
+    try {
+        return os.userInfo()
+    } catch {
+        return null
+    }
+}
+
+function safe_homedir(): string {
+    try {
+        return os.homedir()
+    } catch {
+        return ""
+    }
+}
+
+let cached_utf8_locale: string | null | undefined
+
+function resolve_utf8_locale(): string | null {
+    if (cached_utf8_locale !== undefined) return cached_utf8_locale
+    try {
+        const output = execFileSync("locale", ["-a"], { encoding: "utf8", timeout: 1000 })
+        const available = new Set(
+            output
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter(Boolean)
+        )
+        for (const candidate of ["C.UTF-8", "C.utf8", "en_US.UTF-8", "en_US.utf8"]) {
+            if (available.has(candidate)) {
+                cached_utf8_locale = candidate
+                return candidate
+            }
+        }
+    } catch {
+        // Minimal systems without `locale` (e.g. Alpine musl) default to UTF-8.
+    }
+    cached_utf8_locale = null
+    return null
+}
+
+function build_env(term: string, cwd: string, default_shell?: string): string[] {
     const env: Record<string, string> = {}
     for (const [key, value] of Object.entries(process.env)) {
         if (value !== undefined) env[key] = value
@@ -393,7 +512,31 @@ function build_env(term: string, cwd: string): string[] {
     for (const key of STRIPPED_ENV) {
         delete env[key]
     }
+    const user_info = safe_user_info()
+    if (!env.HOME) {
+        const home = user_info?.homedir || safe_homedir()
+        if (home) env.HOME = home
+    }
+    if (!env.USER && user_info?.username) {
+        env.USER = user_info.username
+    }
+    if (process.platform !== "win32") {
+        if (!env.LOGNAME && user_info?.username) {
+            env.LOGNAME = user_info.username
+        }
+        if (!env.SHELL && default_shell) {
+            env.SHELL = default_shell
+        }
+        if (!env.LANG && !env.LC_ALL && !env.LC_CTYPE) {
+            const utf8_locale = resolve_utf8_locale()
+            if (utf8_locale) env.LANG = utf8_locale
+        }
+    }
     env.TERM = term
+    if (term !== "dumb") {
+        if (!env.COLORTERM) env.COLORTERM = "truecolor"
+        if (!env.CLICOLOR) env.CLICOLOR = "1"
+    }
     env.PWD = cwd
     const osc7_hook = 'printf "\\033]7;file://localhost%s\\007" "$PWD"'
     env.PROMPT_COMMAND = env.PROMPT_COMMAND ? `${env.PROMPT_COMMAND}; ${osc7_hook}` : osc7_hook

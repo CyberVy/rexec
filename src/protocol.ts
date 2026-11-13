@@ -141,7 +141,7 @@ export interface ForwardSessionEndMessage {
 export interface PtyOpenMessage {
     type: "pty:open"
     session_id: string
-    file: string
+    file?: string
     args?: string[]
     cwd?: string
     cols: number

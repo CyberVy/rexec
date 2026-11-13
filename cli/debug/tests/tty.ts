@@ -239,6 +239,64 @@ async function run(): Promise<void> {
         }
         console.log("✓ list_ptys and kill_pty passed")
 
+        if (process.platform !== "win32") {
+            console.log("[test:tty] Checking default login shell and color environment...")
+            const session4 = await caller.open_pty({
+                cols: 80,
+                rows: 24,
+                term: "xterm-256color"
+            })
+            let s4_output = ""
+            session4.on_data((data) => {
+                s4_output += Buffer.from(data).toString("utf-8")
+            })
+
+            let listed_command = ""
+            const list_deadline = Date.now() + 5000
+            while (Date.now() < list_deadline) {
+                const sessions = await caller.list_ptys()
+                const found4 = sessions.find((s) => s.session_id === session4.session_id)
+                if (found4) {
+                    listed_command = found4.command
+                    break
+                }
+                await new Promise((resolve) => setTimeout(resolve, 100))
+            }
+            if (!listed_command.endsWith(" -l")) {
+                throw new Error(`Expected default shell to use login flag (-l), got command: ${listed_command}`)
+            }
+
+            session4.send(
+                new TextEncoder().encode(
+                    'sh -c \'printf "ENV_CHECK:%s:%s:%s:%s:%s\\n" "$TERM" "$COLORTERM" "$CLICOLOR" "${FORCE_COLOR:-unset}" "${NO_COLOR:-unset}"\'; exit\n'
+                )
+            )
+            const s4_status = await Promise.race([
+                session4.exited,
+                new Promise<never>((_, reject) => {
+                    setTimeout(
+                        () =>
+                            reject(
+                                new Error(
+                                    `timed out waiting for default shell exit\ns4_output=${JSON.stringify(s4_output)}`
+                                )
+                            ),
+                        10000
+                    )
+                })
+            ])
+            session4.close()
+
+            const expected_env = "ENV_CHECK:xterm-256color:truecolor:1:unset:unset"
+            if (!s4_output.includes(expected_env)) {
+                throw new Error(`Expected ${expected_env}, got: ${JSON.stringify(s4_output)}`)
+            }
+            if (s4_status.code !== 0) {
+                throw new Error(`Expected clean exit on default shell, got code=${s4_status.code}`)
+            }
+            console.log(`✓ default login shell (${listed_command}) and color environment passed`)
+        }
+
         record_history({
             test_name: "tty",
             command: "rexec tty",

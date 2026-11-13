@@ -163,8 +163,8 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
             client.send_json({
                 type: "pty:open",
                 session_id,
-                file: options.file || "/bin/bash",
-                args: options.args ?? [],
+                file: options.file,
+                args: options.args,
                 cwd: options.cwd,
                 cols: options.cols && options.cols > 0 ? options.cols : 80,
                 rows: options.rows && options.rows > 0 ? options.rows : 24,

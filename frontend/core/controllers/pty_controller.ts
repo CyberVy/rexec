@@ -240,8 +240,8 @@ export class PtyController extends BaseController<PtyState> {
         try {
             const pty_client = await caller.open_pty({
                 session_id,
-                file: options?.file || this.last_options?.file || "/bin/bash",
-                args: options?.args ?? this.last_options?.args ?? [],
+                file: options?.file || this.last_options?.file,
+                args: options?.args ?? this.last_options?.args,
                 cwd: options?.cwd ?? this.last_options?.cwd,
                 cols,
                 rows,
