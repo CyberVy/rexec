@@ -4,6 +4,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { PtyManager } from "@/agent/pty_manager"
 import { PtyRingBuffer } from "@/agent/ring_buffer"
+import { ReplayQueryFilter, ReplayReplyFence } from "@/caller/terminal/tty_replay"
 import type { AgentToHubMessage } from "@/protocol"
 import { decode_pty_frame } from "@/transport"
 
@@ -68,8 +69,88 @@ function test_ring_buffer_incremental_slices(): void {
     console.log("[test:pty-replay] PtyRingBuffer incremental read_from checks passed")
 }
 
+async function test_tty_replay_filters(): Promise<void> {
+    // 1. ReplayQueryFilter strips queries across arbitrary chunk boundaries while keeping screen state & UTF-8 text.
+    const filter = new ReplayQueryFilter()
+    const payload = Buffer.concat([
+        Buffer.from("\x1b[32m中文前缀\x1b[c"),
+        Buffer.from("\x1b[>0c\x1b[?2026$p\x1b[?2027$p"),
+        Buffer.from("\x1b]11;?\x07\x1b]10;?;11;?\x1b\\\x1b]52;c;?\x07"),
+        Buffer.from("\x1b[6n\x1b[?u\x1b[>q\x1b[14t\x1bZ"),
+        Buffer.from("\x1bP$qm\x1b\\\x1bP+q544e\x1b\\"),
+        Buffer.from("\x1b]11;rgb:0000/0000/0000\x07"),
+        Buffer.from("\x1b]8;;https://example.com/" + "a".repeat(160) + "\x07link\x1b]8;;\x07"),
+        Buffer.from("\x1b[?25hTAIL\x1b[0m")
+    ])
+
+    const parts: Uint8Array[] = []
+    for (let i = 0; i < payload.byteLength; i += 3) {
+        const out = filter.push(payload.subarray(i, Math.min(payload.byteLength, i + 3)))
+        if (out.byteLength > 0) parts.push(Buffer.from(out))
+    }
+    const tail = filter.flush()
+    if (tail.byteLength > 0) parts.push(Buffer.from(tail))
+
+    const filtered = Buffer.concat(parts).toString("utf8")
+    const expected =
+        "\x1b[32m中文前缀" +
+        "\x1b]11;rgb:0000/0000/0000\x07" +
+        "\x1b]8;;https://example.com/" +
+        "a".repeat(160) +
+        "\x07link\x1b]8;;\x07" +
+        "\x1b[?25hTAIL\x1b[0m"
+    if (filtered !== expected) {
+        throw new Error(
+            `ReplayQueryFilter mismatch:\ngot:      ${JSON.stringify(filtered)}\nexpected: ${JSON.stringify(expected)}`
+        )
+    }
+
+    // 2. ReplayReplyFence strips terminal replies until \x1b[0n returns, while forwarding user keys & post-sentinel traffic.
+    const forwarded: Buffer[] = []
+    const sent_to_stdout: string[] = []
+    const forward = (data: Uint8Array) => forwarded.push(Buffer.from(data))
+
+    const fence = new ReplayReplyFence(false)
+    fence.begin_replay(forward)
+    fence.push_input(Buffer.from("a\x1b[?62;22c\x1b[?2026;2$y\x1b[A"), forward)
+    fence.end_replay((seq) => sent_to_stdout.push(seq), forward)
+    if (sent_to_stdout.join("") !== "\x1b[5n") {
+        throw new Error(`Expected DSR sentinel \\x1b[5n, got ${JSON.stringify(sent_to_stdout)}`)
+    }
+
+    // Split a reply and sentinel across chunks, interleaved with user text
+    fence.push_input(Buffer.from("\x1b]11;rgb:ffff/ffff/"), forward)
+    fence.push_input(Buffer.from("ffff\x07b\x1b[24;1R\x1b[?0u\x1bP>|Ghostty\x1b\\\x1b[0nc"), forward)
+    // Post-sentinel live reply passes through undisturbed
+    fence.push_input(Buffer.from("\x1b[?62;22c"), forward)
+
+    const forwarded_text = Buffer.concat(forwarded).toString("utf8")
+    if (forwarded_text !== "a\x1b[Abc\x1b[?62;22c") {
+        throw new Error(`ReplayReplyFence mismatch: got ${JSON.stringify(forwarded_text)}`)
+    }
+
+    // Bare Escape during fence should flush quickly via timer rather than hanging forever
+    const esc_forwarded: Buffer[] = []
+    fence.begin_replay((d) => esc_forwarded.push(Buffer.from(d)))
+    fence.end_replay(
+        () => {},
+        (d) => esc_forwarded.push(Buffer.from(d))
+    )
+    fence.push_input(Buffer.from("\x1b"), (d) => esc_forwarded.push(Buffer.from(d)))
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    fence.dispose()
+    if (Buffer.concat(esc_forwarded).toString("utf8") !== "\x1b") {
+        throw new Error(
+            `Expected bare ESC to flush, got ${JSON.stringify(Buffer.concat(esc_forwarded).toString("utf8"))}`
+        )
+    }
+
+    console.log("[test:pty-replay] ReplayQueryFilter and ReplayReplyFence checks passed")
+}
+
 async function run(): Promise<void> {
     test_ring_buffer_incremental_slices()
+    await test_tty_replay_filters()
 
     const platform_key = `${process.platform}-${process.arch}`
     const vendor_dir = path.join(repo_root, "vendor", "node-pty", "1.2.0-beta.17", platform_key)

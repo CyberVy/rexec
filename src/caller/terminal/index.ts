@@ -184,12 +184,16 @@ async function handle_exec(
 
 async function main(): Promise<void> {
     const raw_args = process.argv.slice(2)
-    if (raw_args.length === 0 || raw_args.includes("-h") || raw_args.includes("--help")) {
+    if (raw_args.length === 0) {
         print_usage()
         process.exit(0)
     }
 
     const parsed = parse_cli_args(raw_args)
+    if (parsed.help) {
+        print_usage()
+        process.exit(0)
+    }
 
     if (!parsed.hub_url) {
         console.error("Error: Missing Hub URL. Provide --hub <url> or set REXEC_HUB env var.")
@@ -246,7 +250,7 @@ async function handle_tty(caller: RexecCaller, parsed: ParsedCli): Promise<void>
         }
         if (parsed.tty_action === "attach") {
             const session = await resolve_tty_session(caller, require_session_arg("attach", parsed.args))
-            process.exit(await run_tty(caller, { session_id: session.session_id }))
+            await exit_after_flush(await run_tty(caller, { session_id: session.session_id }))
         }
         if (parsed.tty_action === "kill") {
             const session = await resolve_tty_session(caller, require_session_arg("kill", parsed.args))
@@ -267,15 +271,10 @@ async function handle_tty(caller: RexecCaller, parsed: ParsedCli): Promise<void>
         }
 
         const file = parsed.args[0]
-        if (!file) {
-            throw new Error(
-                "Missing command. Usage: rexec tty <command...> | list | attach <id> | kill <id> | persist <id> on|off"
-            )
-        }
-        process.exit(
+        await exit_after_flush(
             await run_tty(caller, {
                 file,
-                args: parsed.args.slice(1),
+                args: file ? parsed.args.slice(1) : undefined,
                 cwd: parsed.cwd,
                 persistent: parsed.persistent
             })
@@ -284,6 +283,18 @@ async function handle_tty(caller: RexecCaller, parsed: ParsedCli): Promise<void>
         console.error(`[rexec tty error] ${(err as Error).message}`)
         process.exit(1)
     }
+}
+
+async function exit_after_flush(code: number): Promise<never> {
+    await Promise.all([flush_stream(process.stdout), flush_stream(process.stderr)])
+    process.exit(code)
+}
+
+function flush_stream(stream: NodeJS.WriteStream): Promise<void> {
+    if (stream.destroyed || !stream.writable) return Promise.resolve()
+    return new Promise((resolve) => {
+        stream.write("", () => resolve())
+    })
 }
 
 function require_session_arg(action: "attach" | "kill", args: string[]): string {

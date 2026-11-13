@@ -9,6 +9,7 @@ export interface ParsedCli {
     force: boolean
     recursive: boolean
     persistent: boolean
+    help: boolean
     tty_action: TtyAction
     args: string[]
 }
@@ -20,7 +21,7 @@ Usage:
   rexec [options] <command...>        Execute remote command (default fallback)
   rexec run [options] <command...>    Explicitly execute remote command
   rexec forward [options] <port...>   Forward local port to remote agent port
-  rexec tty [options] <command...>    Open a remote PTY and attach this terminal
+  rexec tty [options] [command...]    Open a remote PTY (default login shell) and attach
   rexec tty list                      List remote PTY sessions
   rexec tty attach <session>          Attach to a session by id or unique prefix
   rexec tty kill <session>            Kill a remote PTY session
@@ -46,6 +47,7 @@ Press Ctrl-] to detach. Exit the remote command to end the session.
 Examples:
   rexec "nvidia-smi"
   rexec run python main.py --epochs 10
+  rexec tty                          # Open the remote default login shell
   rexec tty codex                    # Interactive command (argv, not a shell string)
   rexec tty bash
   rexec tty --persistent bash
@@ -74,10 +76,14 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
     let force = false
     let recursive = false
     let persistent = false
+    let help = false
 
     const tokens: string[] = []
     let has_double_dash = false
     const after_double_dash: string[] = []
+    let subcommand_hint: ParsedCli["subcommand"] | null = null
+    let pass_through = false
+    let tty_verb_seen = false
 
     const finish = (fields: Pick<ParsedCli, "subcommand" | "tty_action" | "args">): ParsedCli => ({
         hub_url,
@@ -87,6 +93,7 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
         force,
         recursive,
         persistent,
+        help,
         ...fields
     })
 
@@ -96,8 +103,16 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
             after_double_dash.push(arg)
             continue
         }
+        if (pass_through) {
+            tokens.push(arg)
+            continue
+        }
         if (arg === "--") {
             has_double_dash = true
+            continue
+        }
+        if (arg === "-h" || arg === "--help") {
+            help = true
             continue
         }
         if (arg === "--hub" && i + 1 < raw_args.length) {
@@ -124,6 +139,21 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
             persistent = true
         } else {
             tokens.push(arg)
+            if (subcommand_hint === null) {
+                subcommand_hint = resolve_subcommand_hint(arg)
+                if (subcommand_hint === null) {
+                    subcommand_hint = "run"
+                    pass_through = true
+                }
+            } else if (subcommand_hint === "run") {
+                pass_through = true
+            } else if (subcommand_hint === "tty" && !tty_verb_seen) {
+                if (is_tty_verb(arg)) {
+                    tty_verb_seen = true
+                } else {
+                    pass_through = true
+                }
+            }
         }
     }
 
@@ -156,6 +186,16 @@ export function parse_cli_args(raw_args: string[]): ParsedCli {
     }
 
     return finish({ subcommand: "run", tty_action: "run", args: tokens })
+}
+
+function resolve_subcommand_hint(token: string): ParsedCli["subcommand"] | null {
+    if (token === "status" || token === "forward" || token === "tty" || token === "pull" || token === "push") {
+        return token
+    }
+    if (token === "run" || token === "exec") {
+        return "run"
+    }
+    return null
 }
 
 function classify_tty(
