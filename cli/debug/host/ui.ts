@@ -1,15 +1,25 @@
 import {
     apply_target_modifiers,
+    parse_gesture_direction,
+    parse_gesture_distance,
+    parse_point_delta,
     parse_target_string,
     type ActionResult,
     type DebugUiCommand,
+    type DragOptions,
     type FindOptions,
     type FindResult,
+    type GestureCurve,
+    type GestureDirection,
+    type GestureDistance,
+    type GestureResult,
+    type GestureSpeed,
     type InspectResult,
     type LogEntry,
     type SnapNode,
     type SnapOptions,
     type SnapResult,
+    type SwipeOptions,
     type TapOptions,
     type TapResult,
     type TargetInput,
@@ -23,7 +33,27 @@ interface ParsedCliArgs {
     flags: Map<string, string | boolean>
 }
 
-const VALUE_FLAGS = new Set(["in", "role", "nth", "css", "at", "depth", "pointer", "button"])
+const VALUE_FLAGS = new Set([
+    "in",
+    "role",
+    "nth",
+    "css",
+    "at",
+    "depth",
+    "pointer",
+    "button",
+    "to",
+    "by",
+    "speed",
+    "duration",
+    "velocity",
+    "curve",
+    "hold-start",
+    "hold-end"
+])
+
+const VALID_SPEEDS = new Set<GestureSpeed>(["fast", "normal", "slow"])
+const VALID_CURVES = new Set<GestureCurve>(["linear", "ease-in", "ease-out", "ease-in-out"])
 
 function parse_cli_args(argv: string[]): ParsedCliArgs {
     const command = argv[0] || "help"
@@ -89,6 +119,85 @@ function get_number_flag(flags: Map<string, string | boolean>, name: string): nu
     return parsed
 }
 
+function get_float_flag(
+    flags: Map<string, string | boolean>,
+    name: string,
+    min_exclusive_zero: boolean
+): number | undefined {
+    const raw = get_string_flag(flags, name)
+    if (raw === undefined) return undefined
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed) || (min_exclusive_zero ? parsed <= 0 : parsed < 0)) {
+        const expected = min_exclusive_zero ? "positive number" : "non-negative number"
+        throw new Error(`Flag --${name} must be a ${expected}, got: ${raw}`)
+    }
+    return parsed
+}
+
+function parse_pointer_flag(flags: Map<string, string | boolean>): "mouse" | "touch" | undefined {
+    const pointer_raw = get_string_flag(flags, "pointer")
+    if (pointer_raw === undefined) return undefined
+    if (pointer_raw !== "mouse" && pointer_raw !== "touch") {
+        throw new Error(`Invalid --pointer value: ${pointer_raw} (expected "mouse" or "touch")`)
+    }
+    return pointer_raw
+}
+
+function parse_gesture_flags(flags: Map<string, string | boolean>): {
+    speed?: GestureSpeed
+    duration_ms?: number
+    velocity?: number
+    curve?: GestureCurve
+    pointer?: "touch" | "mouse"
+    hold_start_ms?: number
+    hold_end_ms?: number
+    scroll_into_view: boolean
+    dry_run: boolean
+} {
+    const speed_raw = get_string_flag(flags, "speed")
+    let speed: GestureSpeed | undefined
+    if (speed_raw !== undefined) {
+        if (!VALID_SPEEDS.has(speed_raw as GestureSpeed)) {
+            throw new Error(`Invalid --speed value: ${speed_raw} (expected "fast", "normal", or "slow")`)
+        }
+        speed = speed_raw as GestureSpeed
+    }
+
+    const duration_ms = get_float_flag(flags, "duration", true)
+    const velocity = get_float_flag(flags, "velocity", true)
+    const timing_count = [speed, duration_ms, velocity].filter((v) => v !== undefined).length
+    if (timing_count > 1) {
+        throw new Error("Flags --speed, --duration, and --velocity are mutually exclusive.")
+    }
+
+    const curve_raw = get_string_flag(flags, "curve")
+    let curve: GestureCurve | undefined
+    if (curve_raw !== undefined) {
+        if (!VALID_CURVES.has(curve_raw as GestureCurve)) {
+            throw new Error(
+                `Invalid --curve value: ${curve_raw} (expected "linear", "ease-in", "ease-out", or "ease-in-out")`
+            )
+        }
+        curve = curve_raw as GestureCurve
+    }
+
+    const pointer = parse_pointer_flag(flags)
+    const hold_start_ms = get_float_flag(flags, "hold-start", false)
+    const hold_end_ms = get_float_flag(flags, "hold-end", false)
+
+    return {
+        ...(speed ? { speed } : {}),
+        ...(duration_ms !== undefined ? { duration_ms } : {}),
+        ...(velocity !== undefined ? { velocity } : {}),
+        ...(curve ? { curve } : {}),
+        ...(pointer ? { pointer } : {}),
+        ...(hold_start_ms !== undefined ? { hold_start_ms } : {}),
+        ...(hold_end_ms !== undefined ? { hold_end_ms } : {}),
+        scroll_into_view: !get_boolean_flag(flags, "no-scroll"),
+        dry_run: get_boolean_flag(flags, "dry-run")
+    }
+}
+
 function build_target_from_cli(positionals: string[], flags: Map<string, string | boolean>): TargetInput {
     const raw_target = positionals.join(" ").trim()
     const modifiers: TargetModifiers = {
@@ -112,6 +221,124 @@ function build_target_from_cli(positionals: string[], flags: Map<string, string 
     }
 
     return apply_target_modifiers(base, modifiers)
+}
+
+function parse_swipe_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target?: TargetInput; options: SwipeOptions } {
+    if (positionals.length === 0 || positionals.length > 3) {
+        throw new Error("Invalid swipe arguments. Usage: swipe [<target>] <left|right|up|down> [distance] [options]")
+    }
+
+    let raw_target: string | undefined
+    let direction: GestureDirection | null = null
+    let distance: GestureDistance | undefined
+
+    if (positionals.length === 1) {
+        direction = parse_gesture_direction(positionals[0])
+        if (!direction) {
+            throw new Error(`Invalid swipe direction "${positionals[0]}". Expected left, right, up, or down.`)
+        }
+    } else if (positionals.length === 2) {
+        const dir0 = parse_gesture_direction(positionals[0])
+        const dist1 = parse_gesture_distance(positionals[1])
+        if (dir0 && dist1) {
+            direction = dir0
+            distance = dist1
+        } else {
+            const dir1 = parse_gesture_direction(positionals[1])
+            if (dir1) {
+                raw_target = positionals[0]
+                direction = dir1
+            } else {
+                throw new Error(
+                    `Invalid swipe arguments "${positionals.join(" ")}". Expected [<target>] <direction> [distance].`
+                )
+            }
+        }
+    } else {
+        raw_target = positionals[0]
+        direction = parse_gesture_direction(positionals[1])
+        const dist2 = parse_gesture_distance(positionals[2])
+        if (!direction || !dist2) {
+            throw new Error(
+                `Invalid swipe arguments "${positionals.join(" ")}". Expected <target> <direction> <distance>.`
+            )
+        }
+        distance = dist2
+    }
+
+    let target: TargetInput | undefined
+    if (raw_target !== undefined) {
+        target = build_target_from_cli([raw_target], flags)
+    } else if (get_string_flag(flags, "css") || get_string_flag(flags, "role")) {
+        target = build_target_from_cli([], flags)
+    } else if (get_string_flag(flags, "in")) {
+        target = apply_target_modifiers(parse_target_string(get_string_flag(flags, "in")!), {
+            exact: get_boolean_flag(flags, "exact"),
+            nth: get_number_flag(flags, "nth"),
+            anchor: get_string_flag(flags, "at")
+        })
+    } else if (get_string_flag(flags, "at")) {
+        throw new Error("Flag --at requires a target element.")
+    }
+
+    const kinematics = parse_gesture_flags(flags)
+    return {
+        target,
+        options: {
+            direction,
+            ...(distance ? { distance } : {}),
+            ...kinematics
+        }
+    }
+}
+
+function parse_drag_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target: TargetInput; options: DragOptions } {
+    const target = build_target_from_cli(positionals, flags)
+    const to_raw = get_string_flag(flags, "to")
+    const by_raw = get_string_flag(flags, "by")
+
+    if ((to_raw !== undefined) === (by_raw !== undefined)) {
+        throw new Error("Drag requires exactly one of --to <target> or --by <dx,dy>.")
+    }
+
+    let to: TargetInput | undefined
+    let by: { x: number; y: number } | undefined
+
+    if (by_raw !== undefined) {
+        const parsed_by = parse_point_delta(by_raw)
+        if (!parsed_by) {
+            throw new Error(`Invalid --by value "${by_raw}". Expected dx,dy in pixels (e.g. "180,0" or "-120,40").`)
+        }
+        by = parsed_by
+    } else if (to_raw !== undefined) {
+        const trimmed_to = to_raw.trim()
+        if (trimmed_to.startsWith("@")) {
+            if (target.point) {
+                throw new Error(
+                    `Shorthand --to "${trimmed_to}" requires an element source target, not viewport coordinates.`
+                )
+            }
+            to = apply_target_modifiers({ steps: target.steps, nth: target.nth }, { anchor: trimmed_to })
+        } else {
+            to = parse_target_string(trimmed_to)
+        }
+    }
+
+    const kinematics = parse_gesture_flags(flags)
+    return {
+        target,
+        options: {
+            ...(to ? { to } : {}),
+            ...(by ? { by } : {}),
+            ...kinematics
+        }
+    }
 }
 
 function format_logs_summary(logs: LogEntry[]): string[] {
@@ -261,6 +488,31 @@ function print_tap_result(res: ActionResult<TapResult>): void {
     }
 }
 
+function print_gesture_result(res: ActionResult<GestureResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const target_desc =
+        d.target.role === "viewport" ? "viewport" : `${d.target.role}${d.target.name ? ` "${d.target.name}"` : ""}`
+    const dest_desc = d.to_target ? ` -> ${d.to_target.role}${d.to_target.name ? ` "${d.to_target.name}"` : ""}` : ""
+    const subject = d.direction
+        ? d.target.role === "viewport"
+            ? d.direction
+            : `${d.direction} on ${target_desc}`
+        : `${target_desc}${dest_desc}`
+
+    const hold_parts: string[] = []
+    if (d.hold_start_ms > 0) hold_parts.push(`hold_start=${d.hold_start_ms}ms`)
+    if (d.hold_end_ms > 0) hold_parts.push(`hold_end=${d.hold_end_ms}ms`)
+    const hold_str = hold_parts.length > 0 ? `, ${hold_parts.join(", ")}` : ""
+
+    console.log(
+        `OK ${d.mode}${dry_tag} ${subject} @ (${d.from.x},${d.from.y}) -> (${d.to.x},${d.to.y}) [dx=${d.delta.x}, dy=${d.delta.y}, dist=${d.distance_px}px, duration=${d.actual_duration_ms}ms, frames=${d.frames}, peak_v=${d.peak_velocity.toFixed(2)}px/ms, end_v=${d.end_velocity.toFixed(2)}px/ms, curve=${d.curve}${hold_str}, pointer=${d.pointer}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
 function print_help(): void {
     console.log(`Usage:
   npm run debug:ui -- snap [--all] [--text] [--in <scope>] [--depth <n>] [--json]
@@ -268,6 +520,8 @@ function print_help(): void {
   npm run debug:ui -- inspect <target> [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--json]
   npm run debug:ui -- tap <target> [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--dry-run] [--json]
   npm run debug:ui -- click <target> [--button left|right] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--dry-run] [--json]
+  npm run debug:ui -- swipe [<target>] <left|right|up|down> [distance] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-end <ms>] [--pointer touch|mouse] [--dry-run] [--json]
+  npm run debug:ui -- drag <from> (--to <target> | --by <dx,dy>) [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-start <ms>] [--hold-end <ms>] [--pointer mouse|touch] [--dry-run] [--json]
 
 Target syntax examples:
   "Player"                       Exact or unambiguous substring text match
@@ -277,7 +531,14 @@ Target syntax examples:
   nav >> button#3                3rd button inside nav (1-based)
   css:.my-btn                    Explicit CSS selector
   210,784  |  50%,80%            Direct viewport coordinates (px or %)
-  "Player"@80%,50%               Relative point inside element`)
+  "Player"@80%,50%               Relative point inside element
+
+Gesture examples:
+  npm run debug:ui -- swipe left
+  npm run debug:ui -- swipe "swipeable#1" right 240 --speed fast
+  npm run debug:ui -- swipe left 40 --velocity 0.35 --curve ease-in
+  npm run debug:ui -- drag "clickable#1@10%,50%" --to "@80%,50%"
+  npm run debug:ui -- drag "clickable#1@50%,50%" --by "180,0" --hold-end 120`)
 }
 
 async function run_command_in_browser(command: DebugUiCommand): Promise<ActionResult<unknown>> {
@@ -323,14 +584,7 @@ async function main(): Promise<void> {
         rpc_command = { action: "inspect", target }
     } else if (command === "tap" || command === "click") {
         const target = build_target_from_cli(positionals, flags)
-        const pointer_raw = get_string_flag(flags, "pointer")
-        let pointer: TapOptions["pointer"]
-        if (pointer_raw !== undefined) {
-            if (pointer_raw !== "mouse" && pointer_raw !== "touch") {
-                throw new Error(`Invalid --pointer value: ${pointer_raw} (expected "mouse" or "touch")`)
-            }
-            pointer = pointer_raw
-        }
+        const pointer = parse_pointer_flag(flags)
         const button_raw = get_string_flag(flags, "button")
         let button: TapOptions["button"]
         if (button_raw !== undefined) {
@@ -349,6 +603,20 @@ async function main(): Promise<void> {
             action: command === "tap" ? "tap" : "click",
             target,
             options: tap_opts
+        }
+    } else if (command === "swipe") {
+        const parsed = parse_swipe_command(positionals, flags)
+        rpc_command = {
+            action: "swipe",
+            ...(parsed.target ? { target: parsed.target } : {}),
+            options: parsed.options
+        }
+    } else if (command === "drag") {
+        const parsed = parse_drag_command(positionals, flags)
+        rpc_command = {
+            action: "drag",
+            target: parsed.target,
+            options: parsed.options
         }
     } else {
         throw new Error(`Unknown command "${command}". Run with "help" to see usage.`)
@@ -378,6 +646,10 @@ async function main(): Promise<void> {
         case "tap":
         case "click":
             print_tap_result(result as ActionResult<TapResult>)
+            break
+        case "swipe":
+        case "drag":
+            print_gesture_result(result as ActionResult<GestureResult>)
             break
     }
 }

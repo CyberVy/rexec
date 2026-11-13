@@ -4,14 +4,17 @@ import type {
     ActionResult,
     DebugUiCommand,
     DebugUiRuntime,
+    DragOptions,
     FindOptions,
     LogEntry,
     SnapOptions,
+    SwipeOptions,
     TapOptions,
     TargetInput
 } from "../shared/protocol"
 import { install_listener_registry } from "./listener_registry"
 import { perform_tap_or_click } from "./gestures/pointer_tap"
+import { perform_drag, perform_swipe } from "./gestures/swipe_drag"
 import { build_snapshot, find_targets, inspect_target } from "./dom/snapshot"
 
 declare global {
@@ -161,6 +164,10 @@ function init_debug_bridge(): void {
             run_with_meta(() => perform_tap_or_click(target, "tap", options)),
         click: (target: TargetInput | string, options?: TapOptions) =>
             run_with_meta(() => perform_tap_or_click(target, "click", options)),
+        swipe: (target: TargetInput | string | undefined, options: SwipeOptions) =>
+            run_with_meta(() => perform_swipe(target, options)),
+        drag: (target: TargetInput | string, options: DragOptions) =>
+            run_with_meta(() => perform_drag(target, options)),
         exec: (command: DebugUiCommand): Promise<ActionResult<unknown>> => {
             switch (command.action) {
                 case "snap":
@@ -173,6 +180,10 @@ function init_debug_bridge(): void {
                     return runtime.tap(command.target, command.options)
                 case "click":
                     return runtime.click(command.target, command.options)
+                case "swipe":
+                    return runtime.swipe(command.target, command.options)
+                case "drag":
+                    return runtime.drag(command.target, command.options)
             }
         }
     }

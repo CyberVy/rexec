@@ -70,7 +70,14 @@ export interface CandidateSummary {
     in_viewport: boolean
 }
 
-export type ActionErrorCode = "NOT_FOUND" | "AMBIGUOUS" | "OBSCURED" | "DISABLED" | "INVALID_TARGET" | "UNSUPPORTED"
+export type ActionErrorCode =
+    | "NOT_FOUND"
+    | "AMBIGUOUS"
+    | "OBSCURED"
+    | "DISABLED"
+    | "INVALID_TARGET"
+    | "INVALID_OPTIONS"
+    | "UNSUPPORTED"
 
 export interface ActionError {
     code: ActionErrorCode
@@ -157,6 +164,14 @@ export interface InspectResult {
     attributes: Record<string, string>
 }
 
+export interface TargetElementSummary {
+    role: string
+    name: string
+    locator: string
+    hit_element: string
+    rect: RectBox
+}
+
 export interface TapOptions {
     pointer?: "mouse" | "touch"
     button?: "left" | "right"
@@ -170,13 +185,67 @@ export interface TapResult {
     button: "left" | "right"
     dry_run: boolean
     point: Point2D
-    target: {
-        role: string
-        name: string
-        locator: string
-        hit_element: string
-        rect: RectBox
-    }
+    target: TargetElementSummary
+}
+
+export type GestureDirection = "left" | "right" | "up" | "down"
+export type GestureSpeed = "fast" | "normal" | "slow"
+export type GestureCurve = "linear" | "ease-in" | "ease-out" | "ease-in-out"
+
+export interface GestureDistance {
+    value: number
+    unit: "px" | "%"
+}
+
+export interface SwipeOptions {
+    direction: GestureDirection
+    distance?: GestureDistance
+    speed?: GestureSpeed
+    duration_ms?: number
+    /** Target gesture velocity in px/ms (mutually exclusive with duration_ms and speed). */
+    velocity?: number
+    curve?: GestureCurve
+    pointer?: "touch" | "mouse"
+    hold_start_ms?: number
+    hold_end_ms?: number
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface DragOptions {
+    to?: TargetInput | string
+    by?: Point2D
+    speed?: GestureSpeed
+    duration_ms?: number
+    /** Target gesture velocity in px/ms (mutually exclusive with duration_ms and speed). */
+    velocity?: number
+    curve?: GestureCurve
+    pointer?: "mouse" | "touch"
+    hold_start_ms?: number
+    hold_end_ms?: number
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface GestureResult {
+    mode: "swipe" | "drag"
+    pointer: "touch" | "mouse"
+    dry_run: boolean
+    direction?: GestureDirection
+    curve: GestureCurve
+    from: Point2D
+    to: Point2D
+    delta: Point2D
+    distance_px: number
+    requested_duration_ms: number
+    actual_duration_ms: number
+    hold_start_ms: number
+    hold_end_ms: number
+    frames: number
+    peak_velocity: number
+    end_velocity: number
+    target: TargetElementSummary
+    to_target?: TargetElementSummary
 }
 
 export type DebugUiCommand =
@@ -185,6 +254,8 @@ export type DebugUiCommand =
     | { action: "inspect"; target: TargetInput | string }
     | { action: "tap"; target: TargetInput | string; options?: TapOptions }
     | { action: "click"; target: TargetInput | string; options?: TapOptions }
+    | { action: "swipe"; target?: TargetInput | string; options: SwipeOptions }
+    | { action: "drag"; target: TargetInput | string; options: DragOptions }
 
 export interface DebugUiRuntime {
     snap: (options?: SnapOptions) => Promise<ActionResult<SnapResult>>
@@ -192,6 +263,8 @@ export interface DebugUiRuntime {
     inspect: (target: TargetInput | string) => Promise<ActionResult<InspectResult>>
     tap: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
     click: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
+    swipe: (target: TargetInput | string | undefined, options: SwipeOptions) => Promise<ActionResult<GestureResult>>
+    drag: (target: TargetInput | string, options: DragOptions) => Promise<ActionResult<GestureResult>>
     exec: (command: DebugUiCommand) => Promise<ActionResult<unknown>>
 }
 
@@ -506,4 +579,29 @@ export function apply_target_modifiers(base: TargetInput, modifiers: TargetModif
     }
 
     return result
+}
+
+const GESTURE_DIRECTIONS = new Set<GestureDirection>(["left", "right", "up", "down"])
+
+export function parse_gesture_direction(raw: string): GestureDirection | null {
+    const normalized = raw.trim().toLowerCase()
+    return GESTURE_DIRECTIONS.has(normalized as GestureDirection) ? (normalized as GestureDirection) : null
+}
+
+export function parse_gesture_distance(raw: string): GestureDistance | null {
+    const match = raw.trim().match(/^(\d+(?:\.\d+)?)(px|%)?$/i)
+    if (!match) return null
+    const value = Number(match[1])
+    if (!Number.isFinite(value) || value <= 0) return null
+    const unit: "px" | "%" = match[2] === "%" ? "%" : "px"
+    return { value, unit }
+}
+
+export function parse_point_delta(raw: string): Point2D | null {
+    const match = raw.trim().match(/^([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)$/)
+    if (!match) return null
+    const x = Number(match[1])
+    const y = Number(match[2])
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+    return { x, y }
 }
