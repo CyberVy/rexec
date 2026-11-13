@@ -1,12 +1,6 @@
 import { BaseController } from "@/infra/base_controller"
 import { create_logger } from "@/infra/logger"
-import {
-    PtySessionError,
-    pty_session_missing,
-    pty_taken_by_another_caller,
-    type PtyClient,
-    type PtySessionInfo
-} from "@rexec/caller/core"
+import { type PtyConnection, type PtySessionInfo } from "@rexec/caller/core"
 import { fetch_workspace_entries, parse_osc7_path, resolve_parent_path, type WorkspaceEntry } from "@/core/workspace"
 import { session_controller } from "./session_controller"
 
@@ -41,17 +35,11 @@ interface ConnectOptions {
 }
 
 export class PtyController extends BaseController<PtyState> {
-    private client: PtyClient | null = null
-    private abort_controller: AbortController | null = null
+    private connection: PtyConnection | null = null
+    private unsubscribes: Array<() => void> = []
     private dir_abort_controller: AbortController | null = null
     private data_listeners: Set<(data: Uint8Array, replay_bytes: number) => void> = new Set()
-    private replay_remaining = 0
-    private received_bytes: number | undefined = undefined
-    private is_intentional_disconnect = false
     private last_options: ConnectOptions | null = null
-    private reconnect_timer: ReturnType<typeof setTimeout> | null = null
-    private reconnect_attempts = 0
-    private connection_attempt = 0
 
     constructor() {
         super()
@@ -215,26 +203,20 @@ export class PtyController extends BaseController<PtyState> {
         await this.open_connection(options)
     }
 
-    private async open_connection(
-        options?: ConnectOptions,
-        config?: { is_reconnect?: boolean; force_new?: boolean }
-    ): Promise<void> {
-        const is_reconnect = Boolean(config?.is_reconnect)
+    private async open_connection(options?: ConnectOptions, config?: { force_new?: boolean }): Promise<void> {
         const force_new = Boolean(config?.force_new)
-        this.is_intentional_disconnect = false
-        const attempt = this.begin_attempt()
+        this.teardown_connection("detach")
         this.last_options = options ?? this.last_options
 
         const caller = session_controller.get_caller()
         const cols = options?.cols ?? this.state.cols
         const rows = options?.rows ?? this.state.rows
         const session_id = force_new ? undefined : (options?.session_id ?? this.state.session_id ?? undefined)
-        const resume_offset = is_reconnect && session_id ? this.received_bytes : undefined
         const next_cwd = session_id
             ? (this.state.sessions.find((s) => s.session_id === session_id)?.cwd ?? null)
             : (options?.cwd ?? null)
 
-        if (!is_reconnect && this.dir_abort_controller) {
+        if (this.dir_abort_controller) {
             this.dir_abort_controller.abort()
             this.dir_abort_controller = null
         }
@@ -242,15 +224,11 @@ export class PtyController extends BaseController<PtyState> {
         this.update_state({
             status: "connecting",
             session_id: session_id ?? null,
-            ...(is_reconnect
-                ? {}
-                : {
-                      cwd: next_cwd,
-                      dir_path: null,
-                      dir_entries: [],
-                      is_loading_dir: false,
-                      dir_error: null
-                  }),
+            cwd: next_cwd,
+            dir_path: null,
+            dir_entries: [],
+            is_loading_dir: false,
+            dir_error: null,
             exit_code: null,
             error: null,
             cols,
@@ -258,190 +236,107 @@ export class PtyController extends BaseController<PtyState> {
         })
 
         // Clear immediately on user-initiated switch/connect so stale output does not linger while connecting.
-        if (!is_reconnect) {
-            this.received_bytes = undefined
-            this.dispatchEvent(new Event("reset"))
-        }
+        this.dispatchEvent(new Event("reset"))
 
-        try {
-            const pty_client = await caller.open_pty({
-                session_id,
-                offset: resume_offset,
-                file: options?.file || this.last_options?.file,
-                args: options?.args ?? this.last_options?.args,
-                cwd: options?.cwd ?? this.last_options?.cwd,
-                cols,
-                rows,
-                term: options?.term || this.last_options?.term || "xterm-256color",
-                signal: this.abort_controller?.signal
-            })
-            if (!this.is_current(attempt)) {
-                pty_client.detach()
+        const connection = caller.connect_pty({
+            session_id,
+            file: options?.file || this.last_options?.file,
+            args: options?.args ?? this.last_options?.args,
+            cwd: options?.cwd ?? this.last_options?.cwd,
+            cols,
+            rows,
+            term: options?.term || this.last_options?.term || "xterm-256color"
+        })
+        this.connection = connection
+
+        let had_connected = false
+        const unsub_data = connection.on_data((bytes, replay_bytes) => {
+            if (this.connection !== connection) return
+            for (const listener of this.data_listeners) {
+                listener(bytes, replay_bytes)
+            }
+        })
+        const unsub_reset = connection.on_reset(() => {
+            if (this.connection !== connection) return
+            this.dispatchEvent(new Event("reset"))
+        })
+        const unsub_status = connection.on_status((event) => {
+            if (this.connection !== connection) return
+            if (event.status === "connecting") {
+                logger.info(`Scheduling PTY reconnect (attempt ${event.attempt ?? 1})`)
+                this.update_state({ status: "connecting" })
+                void this.refresh_sessions()
                 return
             }
-
-            this.client = pty_client
-            this.reconnect_attempts = 0
-            if (!session_id) {
-                this.received_bytes = 0
+            if (event.status === "connected") {
+                had_connected = true
+                this.update_state({
+                    status: "connected",
+                    session_id: event.session_id,
+                    error: null
+                })
+                this.dispatchEvent(new Event("ready"))
+                void this.refresh_sessions()
+                return
             }
-
-            pty_client.on_replay((replay) => {
-                if (!this.is_current(attempt)) return
-                this.replay_remaining = replay.bytes > 0 ? replay.bytes : 0
-                if (typeof replay.offset === "number") {
-                    this.received_bytes = replay.offset
-                } else if (replay.reset) {
-                    this.received_bytes = undefined
-                }
-                // Auto-reconnect keeps prior output intact during backoff and only resets if the stream fell behind the ring buffer.
-                if (is_reconnect && replay.reset) {
-                    this.dispatchEvent(new Event("reset"))
-                }
-            })
-
-            pty_client.on_data((bytes) => {
-                if (!this.is_current(attempt)) return
-                if (this.received_bytes !== undefined) {
-                    this.received_bytes += bytes.byteLength
-                }
-                let replay_bytes = 0
-                if (this.replay_remaining > 0) {
-                    replay_bytes = Math.min(this.replay_remaining, bytes.byteLength)
-                    this.replay_remaining -= replay_bytes
-                }
-                for (const listener of this.data_listeners) {
-                    listener(bytes, replay_bytes)
-                }
-            })
-
-            this.update_state({
-                status: "connected",
-                session_id: pty_client.session_id,
-                error: null
-            })
-            this.dispatchEvent(new Event("ready"))
-
-            // Refresh sessions in background
-            void this.refresh_sessions()
-
-            pty_client.exited
-                .then((status) => {
-                    if (!this.is_current(attempt)) return
-                    logger.info("PTY session exited", status)
-                    this.client = null
-                    this.received_bytes = undefined
-                    this.update_state({
-                        status: "exited",
-                        exit_code: status.code
-                    })
-                    this.dispatchEvent(new Event("exit"))
-                    void this.refresh_sessions()
+            if (event.status === "exited") {
+                logger.info("PTY session exited", { code: event.exit_code })
+                this.teardown_connection("detach")
+                this.update_state({
+                    status: "exited",
+                    exit_code: event.exit_code ?? null
                 })
-                .catch((err) => {
-                    this.fail_attempt(attempt, err, true)
+                this.dispatchEvent(new Event("exit"))
+                void this.refresh_sessions()
+                return
+            }
+            if (event.status === "error") {
+                const message = event.error ?? "PTY session failed"
+                if (had_connected) logger.warn("PTY session disconnected", message)
+                else logger.error("Failed to connect PTY session", message)
+                this.teardown_connection("detach")
+                this.update_state({
+                    status: "error",
+                    error: message
                 })
-        } catch (err) {
-            this.fail_attempt(attempt, err, false)
-        }
-    }
-
-    private begin_attempt(): number {
-        this.connection_attempt += 1
-        if (this.reconnect_timer) {
-            clearTimeout(this.reconnect_timer)
-            this.reconnect_timer = null
-        }
-        this.abort_controller?.abort()
-        this.abort_controller = new AbortController()
-        this.replay_remaining = 0
-        if (this.client) {
-            this.client.detach()
-            this.client = null
-        }
-        return this.connection_attempt
-    }
-
-    private is_current(attempt: number): boolean {
-        return attempt === this.connection_attempt
-    }
-
-    private fail_attempt(attempt: number, err: unknown, from_open_session: boolean): void {
-        if (!this.is_current(attempt)) return
-        const message = err instanceof Error ? err.message : String(err)
-        if (from_open_session) logger.warn("PTY session disconnected", message)
-        else logger.error("Failed to connect PTY session", message)
-        this.client = null
-        const keep_trying =
-            !this.is_intentional_disconnect &&
-            Boolean(this.state.session_id) &&
-            !pty_taken_by_another_caller(err) &&
-            !pty_session_missing(err) &&
-            !(err instanceof PtySessionError)
-        if (keep_trying) {
-            this.schedule_reconnect()
-            void this.refresh_sessions()
-            return
-        }
-        this.received_bytes = undefined
-        this.update_state({
-            status: "error",
-            error: pty_taken_by_another_caller(err) ? "Session is open in another client" : message
+                if (had_connected) this.dispatchEvent(new Event("exit"))
+                void this.refresh_sessions()
+            }
         })
-        if (from_open_session) this.dispatchEvent(new Event("exit"))
-        void this.refresh_sessions()
+
+        this.unsubscribes = [unsub_data, unsub_reset, unsub_status]
+        await connection.ready.catch(() => {})
     }
 
-    private schedule_reconnect(): void {
-        if (this.is_intentional_disconnect || !this.state.session_id) return
-        this.reconnect_attempts++
-        const backoff = Math.min(1000 * 1.5 ** (this.reconnect_attempts - 1), 10000)
-        logger.info(`Scheduling PTY reconnect in ${backoff}ms (attempt ${this.reconnect_attempts})`)
-
-        this.update_state({ status: "connecting" })
-
-        if (this.reconnect_timer) clearTimeout(this.reconnect_timer)
-        this.reconnect_timer = setTimeout(() => {
-            this.reconnect_timer = null
-            void this.open_connection(
-                { ...this.last_options, session_id: this.state.session_id ?? undefined },
-                { is_reconnect: true }
-            )
-        }, backoff)
+    private teardown_connection(action: "detach" | "close"): void {
+        for (const unsub of this.unsubscribes.splice(0)) {
+            unsub()
+        }
+        const current = this.connection
+        this.connection = null
+        if (!current) return
+        try {
+            if (action === "close") current.close()
+            else current.detach()
+        } catch {
+            // Ignore teardown error
+        }
     }
 
     public send(data: Uint8Array | string): void {
-        if (!this.client) return
+        if (!this.connection) return
         const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data
-        this.client.send(bytes)
+        this.connection.send(bytes)
     }
 
     public resize(cols: number, rows: number): void {
         if (cols <= 0 || rows <= 0) return
         this.update_state({ cols, rows })
-        this.client?.resize(cols, rows)
+        this.connection?.resize(cols, rows)
     }
 
     public disconnect(): void {
-        this.is_intentional_disconnect = true
-        this.connection_attempt += 1
-        this.received_bytes = undefined
-        if (this.reconnect_timer) {
-            clearTimeout(this.reconnect_timer)
-            this.reconnect_timer = null
-        }
-        if (this.abort_controller) {
-            this.abort_controller.abort()
-            this.abort_controller = null
-        }
-        if (this.client) {
-            try {
-                this.client.close()
-            } catch {
-                // Ignore close error
-            }
-            this.client = null
-        }
+        this.teardown_connection("close")
         this.update_state({
             status: "disconnected",
             session_id: null
@@ -450,18 +345,7 @@ export class PtyController extends BaseController<PtyState> {
     }
 
     public handle_visibility_resume(): void {
-        if (this.is_intentional_disconnect || !this.state.session_id) return
-        if (this.reconnect_timer) {
-            clearTimeout(this.reconnect_timer)
-            this.reconnect_timer = null
-            this.reconnect_attempts = 0
-            void this.open_connection(
-                { ...this.last_options, session_id: this.state.session_id },
-                { is_reconnect: true }
-            )
-            return
-        }
-        this.client?.ping()
+        this.connection?.resume()
     }
 }
 
