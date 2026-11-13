@@ -118,6 +118,7 @@ export class RexecCaller {
             hub_url: this.hub_url,
             token: this.token,
             session_id: options.session_id,
+            offset: options.offset,
             file: options.file,
             args: options.args,
             cwd: options.cwd,

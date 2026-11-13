@@ -24,6 +24,7 @@ export type {
 
 export interface PtyOptions {
     session_id?: string
+    offset?: number
     file?: string
     args?: string[]
     cwd?: string

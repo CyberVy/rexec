@@ -176,6 +176,8 @@ export interface PtyAttachMessage {
     session_id: string
     cols?: number
     rows?: number
+    /** Caller's last received PTY byte offset for incremental resume. */
+    offset?: number
 }
 
 /** How many of the following PTY bytes are a screen replay, not live output. */
@@ -183,6 +185,10 @@ export interface PtyReplayMessage {
     type: "pty:replay"
     session_id: string
     bytes: number
+    /** Whether the caller must clear its terminal before applying the replay. */
+    reset?: boolean
+    /** Absolute byte offset where this replay begins (or current stream offset when bytes === 0). */
+    offset?: number
 }
 
 export interface PtyExitMessage {

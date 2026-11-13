@@ -142,25 +142,26 @@ export class PtyManager {
             clearTimeout(slot.orphan_timer)
             slot.orphan_timer = undefined
         }
-        slot.status = "attached"
         slot.detached_at = undefined
-        console.log(
-            `[rexec-agent] [pty:${session_id.slice(0, 8)}] Attached. Replaying ${slot.ring_buffer.byte_length} bytes.`
-        )
 
-        if (msg.cols && msg.rows) {
-            this.resize({ type: "pty:resize", session_id, cols: msg.cols, rows: msg.rows })
-        }
+        const replay = slot.ring_buffer.read_from(msg.offset)
+        console.log(
+            `[rexec-agent] [pty:${session_id.slice(0, 8)}] Attached. Replaying ${replay.bytes} bytes (reset=${replay.reset}, offset=${replay.offset}).`
+        )
 
         // The bytes are a screen transcript. Mark their length so the terminal can
         // draw them without answering queries that were already consumed.
-        const replay_chunks = slot.ring_buffer.get_chunks()
-        let replay_bytes = 0
-        for (const chunk of replay_chunks) replay_bytes += chunk.byteLength
-        send({ type: "pty:replay", session_id, bytes: replay_bytes })
-        for (const chunk of replay_chunks) {
+        send({
+            type: "pty:replay",
+            session_id,
+            bytes: replay.bytes,
+            reset: replay.reset,
+            offset: replay.offset
+        })
+        for (const chunk of replay.chunks) {
             send_binary(encode_pty_frame(session_id, chunk))
         }
+        slot.status = "attached"
 
         // Flush any pending input
         if (slot.pending.length > 0 && slot.process) {
@@ -170,8 +171,15 @@ export class PtyManager {
             }
         }
 
-        // Trigger SIGWINCH to redraw application state
-        slot.process?.resize(slot.cols, slot.rows)
+        const next_cols = msg.cols ? dimension(msg.cols, 0) : 0
+        const next_rows = msg.rows ? dimension(msg.rows, 0) : 0
+        const size_changed = next_cols > 0 && next_rows > 0 && (next_cols !== slot.cols || next_rows !== slot.rows)
+        if (size_changed) {
+            this.resize({ type: "pty:resize", session_id, cols: next_cols, rows: next_rows })
+        } else if (replay.reset) {
+            // Trigger SIGWINCH to redraw application state after a full reset/attach.
+            slot.process?.resize(slot.cols, slot.rows)
+        }
     }
 
     public detach(session_id: string): void {

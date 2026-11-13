@@ -46,6 +46,7 @@ export class PtyController extends BaseController<PtyState> {
     private dir_abort_controller: AbortController | null = null
     private data_listeners: Set<(data: Uint8Array, replay_bytes: number) => void> = new Set()
     private replay_remaining = 0
+    private received_bytes: number | undefined = undefined
     private is_intentional_disconnect = false
     private last_options: ConnectOptions | null = null
     private reconnect_timer: ReturnType<typeof setTimeout> | null = null
@@ -228,6 +229,7 @@ export class PtyController extends BaseController<PtyState> {
         const cols = options?.cols ?? this.state.cols
         const rows = options?.rows ?? this.state.rows
         const session_id = force_new ? undefined : (options?.session_id ?? this.state.session_id ?? undefined)
+        const resume_offset = is_reconnect && session_id ? this.received_bytes : undefined
         const next_cwd = session_id
             ? (this.state.sessions.find((s) => s.session_id === session_id)?.cwd ?? null)
             : (options?.cwd ?? null)
@@ -257,12 +259,14 @@ export class PtyController extends BaseController<PtyState> {
 
         // Clear immediately on user-initiated switch/connect so stale output does not linger while connecting.
         if (!is_reconnect) {
+            this.received_bytes = undefined
             this.dispatchEvent(new Event("reset"))
         }
 
         try {
             const pty_client = await caller.open_pty({
                 session_id,
+                offset: resume_offset,
                 file: options?.file || this.last_options?.file,
                 args: options?.args ?? this.last_options?.args,
                 cwd: options?.cwd ?? this.last_options?.cwd,
@@ -278,11 +282,38 @@ export class PtyController extends BaseController<PtyState> {
 
             this.client = pty_client
             this.reconnect_attempts = 0
-
-            // Auto-reconnect keeps prior output visible during backoff, then resets right before full replay.
-            if (is_reconnect) {
-                this.dispatchEvent(new Event("reset"))
+            if (!session_id) {
+                this.received_bytes = 0
             }
+
+            pty_client.on_replay((replay) => {
+                if (!this.is_current(attempt)) return
+                this.replay_remaining = replay.bytes > 0 ? replay.bytes : 0
+                if (typeof replay.offset === "number") {
+                    this.received_bytes = replay.offset
+                } else if (replay.reset) {
+                    this.received_bytes = undefined
+                }
+                // Auto-reconnect keeps prior output intact during backoff and only resets if the stream fell behind the ring buffer.
+                if (is_reconnect && replay.reset) {
+                    this.dispatchEvent(new Event("reset"))
+                }
+            })
+
+            pty_client.on_data((bytes) => {
+                if (!this.is_current(attempt)) return
+                if (this.received_bytes !== undefined) {
+                    this.received_bytes += bytes.byteLength
+                }
+                let replay_bytes = 0
+                if (this.replay_remaining > 0) {
+                    replay_bytes = Math.min(this.replay_remaining, bytes.byteLength)
+                    this.replay_remaining -= replay_bytes
+                }
+                for (const listener of this.data_listeners) {
+                    listener(bytes, replay_bytes)
+                }
+            })
 
             this.update_state({
                 status: "connected",
@@ -294,28 +325,12 @@ export class PtyController extends BaseController<PtyState> {
             // Refresh sessions in background
             void this.refresh_sessions()
 
-            pty_client.on_replay((count) => {
-                if (!this.is_current(attempt)) return
-                this.replay_remaining = count > 0 ? count : 0
-            })
-
-            pty_client.on_data((bytes) => {
-                if (!this.is_current(attempt)) return
-                let replay_bytes = 0
-                if (this.replay_remaining > 0) {
-                    replay_bytes = Math.min(this.replay_remaining, bytes.byteLength)
-                    this.replay_remaining -= replay_bytes
-                }
-                for (const listener of this.data_listeners) {
-                    listener(bytes, replay_bytes)
-                }
-            })
-
             pty_client.exited
                 .then((status) => {
                     if (!this.is_current(attempt)) return
                     logger.info("PTY session exited", status)
                     this.client = null
+                    this.received_bytes = undefined
                     this.update_state({
                         status: "exited",
                         exit_code: status.code
@@ -368,6 +383,7 @@ export class PtyController extends BaseController<PtyState> {
             void this.refresh_sessions()
             return
         }
+        this.received_bytes = undefined
         this.update_state({
             status: "error",
             error: pty_taken_by_another_caller(err) ? "Session is open in another client" : message
@@ -409,6 +425,7 @@ export class PtyController extends BaseController<PtyState> {
     public disconnect(): void {
         this.is_intentional_disconnect = true
         this.connection_attempt += 1
+        this.received_bytes = undefined
         if (this.reconnect_timer) {
             clearTimeout(this.reconnect_timer)
             this.reconnect_timer = null
@@ -431,6 +448,29 @@ export class PtyController extends BaseController<PtyState> {
         })
         void this.refresh_sessions()
     }
+
+    public handle_visibility_resume(): void {
+        if (this.is_intentional_disconnect || !this.state.session_id) return
+        if (this.reconnect_timer) {
+            clearTimeout(this.reconnect_timer)
+            this.reconnect_timer = null
+            this.reconnect_attempts = 0
+            void this.open_connection(
+                { ...this.last_options, session_id: this.state.session_id },
+                { is_reconnect: true }
+            )
+            return
+        }
+        this.client?.ping()
+    }
 }
 
 export const pty_controller = new PtyController()
+
+if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            pty_controller.handle_visibility_resume()
+        }
+    })
+}

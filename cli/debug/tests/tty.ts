@@ -161,6 +161,75 @@ async function run(): Promise<void> {
         }
         console.log("✓ detach, ring buffer replay and re-attach passed")
 
+        console.log("[test:tty] Checking incremental resume via byte offset...")
+        const inc_session1 = await caller.open_pty({
+            file: "sh",
+            args: ["-c", "echo 'INC_BEFORE'; sleep 0.6; echo 'INC_AFTER'; sleep 1"],
+            cols: 80,
+            rows: 24,
+            orphan_ttl_ms: 10000
+        })
+        let inc_s1_bytes = 0
+        let inc_s1_output = ""
+        inc_session1.on_data((data) => {
+            inc_s1_bytes += data.byteLength
+            inc_s1_output += Buffer.from(data).toString("utf-8")
+        })
+        await new Promise<void>((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error("Timeout waiting for INC_BEFORE")), 5000)
+            const check = setInterval(() => {
+                if (inc_s1_output.includes("INC_BEFORE\r\n") || inc_s1_output.includes("INC_BEFORE\n")) {
+                    clearTimeout(timer)
+                    clearInterval(check)
+                    resolve()
+                }
+            }, 50)
+        })
+        const inc_id = inc_session1.session_id
+        const resume_offset = inc_s1_bytes
+        inc_session1.detach()
+
+        await new Promise((resolve) => setTimeout(resolve, 800))
+
+        const inc_session2 = await caller.open_pty({
+            session_id: inc_id,
+            offset: resume_offset,
+            cols: 80,
+            rows: 24
+        })
+        let inc_replay: { bytes: number; reset: boolean; offset?: number } | null = null
+        let inc_s2_output = ""
+        inc_session2.on_replay((info) => {
+            inc_replay = info
+        })
+        inc_session2.on_data((data) => {
+            inc_s2_output += Buffer.from(data).toString("utf-8")
+        })
+        const inc_status = await Promise.race([
+            inc_session2.exited,
+            new Promise<never>((_, reject) => {
+                setTimeout(
+                    () => reject(new Error(`timed out waiting for incremental resume\ns2=${inc_s2_output}`)),
+                    10000
+                )
+            })
+        ])
+        inc_session2.close()
+        const resolved_replay = inc_replay as { bytes: number; reset: boolean; offset?: number } | null
+        if (!resolved_replay || resolved_replay.reset !== false) {
+            throw new Error(`Expected incremental resume with reset=false, got ${JSON.stringify(resolved_replay)}`)
+        }
+        if (resolved_replay.offset !== resume_offset) {
+            throw new Error(`Expected replay offset=${resume_offset}, got ${JSON.stringify(resolved_replay)}`)
+        }
+        if (!inc_s2_output.includes("INC_AFTER") || inc_s2_output.includes("INC_BEFORE")) {
+            throw new Error(`Expected only INC_AFTER in incremental resume, got: ${JSON.stringify(inc_s2_output)}`)
+        }
+        if (inc_status.code !== 0) {
+            throw new Error(`Expected clean exit on incremental resume, got code=${inc_status.code}`)
+        }
+        console.log("✓ incremental resume via byte offset passed")
+
         console.log("[test:tty] Checking list_ptys and kill_pty...")
         const session3 = await caller.open_pty({
             file: "sh",

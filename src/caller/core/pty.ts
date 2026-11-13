@@ -37,6 +37,7 @@ export interface PtyClientOptions {
     hub_url: string
     token: string
     session_id?: string
+    offset?: number
     file?: string
     args?: string[]
     cwd?: string
@@ -53,12 +54,19 @@ export interface PtyExitStatus {
     signal: number
 }
 
+export interface PtyReplayInfo {
+    bytes: number
+    reset: boolean
+    offset?: number
+}
+
 export interface PtyClient {
     readonly session_id: string
     send(data: Uint8Array): void
     resize(cols: number, rows: number): void
+    ping(): void
     on_data(callback: (data: Uint8Array) => void): void
-    on_replay(callback: (bytes: number) => void): void
+    on_replay(callback: (info: PtyReplayInfo) => void): void
     detach(): void
     close(): void
     readonly exited: Promise<PtyExitStatus>
@@ -67,7 +75,7 @@ export interface PtyClient {
 
 export async function open_pty_session(options: PtyClientOptions): Promise<PtyClient> {
     let data_handler: ((data: Uint8Array) => void) | null = null
-    let replay_handler: ((bytes: number) => void) | null = null
+    let replay_handler: ((info: PtyReplayInfo) => void) | null = null
     let resolve_ready!: (session_id: string) => void
     let reject_ready!: (err: Error) => void
     const ready = new Promise<string>((resolve, reject) => {
@@ -114,13 +122,19 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                     signal?: number
                     error?: string
                     bytes?: number
+                    reset?: boolean
+                    offset?: number
                 }
                 if (msg.type === "pty:ready" && msg.session_id) {
                     resolve_ready(msg.session_id)
                     return
                 }
                 if (msg.type === "pty:replay" && typeof msg.bytes === "number") {
-                    replay_handler?.(msg.bytes)
+                    replay_handler?.({
+                        bytes: msg.bytes,
+                        reset: msg.reset !== false,
+                        offset: typeof msg.offset === "number" ? msg.offset : undefined
+                    })
                     return
                 }
                 if (msg.type === "pty:exit") {
@@ -140,6 +154,11 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
         },
         on_close(event) {
             const err = new PtySocketClosed(event.code, event.reason || "")
+            reject_ready(err)
+            finish(err)
+        },
+        on_dead(reason) {
+            const err = new Error(reason || "PTY connection closed")
             reject_ready(err)
             finish(err)
         }
@@ -164,7 +183,8 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                 type: "pty:attach",
                 session_id,
                 cols: options.cols && options.cols > 0 ? options.cols : 80,
-                rows: options.rows && options.rows > 0 ? options.rows : 24
+                rows: options.rows && options.rows > 0 ? options.rows : 24,
+                ...(typeof options.offset === "number" ? { offset: options.offset } : {})
             })
         } else {
             client.send_json({
@@ -188,6 +208,9 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
             },
             resize(cols: number, rows: number) {
                 client.send_json({ type: "pty:resize", session_id, cols, rows })
+            },
+            ping() {
+                client.ping()
             },
             on_data(callback) {
                 data_handler = callback

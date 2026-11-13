@@ -268,6 +268,13 @@ export class WsClient {
         this.fail(reason)
     }
 
+    /** Send an immediate application-level ping if the socket is open. */
+    public ping(): void {
+        if (!this.is_open) return
+        this.last_ping_at = Date.now()
+        this.send_ping()
+    }
+
     private send_text(payload: string): void {
         if (!this.is_open || !this.ws) return
         this.ws.send(payload)
