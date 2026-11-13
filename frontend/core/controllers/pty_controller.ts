@@ -202,23 +202,23 @@ export class PtyController extends BaseController<PtyState> {
     }
 
     public async switch_session(session_id: string): Promise<void> {
-        if (this.client) {
-            this.client.detach()
-            this.client = null
-        }
-        await this.connect({ ...this.last_options, session_id })
+        await this.open_connection({ ...this.last_options, session_id })
     }
 
     public async new_session(): Promise<void> {
-        if (this.client) {
-            this.client.detach()
-            this.client = null
-        }
-        this.update_state({ session_id: null })
-        await this.connect({ ...this.last_options, session_id: undefined })
+        await this.open_connection({ ...this.last_options, session_id: undefined }, { force_new: true })
     }
 
     public async connect(options?: ConnectOptions): Promise<void> {
+        await this.open_connection(options)
+    }
+
+    private async open_connection(
+        options?: ConnectOptions,
+        config?: { is_reconnect?: boolean; force_new?: boolean }
+    ): Promise<void> {
+        const is_reconnect = Boolean(config?.is_reconnect)
+        const force_new = Boolean(config?.force_new)
         this.is_intentional_disconnect = false
         const attempt = this.begin_attempt()
         this.last_options = options ?? this.last_options
@@ -226,16 +226,38 @@ export class PtyController extends BaseController<PtyState> {
         const caller = session_controller.get_caller()
         const cols = options?.cols ?? this.state.cols
         const rows = options?.rows ?? this.state.rows
-        const session_id = options?.session_id ?? this.state.session_id ?? undefined
+        const session_id = force_new ? undefined : (options?.session_id ?? this.state.session_id ?? undefined)
+        const next_cwd = session_id
+            ? (this.state.sessions.find((s) => s.session_id === session_id)?.cwd ?? null)
+            : (options?.cwd ?? null)
+
+        if (!is_reconnect && this.dir_abort_controller) {
+            this.dir_abort_controller.abort()
+            this.dir_abort_controller = null
+        }
 
         this.update_state({
             status: "connecting",
             session_id: session_id ?? null,
+            ...(is_reconnect
+                ? {}
+                : {
+                      cwd: next_cwd,
+                      dir_path: null,
+                      dir_entries: [],
+                      is_loading_dir: false,
+                      dir_error: null
+                  }),
             exit_code: null,
             error: null,
             cols,
             rows
         })
+
+        // Clear immediately on user-initiated switch/connect so stale output does not linger while connecting.
+        if (!is_reconnect) {
+            this.dispatchEvent(new Event("reset"))
+        }
 
         try {
             const pty_client = await caller.open_pty({
@@ -255,6 +277,11 @@ export class PtyController extends BaseController<PtyState> {
 
             this.client = pty_client
             this.reconnect_attempts = 0
+
+            // Auto-reconnect keeps prior output visible during backoff, then resets right before full replay.
+            if (is_reconnect) {
+                this.dispatchEvent(new Event("reset"))
+            }
 
             this.update_state({
                 status: "connected",
@@ -358,7 +385,10 @@ export class PtyController extends BaseController<PtyState> {
         if (this.reconnect_timer) clearTimeout(this.reconnect_timer)
         this.reconnect_timer = setTimeout(() => {
             this.reconnect_timer = null
-            void this.connect({ ...this.last_options, session_id: this.state.session_id ?? undefined })
+            void this.open_connection(
+                { ...this.last_options, session_id: this.state.session_id ?? undefined },
+                { is_reconnect: true }
+            )
         }, backoff)
     }
 

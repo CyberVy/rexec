@@ -212,6 +212,7 @@ export function TerminalView() {
         // Replay is a transcript. Parsing it makes xterm answer old queries, and
         // those answers are delivered on the same channel as keystrokes.
         let replay_writes = 0
+        let pending_resets = 0
         const remove_data_listener = pty_controller.on_data((bytes, replay_bytes) => {
             if (replay_bytes <= 0) {
                 term.write(bytes)
@@ -226,6 +227,16 @@ export function TerminalView() {
             if (rest && rest.byteLength > 0) term.write(rest)
         })
 
+        const on_pty_reset = () => {
+            pending_resets += 1
+            term.reset()
+            // Barrier in WriteBuffer so trailing queued chunks and incomplete escape states clear before new session output.
+            term.write("\x18\x1bc", () => {
+                pending_resets -= 1
+            })
+        }
+        pty_controller.addEventListener("reset", on_pty_reset)
+
         const on_data_sub = term.onData((data) => {
             if (replay_writes > 0) return
             pty_controller.send(data)
@@ -238,6 +249,7 @@ export function TerminalView() {
 
         // Wire OSC 7 current working directory notifications
         const osc7_sub = term.parser.registerOscHandler(7, (data) => {
+            if (pending_resets > 0) return true
             pty_controller.update_cwd_from_osc7(data)
             return true
         })
@@ -259,6 +271,7 @@ export function TerminalView() {
             clearTimeout(fit_timer)
             dark_media.removeEventListener("change", on_color_scheme_change)
             remove_data_listener()
+            pty_controller.removeEventListener("reset", on_pty_reset)
             on_data_sub.dispose()
             on_resize_sub.dispose()
             osc7_sub.dispose()
