@@ -1,7 +1,7 @@
 import { exec_command } from "./exec"
 import { open_forward_tunnel, type ForwardTunnelClient } from "./forward"
 import { pull_http, push_http } from "./file"
-import { open_pty_session, type PtyClient } from "./pty"
+import { connect_pty_session, open_pty_session, type PtyClient, type PtyClientOptions, type PtyConnection } from "./pty"
 import {
     HUB_ROUTES,
     type CallerOptions,
@@ -114,7 +114,18 @@ export class RexecCaller {
      * The returned client carries raw terminal bytes until the process exits.
      */
     public async open_pty(options: PtyOptions): Promise<PtyClient> {
-        return open_pty_session({
+        return open_pty_session(this.pty_client_options(options))
+    }
+
+    /**
+     * Open a resilient PTY connection with automatic byte-offset reconnect after initial connect.
+     */
+    public connect_pty(options: PtyOptions): PtyConnection {
+        return connect_pty_session(this.pty_client_options(options))
+    }
+
+    private pty_client_options(options: PtyOptions): PtyClientOptions {
+        return {
             hub_url: this.hub_url,
             token: this.token,
             session_id: options.session_id,
@@ -128,7 +139,7 @@ export class RexecCaller {
             orphan_ttl_ms: options.orphan_ttl_ms,
             persistent: options.persistent,
             signal: options.signal
-        })
+        }
     }
 
     /**
