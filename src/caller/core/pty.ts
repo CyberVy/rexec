@@ -18,6 +18,13 @@ export class PtySocketClosed extends Error {
     }
 }
 
+export class PtySessionError extends Error {
+    public constructor(message: string) {
+        super(message || "PTY session failed")
+        this.name = "PtySessionError"
+    }
+}
+
 export function pty_taken_by_another_caller(err: unknown): boolean {
     return err instanceof PtySocketClosed && err.close_code === 1000 && err.close_reason === PTY_CALLER_REPLACED_REASON
 }
@@ -121,7 +128,7 @@ export async function open_pty_session(options: PtyClientOptions): Promise<PtyCl
                     return
                 }
                 if (msg.type === "pty:error") {
-                    finish(new Error(msg.error || "PTY session failed"))
+                    finish(new PtySessionError(msg.error || "PTY session failed"))
                 }
             } catch {
                 // Ignore malformed JSON

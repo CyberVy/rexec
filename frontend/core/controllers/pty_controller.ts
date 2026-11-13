@@ -1,6 +1,7 @@
 import { BaseController } from "@/infra/base_controller"
 import { create_logger } from "@/infra/logger"
 import {
+    PtySessionError,
     pty_session_missing,
     pty_taken_by_another_caller,
     type PtyClient,
@@ -360,7 +361,8 @@ export class PtyController extends BaseController<PtyState> {
             !this.is_intentional_disconnect &&
             Boolean(this.state.session_id) &&
             !pty_taken_by_another_caller(err) &&
-            !pty_session_missing(err)
+            !pty_session_missing(err) &&
+            !(err instanceof PtySessionError)
         if (keep_trying) {
             this.schedule_reconnect()
             void this.refresh_sessions()
