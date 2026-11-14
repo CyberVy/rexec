@@ -26,20 +26,18 @@ export function NodesView() {
     const [show_tokens, set_show_tokens] = useState<Record<string, boolean>>({})
 
     const handle_open_add_modal = useCallback(() => {
-        set_is_add_modal_open((prev) => {
-            if (prev) return prev
+        if (!is_add_modal_open) {
             view_switcher_controller.hide_all_toolbars()
-            return true
-        })
-    }, [])
+            set_is_add_modal_open(true)
+        }
+    }, [is_add_modal_open])
 
     const handle_close_add_modal = useCallback(() => {
-        set_is_add_modal_open((prev) => {
-            if (!prev) return prev
+        if (is_add_modal_open) {
             view_switcher_controller.show_all_toolbars()
-            return false
-        })
-    }, [])
+            set_is_add_modal_open(false)
+        }
+    }, [is_add_modal_open])
 
     const online_count = Object.values(session.agents).filter((a) => a.is_online).length
     const total_count = session.agent_ids.length

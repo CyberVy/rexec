@@ -41,6 +41,8 @@ export class PtyController extends BaseController<PtyState> {
     private data_listeners: Set<(data: Uint8Array, replay_bytes: number) => void> = new Set()
     private last_options: ConnectOptions | null = null
 
+    private last_session_sync_key: string
+
     constructor() {
         super()
         this._state = {
@@ -58,15 +60,33 @@ export class PtyController extends BaseController<PtyState> {
             is_loading_dir: false,
             dir_error: null
         }
-        session_controller.addEventListener("status_change", () => {
+        this.last_session_sync_key = this.get_session_sync_key()
+
+        const sync_from_session_controller = () => {
+            const next_key = this.get_session_sync_key()
+            if (next_key === this.last_session_sync_key) return
+            this.last_session_sync_key = next_key
+
+            if (!session_controller.state.hub_url || !session_controller.state.agent_online) {
+                if (this.state.sessions.length > 0 || this.state.is_listing) {
+                    this.update_state({ sessions: [], is_listing: false })
+                }
+                return
+            }
+
             void this.refresh_sessions()
-            if (session_controller.state.agent_online && !this.state.cwd) {
+            if (!this.state.cwd) {
                 void this.load_directory()
             }
-        })
-        session_controller.addEventListener("change", () => {
-            void this.refresh_sessions()
-        })
+        }
+
+        session_controller.addEventListener("status_change", sync_from_session_controller)
+        session_controller.addEventListener("change", sync_from_session_controller)
+    }
+
+    private get_session_sync_key(): string {
+        const { active_agent_id, hub_url, agent_online } = session_controller.state
+        return `${active_agent_id}:${hub_url}:${agent_online}`
     }
 
     public on_data(cb: (data: Uint8Array, replay_bytes: number) => void): () => void {

@@ -14,7 +14,7 @@ export function ExecView() {
     const [cmd_input, set_cmd_input] = useState(exec_state.command)
     const [cwd_input, set_cwd_input] = useState(exec_state.cwd)
     const [copied, set_copied] = useState(false)
-    const output_ref = useRef<HTMLDivElement>(null)
+    const output_ref = useRef<HTMLDivElement | null>(null)
     const was_near_bottom_ref = useRef(true)
 
     const handle_scroll = useCallback(() => {
@@ -23,9 +23,30 @@ export function ExecView() {
         was_near_bottom_ref.current = scrollHeight - scrollTop - clientHeight < 40
     }, [])
 
-    const attach_sentinel = useCallback((el: HTMLSpanElement | null) => {
-        if (!el || !output_ref.current || !was_near_bottom_ref.current) return
-        output_ref.current.scrollTop = output_ref.current.scrollHeight
+    const attach_output_container = useCallback((node: HTMLDivElement | null) => {
+        output_ref.current = node
+        if (!node) return
+
+        const scroll_to_bottom_if_pinned = () => {
+            if (!was_near_bottom_ref.current) return
+            node.scrollTop = node.scrollHeight
+        }
+
+        scroll_to_bottom_if_pinned()
+
+        const observer = new MutationObserver(scroll_to_bottom_if_pinned)
+        observer.observe(node, {
+            childList: true,
+            subtree: true,
+            characterData: true
+        })
+
+        return () => {
+            observer.disconnect()
+            if (output_ref.current === node) {
+                output_ref.current = null
+            }
+        }
     }, [])
 
     const handle_run = (command_to_run?: string) => {
@@ -175,7 +196,7 @@ export function ExecView() {
 
             {/* Terminal / Output Viewport */}
             <div
-                ref={output_ref}
+                ref={attach_output_container}
                 onScroll={handle_scroll}
                 className="flex-1 min-h-0 overflow-auto rounded-xl p-3 bg-white dark:bg-black text-foreground font-mono text-xs leading-relaxed select-text border border-black/10 dark:border-white/10 shadow-inner"
             >
@@ -203,8 +224,6 @@ export function ExecView() {
                         Error: {exec_state.error}
                     </div>
                 )}
-
-                <span ref={attach_sentinel} />
             </div>
         </div>
     )
