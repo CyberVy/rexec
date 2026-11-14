@@ -44,16 +44,21 @@ function StringInput({
         }
     }
 
-    const current_value = controlled_value !== undefined ? controlled_value : internal_value
+    const is_controlled = controlled_value !== undefined
+    const current_value = is_controlled ? controlled_value : internal_value
 
     const handle_change = (new_value: string) => {
-        set_internal_value(new_value)
+        if (!is_controlled) {
+            set_internal_value(new_value)
+        }
         on_change?.(new_value)
     }
 
     const handle_clear = () => {
         vibrate()
-        set_internal_value("")
+        if (!is_controlled) {
+            set_internal_value("")
+        }
         on_change?.("")
     }
 
@@ -63,6 +68,7 @@ function StringInput({
     }
 
     const handle_key_down = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.nativeEvent.isComposing) return
         if (event.key === "Enter") {
             event.currentTarget.blur()
             on_submit?.(current_value)
@@ -74,8 +80,10 @@ function StringInput({
 
     let right_padding = "pr-3.5"
     if (is_clear_visible && is_submit_visible) {
-        right_padding = "pr-16"
-    } else if (is_clear_visible || is_submit_visible) {
+        right_padding = "pr-18"
+    } else if (is_submit_visible) {
+        right_padding = "pr-11"
+    } else if (is_clear_visible) {
         right_padding = "pr-9"
     }
 
@@ -97,25 +105,27 @@ function StringInput({
                     icon ? "pl-9" : "pl-3.5"
                 } ${right_padding}`}
             />
-            {is_clear_visible && (
-                <button
-                    type="button"
-                    onClick={handle_clear}
-                    className={`absolute flex items-center justify-center w-5 h-5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/40 dark:text-white/40 transition-colors cursor-pointer z-10 ${
-                        is_submit_visible ? "right-12" : "right-3"
-                    }`}
-                >
-                    ✕
-                </button>
-            )}
-            {is_submit_visible && (
-                <button
-                    type="button"
-                    onClick={handle_submit}
-                    className="absolute right-2.5 flex items-center justify-center p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/60 dark:text-white/60 transition-colors cursor-pointer z-10"
-                >
-                    {typeof submit_button === "boolean" ? <SearchIcon width={24} height={24} /> : submit_button}
-                </button>
+            {(is_clear_visible || is_submit_visible) && (
+                <div className="absolute right-2.5 flex items-center gap-1.5 z-10">
+                    {is_clear_visible && (
+                        <button
+                            type="button"
+                            onClick={handle_clear}
+                            className="flex items-center justify-center w-5 h-5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/40 dark:text-white/40 transition-colors cursor-pointer"
+                        >
+                            ✕
+                        </button>
+                    )}
+                    {is_submit_visible && (
+                        <button
+                            type="button"
+                            onClick={handle_submit}
+                            className="flex items-center justify-center p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/60 dark:text-white/60 transition-colors cursor-pointer"
+                        >
+                            {typeof submit_button === "boolean" ? <SearchIcon width={24} height={24} /> : submit_button}
+                        </button>
+                    )}
+                </div>
             )}
         </div>
     )

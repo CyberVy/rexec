@@ -201,7 +201,31 @@ export function useViewSwipeGesture<T extends string>({
     commit_view_change
 }: UseViewSwipeGestureOptions<T>): UseViewSwipeGestureResult<T> {
     const [transition_state, set_transition_state] = useState<TransitionState<T>>({ status: "idle" })
+    const [prev_active_view_id, set_prev_active_view_id] = useState<T>(current_active_view_id)
     const view_elements_ref = useRef<Record<string, HTMLDivElement | null>>({})
+    const swipe_gesture_ref = useRef<ReturnType<typeof create_swipe_gesture> | null>(null)
+
+    if (prev_active_view_id !== current_active_view_id) {
+        set_prev_active_view_id(current_active_view_id)
+        const is_matching_release =
+            transition_state.status === "released" &&
+            transition_state.release.outcome === "switch" &&
+            transition_state.release.view_id === current_active_view_id
+        if (transition_state.status !== "idle" && !is_matching_release) {
+            set_transition_state({ status: "idle" })
+        }
+    }
+
+    useLayoutEffect(() => {
+        if (transition_state.status === "idle") {
+            swipe_gesture_ref.current?.reset_swipe()
+        }
+    }, [transition_state.status])
+
+    const set_view_element = useCallback((view_id: T, element: HTMLDivElement | null) => {
+        if (element) view_elements_ref.current[view_id] = element
+        else delete view_elements_ref.current[view_id]
+    }, [])
 
     const is_transitioning = transition_state.status !== "idle"
     const target_view_id =
@@ -368,10 +392,6 @@ export function useViewSwipeGesture<T extends string>({
                 if (current_transition.status === "idle") return
 
                 const release = resolve_swipe_release(current_transition, swipe_result)
-                if (release.outcome === "switch") {
-                    context_ref.current.commit_view_change(release.view_id)
-                }
-
                 const { prev_view_id, next_view_id } = current_transition
                 const { active_swipe_enabled: swipe_perm } = context_ref.current
                 const current_translation_x = calculate_effective_translation_x(
@@ -392,6 +412,9 @@ export function useViewSwipeGesture<T extends string>({
                     }
 
                     set_transition_state({ status: "idle" })
+                    if (release.outcome === "switch") {
+                        context_ref.current.commit_view_change(release.view_id)
+                    }
                     return
                 }
 
@@ -411,10 +434,20 @@ export function useViewSwipeGesture<T extends string>({
                               release
                           }
                 )
+                if (release.outcome === "switch") {
+                    context_ref.current.commit_view_change(release.view_id)
+                }
             }
         })
 
-        return swipe_gesture.bind(container_element)
+        swipe_gesture_ref.current = swipe_gesture
+        const unbind_swipe = swipe_gesture.bind(container_element)
+        return () => {
+            unbind_swipe()
+            if (swipe_gesture_ref.current === swipe_gesture) {
+                swipe_gesture_ref.current = null
+            }
+        }
     }, [container_element_ref, switcher_instance_id, scroll_positions_ref])
 
     return {
@@ -422,6 +455,7 @@ export function useViewSwipeGesture<T extends string>({
         is_transitioning,
         target_view_id,
         view_elements_ref,
+        set_view_element,
         handle_transition_end,
         reset_transition
     }

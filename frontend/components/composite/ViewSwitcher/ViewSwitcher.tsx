@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useEffect, useLayoutEffect, useCallback, useId, useRef } from "react"
+import type { ComponentPropsWithoutRef } from "react"
+import { useMergedRef } from "@/components/hooks"
 import { join_classes } from "@/components/utils"
 import { view_switcher_controller } from "./ViewSwitcherController"
 import { useViewSwitcher } from "./useViewSwitcher"
@@ -55,45 +57,7 @@ export function ViewSwitcher<T extends string = string>({
 
     // Container DOM ref forwarding
     const container_element_ref = useRef<HTMLDivElement | null>(null)
-    const set_container_element_ref = useCallback(
-        (element: HTMLDivElement | null) => {
-            container_element_ref.current = element
-
-            if (!element) {
-                if (typeof ref === "function") {
-                    ref(null)
-                } else if (ref) {
-                    ref.current = null
-                }
-                return
-            }
-
-            if (typeof ref === "function") {
-                const cleanup = ref(element)
-                return () => {
-                    container_element_ref.current = null
-                    if (typeof cleanup === "function") {
-                        cleanup()
-                    } else {
-                        ref(null)
-                    }
-                }
-            }
-
-            if (ref) {
-                ref.current = element
-                return () => {
-                    container_element_ref.current = null
-                    ref.current = null
-                }
-            }
-
-            return () => {
-                container_element_ref.current = null
-            }
-        },
-        [ref]
-    )
+    const set_container_element_ref = useMergedRef(container_element_ref, ref)
 
     // Scroll positions and switching lock refs
     const scroll_positions_ref = useRef<Record<string, number>>({})
@@ -121,7 +85,7 @@ export function ViewSwitcher<T extends string = string>({
         transition_state,
         is_transitioning,
         target_view_id,
-        view_elements_ref,
+        set_view_element,
         handle_transition_end,
         reset_transition
     } = useViewSwipeGesture({
@@ -173,10 +137,18 @@ export function ViewSwitcher<T extends string = string>({
         window.scrollTo(0, target_scroll_y)
         scroll_positions_ref.current[current_active_view_id] = target_scroll_y
 
-        const is_visible = evaluate_toolbar_visibility(should_hide_toolbar, target_scroll_y)
-        view_switcher_controller.set_toolbar_visible(switcher_instance_id, is_visible)
-
         is_switching_view_ref.current = false
+    }, [current_active_view_id, active_view_remember_scroll, is_transitioning])
+
+    // Sync toolbar visibility independently so rule updates never trigger unexpected scrollTo jumps
+    useLayoutEffect(() => {
+        if (is_transitioning) return
+
+        const current_scroll_y = active_view_remember_scroll
+            ? (scroll_positions_ref.current[current_active_view_id] ?? window.scrollY)
+            : window.scrollY
+        const is_visible = evaluate_toolbar_visibility(should_hide_toolbar, current_scroll_y)
+        view_switcher_controller.set_toolbar_visible(switcher_instance_id, is_visible)
     }, [
         current_active_view_id,
         active_view_remember_scroll,
@@ -266,18 +238,16 @@ export function ViewSwitcher<T extends string = string>({
                 if (!render_config) return null
 
                 return (
-                    <div
+                    <ViewSwitcherPanel
                         key={view.id}
-                        ref={(el) => {
-                            if (el) view_elements_ref.current[view.id] = el
-                            else delete view_elements_ref.current[view.id]
-                        }}
+                        view_id={view.id}
+                        on_element_ref={set_view_element}
                         className={render_config.view_class}
                         style={render_config.style}
                         onTransitionEnd={render_config.is_view_active_in_transition ? handle_transition_end : undefined}
                     >
                         {view.content}
-                    </div>
+                    </ViewSwitcherPanel>
                 )
             })}
 
@@ -308,4 +278,22 @@ export function ViewSwitcher<T extends string = string>({
             />
         </div>
     )
+}
+
+function ViewSwitcherPanel<T extends string>({
+    view_id,
+    on_element_ref,
+    ...props
+}: ComponentPropsWithoutRef<"div"> & {
+    view_id: T
+    on_element_ref: (view_id: T, el: HTMLDivElement | null) => void
+}) {
+    const attach_panel_ref = useCallback(
+        (el: HTMLDivElement | null) => {
+            on_element_ref(view_id, el)
+        },
+        [on_element_ref, view_id]
+    )
+
+    return <div {...props} ref={attach_panel_ref} />
 }

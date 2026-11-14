@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { generate_cover_svg_data_uri, is_ios_device } from "@/infra"
 import { ContextMenu } from "@/components/composite/ContextMenuContainer"
 
@@ -9,11 +10,9 @@ import type { ComponentPropsWithRef } from "react"
 
 export type ImageProps = Omit<ComponentPropsWithRef<"img">, "children" | "src"> & {
     src?: string
-    image_proxy_api?: string
     fallback_title?: string
-    fallback_src?: string
+    cover_options?: CoverImageOptions
     context_menu?: Omit<ContextMenuProps, "children" | "disabled" | "on_click_trigger">
-    generated_cover_options?: CoverImageOptions
 }
 
 const DEFAULT_BLANK_PLACEHOLDER =
@@ -23,33 +22,28 @@ const IS_IOS_DEVICE = typeof window !== "undefined" && is_ios_device()
 
 function Image({
     src,
-    image_proxy_api,
     fallback_title,
-    fallback_src,
+    cover_options,
     context_menu,
-    generated_cover_options,
     alt = "",
     className,
     onError,
     ref,
     ...props
 }: ImageProps) {
-    const get_fallback_url = () => {
-        if (fallback_src) return fallback_src
-        const title = fallback_title || alt
-        if (title) {
-            return generate_cover_svg_data_uri(title, generated_cover_options)
-        }
-        return DEFAULT_BLANK_PLACEHOLDER
-    }
+    const [failed_src, set_failed_src] = useState<string | null>(null)
 
-    const initial_url = src ? `${image_proxy_api || ""}${src}` : get_fallback_url()
+    const is_fallback = !src || failed_src === src
+    const title = fallback_title || alt
+    const display_src = is_fallback
+        ? title
+            ? generate_cover_svg_data_uri(title, cover_options)
+            : DEFAULT_BLANK_PLACEHOLDER
+        : src
 
     const handle_error = (e: React.SyntheticEvent<HTMLImageElement>) => {
-        const fallback = get_fallback_url()
-        const img = e.currentTarget
-        if (img.src !== fallback) {
-            img.src = fallback
+        if (src && failed_src !== src) {
+            set_failed_src(src)
         }
         onError?.(e)
     }
@@ -58,7 +52,7 @@ function Image({
         <img
             {...props}
             ref={ref}
-            src={initial_url}
+            src={display_src}
             alt={alt}
             onError={handle_error}
             className={["[-webkit-touch-callout:none]", IS_IOS_DEVICE ? "[-webkit-user-drag:none]" : "", className]

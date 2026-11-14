@@ -1,5 +1,5 @@
-import type { RefObject } from "react"
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react"
+import type { Ref, RefCallback, RefObject } from "react"
+import { useCallback, useRef, useState, useSyncExternalStore } from "react"
 import type { BaseController, BaseKeyedController } from "@/infra"
 import { is_ios_device } from "@/infra/device.client"
 
@@ -14,11 +14,11 @@ export function useController<State, Selected = State>(
     options: UseControllerOptions<State, Selected>
 ): Selected {
     const { events, selector, server_snapshot } = options
-    const event_keys = Array.isArray(events) ? events : [events]
-    const events_key = event_keys.slice().sort().join(",")
+    const events_key = (Array.isArray(events) ? events : [events]).slice().sort().join(",")
 
     const subscribe = useCallback(
         (on_store_change: () => void) => {
+            const event_keys = events_key ? events_key.split(",") : []
             const handler = () => on_store_change()
             for (const evt of event_keys) {
                 controller.addEventListener(evt, handler)
@@ -53,11 +53,11 @@ export function useKeyedController<Key extends string | number, Value>(
     key: Key,
     default_value: Value
 ): Value {
-    const key_events = useMemo(() => controller.get_key_events(key), [controller, key])
-    const events_key = key_events.slice().sort().join(",")
+    const events_key = controller.get_key_events(key).slice().sort().join(",")
 
     const subscribe = useCallback(
         (on_store_change: () => void) => {
+            const key_events = events_key ? events_key.split(",") : []
             const handler = () => on_store_change()
             for (const evt of key_events) {
                 controller.addEventListener(evt, handler)
@@ -107,46 +107,65 @@ export function useMediaQuery(query: string, initial_value = false): boolean {
 export function useAutoSyncRefAndState<T>(value: T): [RefObject<T>, (value: T | ((prev: T) => T)) => void, T] {
     const [state, set_state] = useState(value)
     const state_ref = useRef(value)
-    const dispatch_func = (value: T | ((prev: T) => T)) => {
-        if (typeof value !== "function") {
-            set_state(value)
-            state_ref.current = value
+    const dispatch_func = useCallback((next_value: T | ((prev: T) => T)) => {
+        if (typeof next_value !== "function") {
+            state_ref.current = next_value
+            set_state(next_value)
         } else {
-            const f = value as (prev: T) => T
-            const r = f(state_ref.current)
-            set_state(r)
-            state_ref.current = r
+            const updater = next_value as (prev: T) => T
+            const next_result = updater(state_ref.current)
+            state_ref.current = next_result
+            set_state(next_result)
         }
-    }
+    }, [])
     return [state_ref, dispatch_func, state]
 }
 
 let is_hidden_during_rotation = false
 const rotation_subscribers = new Set<() => void>()
-let is_rotation_listener_initialized = false
+let rotation_timer: ReturnType<typeof setTimeout> | null = null
+let handle_rotation_resize: (() => void) | null = null
 let is_portrait = false
 
 const subscribe_rotation = (callback: () => void) => {
     rotation_subscribers.add(callback)
-    if (!is_rotation_listener_initialized) {
-        is_rotation_listener_initialized = true
-        if (typeof window !== "undefined" && typeof document !== "undefined" && is_ios_device()) {
-            is_portrait = document.documentElement.clientHeight > document.documentElement.clientWidth
-            window.addEventListener("resize", () => {
-                const is_portrait_after = document.documentElement.clientHeight > document.documentElement.clientWidth
-                if (is_portrait === is_portrait_after) return
-                is_portrait = is_portrait_after
+    if (
+        !handle_rotation_resize &&
+        typeof window !== "undefined" &&
+        typeof document !== "undefined" &&
+        is_ios_device()
+    ) {
+        is_portrait = document.documentElement.clientHeight > document.documentElement.clientWidth
+        handle_rotation_resize = () => {
+            const is_portrait_after = document.documentElement.clientHeight > document.documentElement.clientWidth
+            if (is_portrait === is_portrait_after) return
+            is_portrait = is_portrait_after
+            if (rotation_timer !== null) {
+                clearTimeout(rotation_timer)
+            }
+            if (!is_hidden_during_rotation) {
                 is_hidden_during_rotation = true
                 for (const sub of rotation_subscribers) sub()
-                setTimeout(() => {
-                    is_hidden_during_rotation = false
-                    for (const sub of rotation_subscribers) sub()
-                }, 200)
-            })
+            }
+            rotation_timer = setTimeout(() => {
+                rotation_timer = null
+                is_hidden_during_rotation = false
+                for (const sub of rotation_subscribers) sub()
+            }, 200)
         }
+        window.addEventListener("resize", handle_rotation_resize)
     }
     return () => {
         rotation_subscribers.delete(callback)
+        if (rotation_subscribers.size === 0 && handle_rotation_resize) {
+            window.removeEventListener("resize", handle_rotation_resize)
+            handle_rotation_resize = null
+            if (rotation_timer !== null) {
+                clearTimeout(rotation_timer)
+                rotation_timer = null
+            }
+            is_hidden_during_rotation = false
+        }
     }
 }
 
@@ -155,4 +174,46 @@ const get_rotation_snapshot = () => is_hidden_during_rotation
 // beta feature: screen rotation in iOS Safari may cause a crash when document height is large
 export function useOptimizedRotation(): boolean {
     return useSyncExternalStore(subscribe_rotation, get_rotation_snapshot, () => false)
+}
+
+function apply_ref_null<T>(target_ref: Ref<T> | undefined) {
+    if (typeof target_ref === "function") {
+        target_ref(null)
+    } else if (target_ref) {
+        target_ref.current = null
+    }
+}
+
+function attach_ref_node<T>(target_ref: Ref<T> | undefined, node: T): () => void {
+    if (typeof target_ref === "function") {
+        const cleanup = target_ref(node)
+        return typeof cleanup === "function" ? cleanup : () => target_ref(null)
+    }
+    if (target_ref) {
+        target_ref.current = node
+        return () => {
+            target_ref.current = null
+        }
+    }
+    return () => {}
+}
+
+export function useMergedRef<T>(ref_a: Ref<T> | undefined, ref_b: Ref<T> | undefined): RefCallback<T> {
+    return useCallback(
+        (node: T | null) => {
+            if (!node) {
+                apply_ref_null(ref_a)
+                apply_ref_null(ref_b)
+                return
+            }
+
+            const cleanup_a = attach_ref_node(ref_a, node)
+            const cleanup_b = attach_ref_node(ref_b, node)
+            return () => {
+                cleanup_b()
+                cleanup_a()
+            }
+        },
+        [ref_a, ref_b]
+    )
 }

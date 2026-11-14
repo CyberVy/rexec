@@ -105,6 +105,10 @@ function useMigrationAlert() {
     return { trigger_alert, alert_element }
 }
 
+const DEFAULT_EXPORT_CHILDREN = <span className="text-xs font-medium">Export Backup</span>
+const DEFAULT_MERGE_CHILDREN = <span className="text-xs font-medium">Merge</span>
+const DEFAULT_OVERWRITE_CHILDREN = <span className="text-xs font-medium text-red-600 dark:text-red-400">Overwrite</span>
+
 export type MigrationExportProps = {
     app_id: string
     app_version: string
@@ -118,7 +122,7 @@ export function MigrationExport({
     app_version,
     target_databases,
     className = "w-28 h-7.5 border border-black/10 dark:border-white/10 rounded-xl bg-transparent hover:bg-black/5 dark:hover:bg-white/5",
-    children = <span className="text-xs font-medium">Export Backup</span>
+    children = DEFAULT_EXPORT_CHILDREN
 }: MigrationExportProps) {
     const handle_export = async () => {
         await MigrationService.export_file(app_id, app_version, target_databases)
@@ -142,7 +146,7 @@ export function MigrationMerge({
     app_id,
     merge_rules,
     className = "w-16 h-7.5 border border-black/10 dark:border-white/10 rounded-xl bg-transparent hover:bg-black/5 dark:hover:bg-white/5",
-    children = <span className="text-xs font-medium">Merge</span>
+    children = DEFAULT_MERGE_CHILDREN
 }: MigrationMergeProps) {
     const { trigger_alert, alert_element } = useMigrationAlert()
 
@@ -188,7 +192,7 @@ export type MigrationOverwriteProps = {
 export function MigrationOverwrite({
     app_id,
     className = "w-20 h-7.5 border border-red-500/20 rounded-xl bg-transparent hover:bg-red-500/10",
-    children = <span className="text-xs font-medium text-red-600 dark:text-red-400">Overwrite</span>
+    children = DEFAULT_OVERWRITE_CHILDREN
 }: MigrationOverwriteProps) {
     const { trigger_alert, alert_element } = useMigrationAlert()
 

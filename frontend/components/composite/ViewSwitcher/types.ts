@@ -147,6 +147,7 @@ export interface UseViewSwipeGestureResult<T extends string> {
     is_transitioning: boolean
     target_view_id: T | null
     view_elements_ref: RefObject<Record<string, HTMLDivElement | null>>
+    set_view_element: (view_id: T, element: HTMLDivElement | null) => void
     handle_transition_end: (e?: TransitionEvent) => void
     reset_transition: () => void
 }

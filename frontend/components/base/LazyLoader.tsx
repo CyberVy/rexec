@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import type { FC, ReactNode, RefObject, ComponentPropsWithRef } from "react"
+import { useMergedRef } from "@/components/hooks"
 import { is_element_hidden } from "@/components/utils"
 
 export type KeepLoadedMargin = {
@@ -20,9 +21,11 @@ export type LazyContainerProps = Omit<ComponentPropsWithRef<"div">, "children"> 
     keep_loaded_margin?: KeepLoadedMargin
 }
 
+const DEFAULT_PLACEHOLDER = <div style={{ minHeight: "200px" }}>Loading...</div>
+
 const LazyContainer: FC<LazyContainerProps> = ({
     children,
-    placeholder = <div style={{ minHeight: "200px" }}>Loading...</div>,
+    placeholder = DEFAULT_PLACEHOLDER,
     threshold = 0,
     rootMargin = "200px", // A larger margin is recommended for smoother scrolling
     root = null,
@@ -31,6 +34,7 @@ const LazyContainer: FC<LazyContainerProps> = ({
     ref,
     ...props
 }) => {
+    const threshold_key = Array.isArray(threshold) ? threshold.join(",") : String(threshold)
     const {
         top: keep_loaded_top,
         bottom: keep_loaded_bottom,
@@ -45,43 +49,7 @@ const LazyContainer: FC<LazyContainerProps> = ({
     const has_loaded_ref = useRef<boolean>(false)
 
     const element_ref = useRef<HTMLDivElement>(null)
-    const set_element_ref = useCallback(
-        (element: HTMLDivElement | null) => {
-            element_ref.current = element
-
-            let user_cleanup: (() => void) | void
-            if (typeof ref === "function") {
-                user_cleanup = ref(element)
-            } else if (ref) {
-                ref.current = element
-            }
-
-            if (!element) {
-                return () => {
-                    element_ref.current = null
-                    if (typeof user_cleanup === "function") {
-                        user_cleanup()
-                    } else if (typeof ref === "function") {
-                        ref(null)
-                    } else if (ref) {
-                        ref.current = null
-                    }
-                }
-            }
-
-            return () => {
-                element_ref.current = null
-                if (typeof user_cleanup === "function") {
-                    user_cleanup()
-                } else if (typeof ref === "function") {
-                    ref(null)
-                } else if (ref) {
-                    ref.current = null
-                }
-            }
-        },
-        [ref]
-    )
+    const set_element_ref = useMergedRef(element_ref, ref)
 
     useEffect(() => {
         const current_ref = element_ref.current
@@ -90,6 +58,10 @@ const LazyContainer: FC<LazyContainerProps> = ({
         // Resolve the root element whether passed as a DOM node or a React ref object
         const root_element =
             root && typeof root === "object" && "current" in root ? root.current : (root as Element | null)
+
+        const resolved_threshold = threshold_key.includes(",")
+            ? threshold_key.split(",").map(Number)
+            : Number(threshold_key)
 
         const observer = new IntersectionObserver(
             (entries) => {
@@ -172,7 +144,7 @@ const LazyContainer: FC<LazyContainerProps> = ({
             {
                 root: root_element,
                 rootMargin,
-                threshold
+                threshold: resolved_threshold
             }
         )
 
@@ -181,7 +153,7 @@ const LazyContainer: FC<LazyContainerProps> = ({
         return () => {
             observer.disconnect()
         }
-    }, [threshold, rootMargin, root, keep_loaded_top, keep_loaded_bottom, keep_loaded_left, keep_loaded_right])
+    }, [threshold_key, rootMargin, root, keep_loaded_top, keep_loaded_bottom, keep_loaded_left, keep_loaded_right])
 
     return (
         <div

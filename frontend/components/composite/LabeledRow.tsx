@@ -10,7 +10,6 @@ export type LabeledRowProps = Omit<ComponentPropsWithRef<"div">, "children" | "t
     // Cover image properties passed to the internal FallbackImage
     src?: string
     alt?: string
-    image_proxy_api?: string
     on_click_image?: () => void
 
     // Layout slots
@@ -29,7 +28,6 @@ export type LabeledRowProps = Omit<ComponentPropsWithRef<"div">, "children" | "t
 const LabeledRow = React.memo(function LabeledRow({
     src,
     alt,
-    image_proxy_api,
     left_indicator,
     title,
     subtitle,
@@ -61,13 +59,7 @@ const LabeledRow = React.memo(function LabeledRow({
 
                     {/* Thumbnail/Cover image with offline fallback generation */}
                     <div className="w-20 sm:w-24 aspect-video shrink-0 rounded-lg overflow-hidden relative shadow-sm bg-black/10 dark:bg-white/5">
-                        <Image
-                            src={src}
-                            alt={alt}
-                            image_proxy_api={image_proxy_api}
-                            onClick={on_click_image}
-                            className="w-full h-full object-cover"
-                        />
+                        <Image src={src} alt={alt} onClick={on_click_image} className="w-full h-full object-cover" />
                     </div>
 
                     {/* Meta info (Title & Channel) */}

@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
+import { useMergedRef } from "@/components/hooks"
 import type { AnimationContainerProps } from "@/components/animation/types"
 
 /**
@@ -36,45 +37,7 @@ function AnimationContainer({
 }: AnimationContainerProps) {
     const element_ref = useRef<HTMLDivElement>(null)
     const animation_ref = useRef<Animation | null>(null)
-    const set_element_ref = useCallback(
-        (element: HTMLDivElement | null) => {
-            element_ref.current = element
-
-            if (!element) {
-                if (typeof ref === "function") {
-                    ref(null)
-                } else if (ref) {
-                    ref.current = null
-                }
-                return
-            }
-
-            if (typeof ref === "function") {
-                const cleanup = ref(element)
-                return () => {
-                    element_ref.current = null
-                    if (typeof cleanup === "function") {
-                        cleanup()
-                    } else {
-                        ref(null)
-                    }
-                }
-            }
-
-            if (ref) {
-                ref.current = element
-                return () => {
-                    element_ref.current = null
-                    ref.current = null
-                }
-            }
-
-            return () => {
-                element_ref.current = null
-            }
-        },
-        [ref]
-    )
+    const set_element_ref = useMergedRef(element_ref, ref)
     const [render_mode, set_render_mode] = useState<
         "entering" | "visible" | "exiting_to_hidden" | "hidden" | "exiting_to_unmount" | "unmount"
     >(() => {
@@ -97,12 +60,44 @@ function AnimationContainer({
 
     if (show !== prev_show) {
         set_prev_show(show)
-        if (show) {
-            set_render_mode("entering")
-        } else {
-            set_render_mode(unmount_on_exit ? "exiting_to_unmount" : "exiting_to_hidden")
-        }
+        set_render_mode(show ? "entering" : unmount_on_exit ? "exiting_to_unmount" : "exiting_to_hidden")
+    } else if (!show && unmount_on_exit && render_mode === "hidden") {
+        set_render_mode("unmount")
+    } else if (!show && !unmount_on_exit && render_mode === "unmount") {
+        set_render_mode("hidden")
     }
+
+    const latest_props_ref = useRef({
+        duration,
+        delay,
+        easing,
+        enter_from,
+        enter_to,
+        exit_from,
+        exit_to,
+        on_enter_start,
+        on_enter_end,
+        on_exit_start,
+        on_exit_end,
+        unmount_on_exit
+    })
+
+    useLayoutEffect(() => {
+        latest_props_ref.current = {
+            duration,
+            delay,
+            easing,
+            enter_from,
+            enter_to,
+            exit_from,
+            exit_to,
+            on_enter_start,
+            on_enter_end,
+            on_exit_start,
+            on_exit_end,
+            unmount_on_exit
+        }
+    })
 
     useEffect(() => {
         if (show && render_mode !== "entering") return
@@ -113,22 +108,23 @@ function AnimationContainer({
 
         animation_ref.current?.cancel()
 
+        const cfg = latest_props_ref.current
         const animation = element.animate(
-            show ? [enter_from, enter_to] : [exit_from || enter_to, exit_to || enter_from],
+            show ? [cfg.enter_from, cfg.enter_to] : [cfg.exit_from || cfg.enter_to, cfg.exit_to || cfg.enter_from],
             {
-                duration,
-                delay,
-                easing,
-                fill: "forwards"
+                duration: cfg.duration,
+                delay: cfg.delay,
+                easing: cfg.easing,
+                fill: "both"
             }
         )
 
         animation_ref.current = animation
 
         if (show) {
-            on_enter_start?.()
+            cfg.on_enter_start?.()
         } else {
-            on_exit_start?.()
+            cfg.on_exit_start?.()
         }
 
         animation.finished
@@ -136,13 +132,15 @@ function AnimationContainer({
                 if (animation_ref.current !== animation) return
 
                 animation_ref.current = null
+                const latest = latest_props_ref.current
 
                 if (show) {
-                    on_enter_end?.()
+                    animation.cancel()
+                    latest.on_enter_end?.()
                     set_render_mode("visible")
                 } else {
-                    on_exit_end?.()
-                    if (unmount_on_exit) {
+                    latest.on_exit_end?.()
+                    if (latest.unmount_on_exit) {
                         set_render_mode("unmount")
                     } else {
                         set_render_mode("hidden")
@@ -167,7 +165,13 @@ function AnimationContainer({
         )
     } else if (render_mode === "hidden") {
         return (
-            <div {...props} ref={set_element_ref} className={className} style={style} hidden={true}>
+            <div
+                {...props}
+                ref={set_element_ref}
+                className={className}
+                style={{ ...style, display: "none" }}
+                hidden={true}
+            >
                 {children}
             </div>
         )

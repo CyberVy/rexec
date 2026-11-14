@@ -1,12 +1,28 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useEffect, useRef } from "react"
+import { useMergedRef } from "@/components/hooks"
 import { is_in_browser } from "@/infra/device.client"
 import { ScrollToBottomButton, ScrollToTopButton } from "@/components/composite/FixedScrollButtons"
 
 import type { ComponentPropsWithRef } from "react"
 
 const IS_IN_BROWSER = typeof window !== "undefined" && is_in_browser()
+
+function useEscapeKeyListener(enable_escape: boolean, on_escape?: () => void) {
+    useEffect(() => {
+        if (!enable_escape || !on_escape) return
+
+        const handle_keydown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                e.preventDefault()
+                on_escape()
+            }
+        }
+        window.addEventListener("keydown", handle_keydown)
+        return () => window.removeEventListener("keydown", handle_keydown)
+    }, [enable_escape, on_escape])
+}
 
 export type FullscreenModalContainerProps = ComponentPropsWithRef<"div"> & {
     enable_scroll_button?: boolean
@@ -24,57 +40,9 @@ function FullscreenModalContainer({
     ...props
 }: FullscreenModalContainerProps) {
     const container_ref = useRef<HTMLDivElement | null>(null)
+    const set_container_ref = useMergedRef(container_ref, ref)
 
-    const set_container_ref = useCallback(
-        (node: HTMLDivElement | null) => {
-            container_ref.current = node
-
-            let user_cleanup: (() => void) | void
-            if (typeof ref === "function") {
-                user_cleanup = ref(node)
-            } else if (ref) {
-                ref.current = node
-            }
-
-            if (!node) {
-                return () => {
-                    container_ref.current = null
-                    if (typeof user_cleanup === "function") {
-                        user_cleanup()
-                    } else if (typeof ref === "function") {
-                        ref(null)
-                    } else if (ref) {
-                        ref.current = null
-                    }
-                }
-            }
-
-            let remove_escape_listener: (() => void) | undefined
-            if (enable_escape && on_escape) {
-                const handle_keydown = (e: KeyboardEvent) => {
-                    if (e.key === "Escape") {
-                        e.preventDefault()
-                        on_escape()
-                    }
-                }
-                window.addEventListener("keydown", handle_keydown)
-                remove_escape_listener = () => window.removeEventListener("keydown", handle_keydown)
-            }
-
-            return () => {
-                remove_escape_listener?.()
-                container_ref.current = null
-                if (typeof user_cleanup === "function") {
-                    user_cleanup()
-                } else if (typeof ref === "function") {
-                    ref(null)
-                } else if (ref) {
-                    ref.current = null
-                }
-            }
-        },
-        [ref, enable_escape, on_escape]
-    )
+    useEscapeKeyListener(enable_escape, on_escape)
 
     return (
         <div
@@ -122,56 +90,11 @@ function FloatingModalContainer({
     onClick,
     ...props
 }: FloatingModalContainerProps) {
-    const set_floating_ref = useCallback(
-        (node: HTMLDivElement | null) => {
-            let user_cleanup: (() => void) | void
-            if (typeof ref === "function") {
-                user_cleanup = ref(node)
-            } else if (ref) {
-                ref.current = node
-            }
-
-            if (!node) {
-                return () => {
-                    if (typeof user_cleanup === "function") {
-                        user_cleanup()
-                    } else if (typeof ref === "function") {
-                        ref(null)
-                    } else if (ref) {
-                        ref.current = null
-                    }
-                }
-            }
-
-            let remove_escape_listener: (() => void) | undefined
-            if (enable_escape && on_escape) {
-                const handle_keydown = (e: KeyboardEvent) => {
-                    if (e.key === "Escape") {
-                        e.preventDefault()
-                        on_escape()
-                    }
-                }
-                window.addEventListener("keydown", handle_keydown)
-                remove_escape_listener = () => window.removeEventListener("keydown", handle_keydown)
-            }
-
-            return () => {
-                remove_escape_listener?.()
-                if (typeof user_cleanup === "function") {
-                    user_cleanup()
-                } else if (typeof ref === "function") {
-                    ref(null)
-                } else if (ref) {
-                    ref.current = null
-                }
-            }
-        },
-        [ref, enable_escape, on_escape]
-    )
+    useEscapeKeyListener(enable_escape, on_escape)
 
     return (
         <div
-            ref={set_floating_ref}
+            ref={ref}
             className={[
                 "fixed z-51 pointer-events-auto",
                 center ? "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" : "",
