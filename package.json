@@ -42,7 +42,7 @@
     "debug:test:heartbeat": "tsx cli/debug/tests/heartbeat.ts",
     "debug:test:vscode": "tsx cli/debug/tests/vscode_extension.ts",
     "test": "npm run debug:test",
-    "typecheck": "tsc --noEmit && tsc -p frontend/tsconfig.json --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p src/server/tsconfig.json --noEmit && tsc -p frontend/tsconfig.json --noEmit",
     "lint": "oxlint src cli frontend extensions/vscode/src --deny-warnings",
     "format": "oxfmt src cli frontend extensions/vscode/src",
     "format:check": "oxfmt --check src cli frontend extensions/vscode/src",

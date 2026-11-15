@@ -18,7 +18,7 @@
         "resolveJsonModule": true,
         "isolatedModules": true,
         "incremental": true,
-        "types": ["@cloudflare/workers-types", "@types/node"]
+        "types": ["@types/node"]
     },
     "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
     "exclude": [
@@ -26,6 +26,7 @@
         ".wrangler",
         "dist",
         "frontend",
+        "src/server",
         "src-tauri",
         "src-tauri/gen/apple/build",
         "draft",
