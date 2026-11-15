@@ -5,15 +5,25 @@ import type {
     DebugUiCommand,
     DebugUiRuntime,
     DragOptions,
+    FillOptions,
     FindOptions,
+    HoverOptions,
     LogEntry,
+    LongPressOptions,
+    PressOptions,
     ScrollOptions,
+    SelectOptions,
     SnapOptions,
     SwipeOptions,
     TapOptions,
     TargetInput
 } from "../shared/protocol"
 import { install_listener_registry } from "./listener_registry"
+import { perform_press } from "./actions/keyboard"
+import { perform_select } from "./actions/native_control"
+import { perform_fill } from "./actions/text_input"
+import { perform_hover } from "./gestures/hover"
+import { perform_long_press } from "./gestures/long_press"
 import { perform_tap_or_click } from "./gestures/pointer_tap"
 import { perform_scroll } from "./gestures/scroll"
 import { perform_drag, perform_swipe } from "./gestures/swipe_drag"
@@ -166,6 +176,16 @@ function init_debug_bridge(): void {
             run_with_meta(() => perform_tap_or_click(target, "tap", options)),
         click: (target: TargetInput | string, options?: TapOptions) =>
             run_with_meta(() => perform_tap_or_click(target, "click", options)),
+        long_press: (target: TargetInput | string, options?: LongPressOptions) =>
+            run_with_meta(() => perform_long_press(target, options)),
+        fill: (target: TargetInput | string, options: FillOptions) =>
+            run_with_meta(() => perform_fill(target, options)),
+        press: (target: TargetInput | string | undefined, options: PressOptions) =>
+            run_with_meta(() => perform_press(target, options)),
+        select: (target: TargetInput | string, options: SelectOptions) =>
+            run_with_meta(() => perform_select(target, options)),
+        hover: (target: TargetInput | string, options?: HoverOptions) =>
+            run_with_meta(() => perform_hover(target, options)),
         swipe: (target: TargetInput | string | undefined, options: SwipeOptions) =>
             run_with_meta(() => perform_swipe(target, options)),
         drag: (target: TargetInput | string, options: DragOptions) =>
@@ -184,6 +204,16 @@ function init_debug_bridge(): void {
                     return runtime.tap(command.target, command.options)
                 case "click":
                     return runtime.click(command.target, command.options)
+                case "long_press":
+                    return runtime.long_press(command.target, command.options)
+                case "fill":
+                    return runtime.fill(command.target, command.options)
+                case "press":
+                    return runtime.press(command.target, command.options)
+                case "select":
+                    return runtime.select(command.target, command.options)
+                case "hover":
+                    return runtime.hover(command.target, command.options)
                 case "swipe":
                     return runtime.swipe(command.target, command.options)
                 case "drag":

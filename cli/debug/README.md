@@ -20,7 +20,8 @@ Communication runs purely on standard web protocols (Server-Sent Events & HTTP P
     - `index.ts`: Bridge initialization (console/error capture, SSE command loop, `window.__debug_ui__` wiring).
     - `listener_registry.ts`: Passive DOM `addEventListener`/`removeEventListener` listener tracking.
     - `dom/`: Framework-agnostic DOM/ARIA classification, occlusion/hit testing, locator resolution (`locator.ts`), and snapshot summaries (`snapshot.ts`).
-    - `gestures/`: Pointer, touch, and scroll interaction runners (`pointer_common.ts`, `pointer_tap.ts`, `swipe_drag.ts`, `scroll.ts`).
+    - `actions/`: Non-pointer form and input actions (`text_input.ts`, `keyboard.ts`, `native_control.ts`).
+    - `gestures/`: Pointer, touch, hover, and scroll interaction runners (`pointer_common.ts`, `pointer_tap.ts`, `long_press.ts`, `hover.ts`, `swipe_drag.ts`, `scroll.ts`).
 - **`cli/debug/checks/`** (Frontend Page Checks): Automated frontend verification scripts built on `host/bridge_client.ts` (`lazy_container_dimensions.ts`).
 - **`.debug/frontend/`** (Git-Ignored Frontend Runtime Data): Contains `config.json` (active Vite port), `logs.jsonl` (captured console/errors), and `history.jsonl` (eval audit trail).
 
@@ -47,6 +48,16 @@ npm run debug:ui -- find "<target>"
 npm run debug:ui -- inspect "<target>"
 npm run debug:ui -- tap "<target>"
 npm run debug:ui -- click "<target>"
+npm run debug:ui -- long-press "<target>"
+npm run debug:ui -- long-press "<target>" --duration 800
+npm run debug:ui -- fill "<target>" "hello" --submit
+npm run debug:ui -- fill "<target>" --clear
+npm run debug:ui -- press Escape
+npm run debug:ui -- press "<target>" Enter
+npm run debug:ui -- select "select#1" "zh-CN"
+npm run debug:ui -- select "checkbox#1" toggle
+npm run debug:ui -- hover "<target>"
+npm run debug:ui -- hover "<target>" --from "<from>" --leave
 npm run debug:ui -- swipe left
 npm run debug:ui -- swipe "swipeable#1" right 240 --speed fast
 npm run debug:ui -- drag "clickable#1@10%,50%" --to "@80%,50%"

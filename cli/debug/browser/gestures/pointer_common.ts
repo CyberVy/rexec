@@ -137,6 +137,7 @@ export function make_pointer_event(
         buttons: number
         pressure: number
         bubbles?: boolean
+        related_target?: EventTarget | null
     }
 ): PointerEvent {
     return new PointerEvent(type, {
@@ -155,7 +156,8 @@ export function make_pointer_event(
         screenY: params.y,
         button: params.button,
         buttons: params.buttons,
-        pressure: params.pressure
+        pressure: params.pressure,
+        ...(params.related_target !== undefined ? { relatedTarget: params.related_target } : {})
     })
 }
 
@@ -168,6 +170,7 @@ export function make_mouse_event(
         buttons: number
         detail?: number
         bubbles?: boolean
+        related_target?: EventTarget | null
     }
 ): MouseEvent {
     return new MouseEvent(type, {
@@ -181,7 +184,8 @@ export function make_mouse_event(
         screenY: params.y,
         button: params.button,
         buttons: params.buttons,
-        detail: params.detail ?? 0
+        detail: params.detail ?? 0,
+        ...(params.related_target !== undefined ? { relatedTarget: params.related_target } : {})
     })
 }
 

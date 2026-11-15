@@ -9,6 +9,8 @@ import {
     type ActionResult,
     type DebugUiCommand,
     type DragOptions,
+    type FillOptions,
+    type FillResult,
     type FindOptions,
     type FindResult,
     type GestureCurve,
@@ -16,12 +18,21 @@ import {
     type GestureDistance,
     type GestureResult,
     type GestureSpeed,
+    type HoverOptions,
+    type HoverResult,
     type InspectResult,
     type LogEntry,
+    type LongPressOptions,
+    type LongPressResult,
+    type PressOptions,
+    type PressResult,
     type ScrollAlign,
     type ScrollEdge,
     type ScrollOptions,
     type ScrollResult,
+    type SelectOptionMatchBy,
+    type SelectOptions,
+    type SelectResult,
     type SnapNode,
     type SnapOptions,
     type SnapResult,
@@ -56,7 +67,13 @@ const VALUE_FLAGS = new Set([
     "curve",
     "hold-start",
     "hold-end",
-    "align"
+    "align",
+    "value",
+    "label",
+    "index",
+    "key",
+    "from",
+    "hold"
 ])
 
 const VALID_SPEEDS = new Set<GestureSpeed>(["fast", "normal", "slow"])
@@ -69,6 +86,10 @@ function parse_cli_args(argv: string[]): ParsedCliArgs {
 
     for (let i = 1; i < argv.length; i += 1) {
         const arg = argv[i]
+        if (arg === "--") {
+            positionals.push(...argv.slice(i + 1))
+            break
+        }
         if (!arg.startsWith("-")) {
             positionals.push(arg)
             continue
@@ -277,6 +298,187 @@ function build_target_from_cli(positionals: string[], flags: Map<string, string 
     }
 
     return apply_target_modifiers(base, modifiers)
+}
+
+function parse_long_press_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target: TargetInput; options: LongPressOptions } {
+    const target = build_target_from_cli(positionals, flags)
+    const pointer = parse_pointer_flag(flags)
+    const duration_ms = get_float_flag(flags, "duration", true)
+
+    return {
+        target,
+        options: {
+            ...(pointer ? { pointer } : {}),
+            ...(duration_ms !== undefined ? { duration_ms } : {}),
+            scroll_into_view: !get_boolean_flag(flags, "no-scroll"),
+            dry_run: get_boolean_flag(flags, "dry-run")
+        }
+    }
+}
+
+function parse_fill_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target: TargetInput; options: FillOptions } {
+    const value_flag = get_string_flag(flags, "value")
+    const clear = get_boolean_flag(flags, "clear")
+    const append = get_boolean_flag(flags, "append")
+    if (clear && (append || value_flag !== undefined)) {
+        throw new Error("Cannot combine --clear with --append or --value.")
+    }
+
+    let target: TargetInput
+    let value: string
+
+    if (clear || value_flag !== undefined) {
+        target = build_target_from_cli(positionals, flags)
+        value = clear ? "" : value_flag!
+    } else if (positionals.length === 2) {
+        target = build_target_from_cli([positionals[0]], flags)
+        value = positionals[1]
+    } else if (positionals.length === 1 && (get_string_flag(flags, "css") || get_string_flag(flags, "role"))) {
+        target = build_target_from_cli([], flags)
+        value = positionals[0]
+    } else {
+        throw new Error(
+            "Invalid fill arguments. Usage: fill <target> <value> [options], fill <target> --value <text>, or fill <target> --clear"
+        )
+    }
+
+    return {
+        target,
+        options: {
+            value,
+            append,
+            submit: get_boolean_flag(flags, "submit"),
+            blur: get_boolean_flag(flags, "blur"),
+            scroll_into_view: !get_boolean_flag(flags, "no-scroll"),
+            dry_run: get_boolean_flag(flags, "dry-run")
+        }
+    }
+}
+
+function parse_press_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target?: TargetInput; options: PressOptions } {
+    const key_flag = get_string_flag(flags, "key")
+    let raw_target: string | undefined
+    let key: string
+
+    if (key_flag !== undefined) {
+        key = key_flag
+        raw_target = positionals.length > 0 ? positionals.join(" ") : undefined
+    } else if (positionals.length === 1) {
+        key = positionals[0]
+    } else if (positionals.length === 2) {
+        raw_target = positionals[0]
+        key = positionals[1]
+    } else {
+        throw new Error(
+            "Invalid press arguments. Usage: press [<target>] <key> [options] or press [<target>] --key <key>"
+        )
+    }
+
+    if (key.length === 0) {
+        throw new Error("Key cannot be empty.")
+    }
+
+    const target = resolve_optional_target_from_cli(raw_target, flags)
+    const duration_ms = get_float_flag(flags, "duration", false)
+
+    return {
+        target,
+        options: {
+            key,
+            ...(duration_ms !== undefined ? { duration_ms } : {}),
+            scroll_into_view: !get_boolean_flag(flags, "no-scroll"),
+            dry_run: get_boolean_flag(flags, "dry-run")
+        }
+    }
+}
+
+function parse_select_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target: TargetInput; options: SelectOptions } {
+    const value_flag = get_string_flag(flags, "value")
+    const label_flag = get_string_flag(flags, "label")
+    const index_flag = get_number_flag(flags, "index")
+    const clear = get_boolean_flag(flags, "clear")
+
+    const mode_count =
+        (value_flag !== undefined ? 1 : 0) +
+        (label_flag !== undefined ? 1 : 0) +
+        (index_flag !== undefined ? 1 : 0) +
+        (clear ? 1 : 0)
+    if (mode_count > 1) {
+        throw new Error("Combine at most one of --value, --label, --index, or --clear.")
+    }
+
+    const has_selector_flag = Boolean(get_string_flag(flags, "css") || get_string_flag(flags, "role"))
+    let target: TargetInput
+    let values: string[] | undefined
+    let match_by: SelectOptionMatchBy | undefined
+
+    if (mode_count === 1) {
+        target = build_target_from_cli(positionals, flags)
+        if (value_flag !== undefined) {
+            values = [value_flag]
+            match_by = "value"
+        } else if (label_flag !== undefined) {
+            values = [label_flag]
+            match_by = "label"
+        } else if (index_flag !== undefined) {
+            match_by = "index"
+        }
+    } else if (has_selector_flag && positionals.length >= 1) {
+        target = build_target_from_cli([], flags)
+        values = positionals
+    } else if (positionals.length >= 2) {
+        target = build_target_from_cli([positionals[0]], flags)
+        values = positionals.slice(1)
+    } else {
+        throw new Error(
+            "Invalid select arguments. Usage: select <target> <value...> | --value <v> | --label <text> | --index <n> | --clear"
+        )
+    }
+
+    return {
+        target,
+        options: {
+            ...(values !== undefined ? { values } : {}),
+            ...(match_by ? { match_by } : {}),
+            ...(index_flag !== undefined ? { index: index_flag } : {}),
+            ...(clear ? { clear } : {}),
+            scroll_into_view: !get_boolean_flag(flags, "no-scroll"),
+            dry_run: get_boolean_flag(flags, "dry-run")
+        }
+    }
+}
+
+function parse_hover_command(
+    positionals: string[],
+    flags: Map<string, string | boolean>
+): { target: TargetInput; options: HoverOptions } {
+    const target = build_target_from_cli(positionals, flags)
+    const from_raw = get_string_flag(flags, "from")
+    const hold_ms = get_float_flag(flags, "hold", false)
+    const leave = get_boolean_flag(flags, "leave")
+    const kinematics = parse_kinematics_flags(flags, true)
+
+    return {
+        target,
+        options: {
+            ...(from_raw !== undefined ? { from: parse_target_string(from_raw) } : {}),
+            ...(hold_ms !== undefined ? { hold_ms } : {}),
+            ...(leave ? { leave: true } : {}),
+            ...kinematics
+        }
+    }
 }
 
 function parse_swipe_command(
@@ -665,6 +867,106 @@ function print_tap_result(res: ActionResult<TapResult>): void {
     }
 }
 
+function print_long_press_result(res: ActionResult<LongPressResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const name_part = d.target.name ? ` "${d.target.name}"` : ""
+    console.log(
+        `OK long-press${dry_tag} ${d.target.role}${name_part} @ (${d.point.x},${d.point.y}) [duration=${d.actual_duration_ms}ms, requested=${d.requested_duration_ms}ms, pointer=${d.pointer}, hit=${d.target.hit_element}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
+function print_fill_result(res: ActionResult<FillResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const name_part = d.target.name ? ` "${d.target.name}"` : ""
+    const extra_flags: string[] = []
+    if (d.append) extra_flags.push("append")
+    if (d.submitted) extra_flags.push("submit")
+    if (d.blurred) extra_flags.push("blur")
+    const extra_str = extra_flags.length > 0 ? `, ${extra_flags.join(", ")}` : ""
+    console.log(
+        `OK fill${dry_tag} ${d.target.role}${name_part} @ (${d.point.x},${d.point.y}) [${JSON.stringify(d.previous_value)} -> ${JSON.stringify(d.value)}${extra_str}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
+function format_key_combo_label(d: PressResult): string {
+    const mods: string[] = []
+    if (d.modifiers.ctrl) mods.push("Ctrl")
+    if (d.modifiers.alt) mods.push("Alt")
+    if (d.modifiers.shift) mods.push("Shift")
+    if (d.modifiers.meta) mods.push("Meta")
+    const base = d.key === " " ? "Space" : d.key
+    return [...mods, base].join("+")
+}
+
+function print_press_result(res: ActionResult<PressResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const name_part = d.target.name ? ` "${d.target.name}"` : ""
+    const extra: string[] = [`code=${d.code || "(none)"}`, `prevented=${d.default_prevented}`]
+    if (d.duration_ms > 0) extra.push(`duration=${d.duration_ms}ms`)
+    console.log(
+        `OK press${dry_tag} ${format_key_combo_label(d)} on ${d.target.role}${name_part} [${extra.join(", ")}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
+function print_select_result(res: ActionResult<SelectResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const name_part = d.target.name ? ` "${d.target.name}"` : ""
+    const prev_str =
+        d.previous_values.length <= 1 ? JSON.stringify(d.previous_values[0] ?? "") : JSON.stringify(d.previous_values)
+    const next_str = d.values.length <= 1 ? JSON.stringify(d.values[0] ?? "") : JSON.stringify(d.values)
+    const opts_info =
+        d.selected_options && d.selected_options.length > 0
+            ? `, options=${d.selected_options.map((o) => `#${o.index}:${JSON.stringify(o.label)}`).join("+")}`
+            : ""
+    console.log(
+        `OK select${dry_tag} [${d.control_kind}] ${d.target.role}${name_part} @ (${d.point.x},${d.point.y}) [${prev_str} -> ${next_str}, changed=${d.changed}${opts_info}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
+function print_hover_result(res: ActionResult<HoverResult>): void {
+    const d = res.data!
+    const dry_tag = d.dry_run ? " [dry-run]" : ""
+    const name_part = d.target.name ? ` "${d.target.name}"` : ""
+    const from_desc = d.from_target
+        ? `${d.from_target.role}${d.from_target.name ? ` "${d.from_target.name}"` : ""} -> `
+        : ""
+    const coords =
+        d.from.x === d.to.x && d.from.y === d.to.y
+            ? `(${d.to.x},${d.to.y})`
+            : `(${d.from.x},${d.from.y}) -> (${d.to.x},${d.to.y})`
+    const extra: string[] = [
+        `dist=${d.distance_px}px`,
+        `duration=${d.actual_duration_ms}ms`,
+        `frames=${d.frames}`,
+        `curve=${d.curve}`
+    ]
+    if (d.hold_ms > 0) extra.push(`hold=${d.hold_ms}ms`)
+    if (d.left) extra.push("leave")
+
+    console.log(
+        `OK hover${dry_tag} ${from_desc}${d.target.role}${name_part} @ ${coords} [${extra.join(", ")}] (${res.meta.duration_ms}ms)`
+    )
+    for (const log_line of format_logs_summary(res.meta.logs)) {
+        console.log(log_line)
+    }
+}
+
 function print_gesture_result(res: ActionResult<GestureResult>): void {
     const d = res.data!
     const dry_tag = d.dry_run ? " [dry-run]" : ""
@@ -737,6 +1039,11 @@ function print_help(): void {
   npm run debug:ui -- inspect <target> [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--json]
   npm run debug:ui -- tap <target> [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--dry-run] [--json]
   npm run debug:ui -- click <target> [--button left|right] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--dry-run] [--json]
+  npm run debug:ui -- long-press <target> [--duration <ms>] [--pointer touch|mouse] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--no-scroll] [--dry-run] [--json]
+  npm run debug:ui -- fill <target> (<text> | --value <text> | --clear) [--append] [--submit] [--blur] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--no-scroll] [--dry-run] [--json]
+  npm run debug:ui -- press [<target>] (<key> | --key <key>) [--duration <ms>] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--no-scroll] [--dry-run] [--json]
+  npm run debug:ui -- select <target> (<value...> | --value <v> | --label <text> | --index <1-based> | --clear) [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--no-scroll] [--dry-run] [--json]
+  npm run debug:ui -- hover <target> [--from <target>] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms> | --instant] [--curve linear|ease-in|ease-out|ease-in-out] [--hold <ms>] [--leave] [--in <scope>] [--role <role>] [--exact] [--nth <n>] [--at <anchor>] [--no-scroll] [--dry-run] [--json]
   npm run debug:ui -- swipe [<target>] <left|right|up|down> [distance] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-end <ms>] [--pointer touch|mouse] [--dry-run] [--json]
   npm run debug:ui -- drag <from> (--to <target> | --by <dx,dy>) [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-start <ms>] [--hold-end <ms>] [--pointer mouse|touch] [--dry-run] [--json]
   npm run debug:ui -- scroll [<target>] (<left|right|up|down> [distance] | top | bottom | --to <top|bottom|left|right|target> | --by <dx,dy>) [--align start|center|end|nearest] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms> | --instant] [--curve linear|ease-in|ease-out|ease-in-out] [--wheel] [--no-scroll] [--dry-run] [--json]
@@ -751,7 +1058,20 @@ Target syntax examples:
   210,784  |  50%,80%            Direct viewport coordinates (px or %)
   "Player"@80%,50%               Relative point inside element
 
-Gesture examples:
+Gesture & input examples:
+  npm run debug:ui -- long-press "clickable#1"
+  npm run debug:ui -- long-press "clickable#1" --duration 800 --pointer touch
+  npm run debug:ui -- fill "textbox#1" "hello" --submit
+  npm run debug:ui -- fill "textbox#1" --clear
+  npm run debug:ui -- press Escape
+  npm run debug:ui -- press "textbox#1" Enter
+  npm run debug:ui -- press Space
+  npm run debug:ui -- select "select#1" "zh-CN"
+  npm run debug:ui -- select "select#1" --label "English"
+  npm run debug:ui -- select "checkbox#1" toggle
+  npm run debug:ui -- select "css:input[type=datetime-local]" "2026-11-16T22:30"
+  npm run debug:ui -- hover "clickable#1"
+  npm run debug:ui -- hover "clickable#2" --from "clickable#1" --speed fast --leave
   npm run debug:ui -- swipe left
   npm run debug:ui -- swipe "swipeable#1" right 240 --speed fast
   npm run debug:ui -- swipe left 40 --velocity 0.35 --curve ease-in
@@ -827,6 +1147,41 @@ async function main(): Promise<void> {
             target,
             options: tap_opts
         }
+    } else if (command === "long-press" || command === "long_press") {
+        const parsed = parse_long_press_command(positionals, flags)
+        rpc_command = {
+            action: "long_press",
+            target: parsed.target,
+            options: parsed.options
+        }
+    } else if (command === "fill") {
+        const parsed = parse_fill_command(positionals, flags)
+        rpc_command = {
+            action: "fill",
+            target: parsed.target,
+            options: parsed.options
+        }
+    } else if (command === "press") {
+        const parsed = parse_press_command(positionals, flags)
+        rpc_command = {
+            action: "press",
+            ...(parsed.target ? { target: parsed.target } : {}),
+            options: parsed.options
+        }
+    } else if (command === "select") {
+        const parsed = parse_select_command(positionals, flags)
+        rpc_command = {
+            action: "select",
+            target: parsed.target,
+            options: parsed.options
+        }
+    } else if (command === "hover") {
+        const parsed = parse_hover_command(positionals, flags)
+        rpc_command = {
+            action: "hover",
+            target: parsed.target,
+            options: parsed.options
+        }
     } else if (command === "swipe") {
         const parsed = parse_swipe_command(positionals, flags)
         rpc_command = {
@@ -876,6 +1231,21 @@ async function main(): Promise<void> {
         case "tap":
         case "click":
             print_tap_result(result as ActionResult<TapResult>)
+            break
+        case "long_press":
+            print_long_press_result(result as ActionResult<LongPressResult>)
+            break
+        case "fill":
+            print_fill_result(result as ActionResult<FillResult>)
+            break
+        case "press":
+            print_press_result(result as ActionResult<PressResult>)
+            break
+        case "select":
+            print_select_result(result as ActionResult<SelectResult>)
+            break
+        case "hover":
+            print_hover_result(result as ActionResult<HoverResult>)
             break
         case "swipe":
         case "drag":

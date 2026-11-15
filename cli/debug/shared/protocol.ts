@@ -198,6 +198,112 @@ export interface TapResult {
     target: TargetElementSummary
 }
 
+export interface LongPressOptions {
+    duration_ms?: number
+    pointer?: "touch" | "mouse"
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface LongPressResult {
+    mode: "long_press"
+    pointer: "touch" | "mouse"
+    dry_run: boolean
+    point: Point2D
+    requested_duration_ms: number
+    actual_duration_ms: number
+    target: TargetElementSummary
+}
+
+export interface FillOptions {
+    value: string
+    append?: boolean
+    submit?: boolean
+    blur?: boolean
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface FillResult {
+    mode: "fill"
+    dry_run: boolean
+    point: Point2D
+    previous_value: string
+    value: string
+    append: boolean
+    submitted: boolean
+    blurred: boolean
+    target: TargetElementSummary
+}
+
+export interface PressOptions {
+    key: string
+    duration_ms?: number
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface KeyModifiers {
+    ctrl: boolean
+    alt: boolean
+    shift: boolean
+    meta: boolean
+}
+
+export interface PressResult {
+    mode: "press"
+    dry_run: boolean
+    key: string
+    code: string
+    modifiers: KeyModifiers
+    duration_ms: number
+    default_prevented: boolean
+    target: TargetElementSummary
+}
+
+export type NativeControlKind =
+    | "select"
+    | "select-multiple"
+    | "checkbox"
+    | "switch"
+    | "radio"
+    | "range"
+    | "color"
+    | "date"
+    | "datetime-local"
+    | "time"
+    | "month"
+    | "week"
+
+export type SelectOptionMatchBy = "auto" | "value" | "label" | "index"
+
+export interface SelectOptions {
+    values?: string[]
+    match_by?: SelectOptionMatchBy
+    index?: number
+    clear?: boolean
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface SelectOptionSummary {
+    index: number
+    value: string
+    label: string
+}
+
+export interface SelectResult {
+    mode: "select"
+    control_kind: NativeControlKind
+    dry_run: boolean
+    changed: boolean
+    point: Point2D
+    previous_values: string[]
+    values: string[]
+    selected_options?: SelectOptionSummary[]
+    target: TargetElementSummary
+}
+
 export type GestureDirection = "left" | "right" | "up" | "down"
 export type GestureSpeed = "fast" | "normal" | "slow"
 export type GestureCurve = "linear" | "ease-in" | "ease-out" | "ease-in-out"
@@ -235,6 +341,36 @@ export interface DragOptions {
     hold_end_ms?: number
     scroll_into_view?: boolean
     dry_run?: boolean
+}
+
+export interface HoverOptions {
+    from?: TargetInput | string
+    speed?: GestureSpeed
+    duration_ms?: number
+    /** Target pointer movement velocity in px/ms (mutually exclusive with duration_ms, speed, and instant). */
+    velocity?: number
+    curve?: GestureCurve
+    hold_ms?: number
+    instant?: boolean
+    leave?: boolean
+    scroll_into_view?: boolean
+    dry_run?: boolean
+}
+
+export interface HoverResult {
+    mode: "hover"
+    dry_run: boolean
+    curve: GestureCurve
+    from: Point2D
+    to: Point2D
+    distance_px: number
+    requested_duration_ms: number
+    actual_duration_ms: number
+    hold_ms: number
+    frames: number
+    left: boolean
+    target: TargetElementSummary
+    from_target?: TargetElementSummary
 }
 
 export interface GestureResult {
@@ -313,6 +449,11 @@ export type DebugUiCommand =
     | { action: "inspect"; target: TargetInput | string }
     | { action: "tap"; target: TargetInput | string; options?: TapOptions }
     | { action: "click"; target: TargetInput | string; options?: TapOptions }
+    | { action: "long_press"; target: TargetInput | string; options?: LongPressOptions }
+    | { action: "fill"; target: TargetInput | string; options: FillOptions }
+    | { action: "press"; target?: TargetInput | string; options: PressOptions }
+    | { action: "select"; target: TargetInput | string; options: SelectOptions }
+    | { action: "hover"; target: TargetInput | string; options?: HoverOptions }
     | { action: "swipe"; target?: TargetInput | string; options: SwipeOptions }
     | { action: "drag"; target: TargetInput | string; options: DragOptions }
     | { action: "scroll"; target?: TargetInput | string; options: ScrollOptions }
@@ -323,6 +464,11 @@ export interface DebugUiRuntime {
     inspect: (target: TargetInput | string) => Promise<ActionResult<InspectResult>>
     tap: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
     click: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
+    long_press: (target: TargetInput | string, options?: LongPressOptions) => Promise<ActionResult<LongPressResult>>
+    fill: (target: TargetInput | string, options: FillOptions) => Promise<ActionResult<FillResult>>
+    press: (target: TargetInput | string | undefined, options: PressOptions) => Promise<ActionResult<PressResult>>
+    select: (target: TargetInput | string, options: SelectOptions) => Promise<ActionResult<SelectResult>>
+    hover: (target: TargetInput | string, options?: HoverOptions) => Promise<ActionResult<HoverResult>>
     swipe: (target: TargetInput | string | undefined, options: SwipeOptions) => Promise<ActionResult<GestureResult>>
     drag: (target: TargetInput | string, options: DragOptions) => Promise<ActionResult<GestureResult>>
     scroll: (target: TargetInput | string | undefined, options: ScrollOptions) => Promise<ActionResult<ScrollResult>>
