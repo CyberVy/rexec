@@ -23,6 +23,7 @@ function service_worker_plugin(): Plugin {
                             bundle: true,
                             format: "esm",
                             target: "esnext",
+                            tsconfig: path.resolve(import.meta.dirname, "frontend/tsconfig.json"),
                             write: false,
                             banner: {
                                 js: "// Generated in-memory by Vite service_worker_plugin"
@@ -66,6 +67,7 @@ function service_worker_plugin(): Plugin {
                 bundle: true,
                 format: "esm",
                 target: "esnext",
+                tsconfig: path.resolve(import.meta.dirname, "frontend/tsconfig.json"),
                 outfile: path.resolve(import.meta.dirname, "dist/sw.js"),
                 minify: true,
                 banner: {

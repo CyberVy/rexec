@@ -260,7 +260,7 @@ export class WsClient {
 
     public send_binary(data: Uint8Array): void {
         if (!this.is_open || !this.ws) return
-        this.ws.send(data)
+        this.ws.send(data as Uint8Array<ArrayBuffer>)
     }
 
     /** Connecting or Open → Replacing → RST → Backoff → Connecting. */

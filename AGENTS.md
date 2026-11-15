@@ -17,7 +17,7 @@
     - `caller/`: Calling client domain.
         - `core/`: Universal calling SDK using 100% Web Standard APIs (`RexecCaller`, `exec_command`, `pull_http`, `push_http`, `open_forward_tunnel`, `open_pty_session`).
         - `terminal/`: Local command-line interface client for terminal users (`rexec`).
-- `frontend/`: Application frontend GUI and Web UI (React, Vite, Tailwind).
+- `frontend/`: Application frontend GUI and Web UI (React, Vite, Tailwind; isolated via `frontend/tsconfig.json`).
     - `app/`: Application UI entry points and shells.
         - `index.html`: SPA HTML shell entry.
         - `main.tsx`: SPA entry mount point.
@@ -175,7 +175,7 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
 - Variables, parameters, refs, and local state values: `snake_case` (e.g. `task_id`, `auth_token`, `current_session_id`).
 - Constants: `SCREAMING_SNAKE_CASE` for module-level immutable values / semantic constants; use `snake_case` for local values and function bindings.
 - Type imports: use `import type` when importing only types.
-- Path aliases: prefer `@/` for imports under `src/` and `frontend/`.
+- Path aliases: prefer `@/` for imports under `frontend/` (configured via `frontend/tsconfig.json`) or `src/` (in root host code via `tsconfig.json`), and `@rexec/` when `frontend/` imports shared modules from `src/`.
 - WebView injection scripts: entry point is `src-tauri/src/inject.ts` (source) and `src-tauri/src/inject.js` (compiled output). Sub-modules under `frontend/inject/` may use `*.inject.ts` naming.
 - Type Definitions: Follow the proximity principle (define types close to where they are used). Avoid creating separate type files (like `types.ts` or `*.types.ts`) unless the type declarations are highly complex or repeatedly reused across multiple files.
 - Descriptive Naming: All variable, function, component, and file names must clearly reflect their purpose and responsibility. Use readable, self-explanatory names and strictly avoid generic, vague, or obscure names (e.g. prefer `is_sidebar_open` over `temp` or `flag`).
@@ -210,7 +210,7 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
 ## Base Rules
 
 - Format files using `oxfmt` (`npm run format`) and lint using `oxlint` (`npm run lint`).
-- Typecheck and run comprehensive checks using `npm run check` (`oxlint` + `tsc --noEmit`).
+- Typecheck and run comprehensive checks using `npm run check` (`oxlint` + `npm run typecheck`).
 - **Source Code & Runtime as SSOT**: Source code and live runtime data are the Single Source of Truth (SSOT), never historical knowledge or outdated assumptions. Always verify facts against current code and runtime state.
 - **Minimalist & Clean Code**: Keep edits minimal, direct, and targeted. Avoid sweeping reformatting, unnecessary fallback mechanisms, and defensive over-engineering. Prioritize human readability and simplicity.
 - **Single Concern Ownership**: Every concern (validation, transformation, lifecycle control, error formatting) must have exactly ONE designated owner layer. NEVER split, smear, or partially handle the same responsibility across multiple modules. If a layer owns a concern, it must handle it completely and decisively.

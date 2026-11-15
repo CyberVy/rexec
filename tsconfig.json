@@ -1,24 +1,34 @@
 {
-  "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext", "webworker"],
-    "target": "esnext",
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "paths": {
-      "@/*": ["./src/*", "./frontend/*"],
-      "@rexec/*": ["./src/*"]
+    "compilerOptions": {
+        "lib": ["dom", "dom.iterable", "esnext", "webworker"],
+        "target": "esnext",
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "jsx": "react-jsx",
+        "paths": {
+            "@/*": ["./src/*"],
+            "@rexec/*": ["./src/*"]
+        },
+        "noEmit": true,
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noImplicitAny": true,
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "incremental": true,
+        "types": ["@cloudflare/workers-types", "@types/node"]
     },
-    "noEmit": true,
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "types": ["@cloudflare/workers-types", "@types/node", "@types/react", "@types/react-dom"]
-  },
-  "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
-  "exclude": ["node_modules", ".wrangler", "dist", "src-tauri/gen/apple/build"]
+    "include": ["**/*.ts", "**/*.tsx", "**/*.mts"],
+    "exclude": [
+        "node_modules",
+        ".wrangler",
+        "dist",
+        "frontend",
+        "src-tauri",
+        "src-tauri/gen/apple/build",
+        "draft",
+        "extensions/vscode/dist"
+    ]
 }

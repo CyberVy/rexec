@@ -9,5 +9,7 @@ dist
 *.vsix
 draft/
 target
-tsconfig.tsbuildinfo
+*.tsbuildinfo
 /buildServer.json
+/public/sw.js
+/public/debug_bridge.js

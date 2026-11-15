@@ -169,8 +169,7 @@ const layeringRestrictionsRule = {
             description: "Enforce module dependency layering rules"
         },
         messages: {
-            noComponentsToBlocks:
-                "Layering violation: components must not depend on blocks or app.",
+            noComponentsToBlocks: "Layering violation: components must not depend on blocks or app.",
             noCoreInComponents: "Layering violation: components must not depend on core.",
             noUiInNonUi:
                 "Layering violation: Non-UI file '{{file}}' must not import UI-related directory '{{imported}}'.",
@@ -181,14 +180,7 @@ const layeringRestrictionsRule = {
         const filename = context.filename || (context.getFilename && context.getFilename()) || ""
         const relativeFile = path.relative(process.cwd(), filename).replace(/\\/g, "/")
 
-        const UI_DIRS = [
-            "src/app",
-            "src/blocks",
-            "src/components",
-            "frontend/app",
-            "frontend/blocks",
-            "frontend/components"
-        ]
+        const UI_DIRS = ["frontend/app", "frontend/blocks", "frontend/components"]
 
         function is_in_directory(file, directory) {
             return file === directory || file.startsWith(`${directory}/`)
@@ -244,20 +236,15 @@ const layeringRestrictionsRule = {
                 }
             }
 
-            // 2. components/ must not depend on blocks/ or app/
-            if (is_in_directory(relativeFile, "src/components") || is_in_directory(relativeFile, "frontend/components")) {
-                if (
-                    is_in_directory(resolved, "src/blocks") ||
-                    is_in_directory(resolved, "src/app") ||
-                    is_in_directory(resolved, "frontend/blocks") ||
-                    is_in_directory(resolved, "frontend/app")
-                ) {
+            // 2. frontend/components/ must not depend on frontend/blocks/ or frontend/app/
+            if (is_in_directory(relativeFile, "frontend/components")) {
+                if (is_in_directory(resolved, "frontend/blocks") || is_in_directory(resolved, "frontend/app")) {
                     context.report({
                         node,
                         messageId: "noComponentsToBlocks"
                     })
                 }
-                if (is_in_directory(resolved, "src/core") || is_in_directory(resolved, "frontend/core")) {
+                if (is_in_directory(resolved, "frontend/core")) {
                     context.report({
                         node,
                         messageId: "noCoreInComponents"
@@ -265,9 +252,9 @@ const layeringRestrictionsRule = {
                 }
             }
 
-            // 3. infra/ must not depend on core/
-            if (is_in_directory(relativeFile, "src/infra") || is_in_directory(relativeFile, "frontend/infra")) {
-                if (is_in_directory(resolved, "src/core") || is_in_directory(resolved, "frontend/core")) {
+            // 3. frontend/infra/ must not depend on frontend/core/
+            if (is_in_directory(relativeFile, "frontend/infra")) {
+                if (is_in_directory(resolved, "frontend/core")) {
                     context.report({
                         node,
                         messageId: "noCoreInInfra"
@@ -492,22 +479,18 @@ const noEffectsInBlocksRule = {
     meta: {
         type: "problem",
         docs: {
-            description: "Disallow useEffect and useLayoutEffect in 'src/blocks/'"
+            description: "Disallow useEffect and useLayoutEffect in 'frontend/blocks/'"
         },
         messages: {
             noEffectInBlocks:
-                "Zero-Effect violation: '{{name}}' is prohibited in 'src/blocks/'. Blocks must be zero-effect: derive state in render, handle events in callbacks, coordinate state via Controllers (useSyncExternalStore), or use Callback Refs / components in 'src/components/' for DOM interactions."
+                "Zero-Effect violation: '{{name}}' is prohibited in 'frontend/blocks/'. Blocks must be zero-effect: derive state in render, handle events in callbacks, coordinate state via Controllers (useSyncExternalStore), or use Callback Refs / components in 'frontend/components/' for DOM interactions."
         }
     },
     create(context) {
         const filename = context.filename || (context.getFilename && context.getFilename()) || ""
         const relativeFile = path.relative(process.cwd(), filename).replace(/\\/g, "/")
 
-        const in_blocks =
-            relativeFile.startsWith("src/blocks/") ||
-            relativeFile === "src/blocks" ||
-            relativeFile.startsWith("frontend/blocks/") ||
-            relativeFile === "frontend/blocks"
+        const in_blocks = relativeFile.startsWith("frontend/blocks/") || relativeFile === "frontend/blocks"
         if (!in_blocks) {
             return {}
         }
