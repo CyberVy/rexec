@@ -2,14 +2,15 @@
 
 import type { RefObject } from "react"
 import React, { useEffect, useLayoutEffect, useRef } from "react"
-import { is_element_hidden } from "@/components/utils"
 
 export type ScrollSentryProps = {
-    on_trigger: () => void
-    throttle_ms?: number
+    on_trigger: () => void | PromiseLike<unknown>
     root_margin?: string | number
+    /**
+     * Custom scroll container element or ref; defaults to the browser viewport (`null`).
+     * If the container mounts after `ScrollSentry`, pass the element via state so the observer re-attaches.
+     */
     root?: HTMLElement | RefObject<HTMLElement | null> | null
-    enabled?: boolean
 }
 
 function get_root_margin(root_margin: number | string) {
@@ -17,74 +18,63 @@ function get_root_margin(root_margin: number | string) {
     return root_margin
 }
 
-const ScrollSentry = React.memo(function ScrollSentry({
-    on_trigger,
-    throttle_ms = 500,
-    root_margin = 0,
-    root,
-    enabled = true
-}: ScrollSentryProps) {
+function is_ref_object<T>(value: unknown): value is RefObject<T> {
+    return Boolean(value && typeof value === "object" && "current" in value)
+}
+
+function is_thenable(value: unknown): value is PromiseLike<unknown> {
+    return (
+        (typeof value === "object" || typeof value === "function") &&
+        value !== null &&
+        "then" in value &&
+        typeof value.then === "function"
+    )
+}
+
+/** Edge-triggered intersection sentinel. Control lifecycle by conditionally mounting this component. */
+const ScrollSentry = React.memo(function ScrollSentry({ on_trigger, root_margin = 0, root }: ScrollSentryProps) {
     const element_ref = useRef<HTMLDivElement | null>(null)
-    const last_trigger_time_ref = useRef(0)
     const on_trigger_ref = useRef(on_trigger)
 
     useLayoutEffect(() => {
         on_trigger_ref.current = on_trigger
-    })
+    }, [on_trigger])
 
     useEffect(() => {
         const element = element_ref.current
-        if (!element || !enabled) return
+        if (!element) return
 
-        const resolved_root = (root && typeof root === "object" && "current" in root ? root.current : root) || null
-        let is_intersecting = false
-        let retry_timer: ReturnType<typeof setTimeout> | null = null
+        const is_ref_root = is_ref_object<HTMLElement | null>(root)
+        const resolved_root = is_ref_root ? root.current : (root ?? null)
+        // A RefObject with `.current === null` means the intended scroll container is unmounted;
+        // skip observing instead of silently falling back to the window viewport.
+        if (is_ref_root && !resolved_root) return
 
-        const clear_retry_timer = () => {
-            if (retry_timer !== null) {
-                clearTimeout(retry_timer)
-                retry_timer = null
-            }
-        }
-
-        const fire_trigger = () => {
-            clear_retry_timer()
-            last_trigger_time_ref.current = Date.now()
-            on_trigger_ref.current()
-        }
-
-        const try_trigger = () => {
-            const elapsed = Date.now() - last_trigger_time_ref.current
-            if (elapsed >= throttle_ms) {
-                fire_trigger()
-                return
-            }
-
-            if (retry_timer === null) {
-                retry_timer = setTimeout(() => {
-                    retry_timer = null
-                    if (!is_intersecting || is_element_hidden(element)) return
-                    fire_trigger()
-                }, throttle_ms - elapsed)
-            }
-        }
+        let is_active = true
+        let has_triggered = false
+        let is_pending = false
 
         const observer = new IntersectionObserver(
             (entries) => {
                 const latest_entry = entries[entries.length - 1]
                 if (!latest_entry) return
 
-                if (is_element_hidden(latest_entry.target as HTMLElement)) {
-                    is_intersecting = false
-                    clear_retry_timer()
+                if (!latest_entry.isIntersecting) {
+                    has_triggered = false
                     return
                 }
 
-                is_intersecting = latest_entry.isIntersecting
-                if (is_intersecting) {
-                    try_trigger()
-                } else {
-                    clear_retry_timer()
+                if (has_triggered || is_pending) return
+                has_triggered = true
+
+                const result = on_trigger_ref.current()
+                if (is_thenable(result)) {
+                    is_pending = true
+                    const settle = () => {
+                        if (!is_active) return
+                        is_pending = false
+                    }
+                    Promise.resolve(result).then(settle, settle)
                 }
             },
             {
@@ -97,13 +87,12 @@ const ScrollSentry = React.memo(function ScrollSentry({
         observer.observe(element)
 
         return () => {
-            is_intersecting = false
-            clear_retry_timer()
+            is_active = false
             observer.disconnect()
         }
-    }, [enabled, root, root_margin, throttle_ms])
+    }, [root, root_margin])
 
-    return <div ref={element_ref} className="h-[0.5px] w-full pointer-events-none" />
+    return <div ref={element_ref} aria-hidden="true" className="h-px w-full pointer-events-none" />
 })
 
 ScrollSentry.displayName = "ScrollSentry"
