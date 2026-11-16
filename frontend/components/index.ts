@@ -9,9 +9,6 @@ export type { NaiveButtonProps, ButtonGroupProps, ButtonGroupItem } from "./base
 // Checkbox.tsx
 export { Checkbox } from "./base/Checkbox"
 
-// Device.tsx
-export { Device } from "./base/Device"
-
 // FixedScrollButtons.tsx
 export { ScrollToTopButton, ScrollToBottomButton, ScrollButtonGroup } from "./composite/FixedScrollButtons"
 
@@ -37,10 +34,6 @@ export type { FullscreenModalContainerProps, FloatingModalContainerProps } from 
 
 // String.tsx
 export { AnimatedGlowText } from "./base/String"
-
-// Version.tsx
-export { Version } from "./base/Version"
-export type { VersionProps } from "./base/Version"
 
 // StringInput.tsx
 export { StringInput } from "./composite/StringInput"
@@ -79,10 +72,6 @@ export type {
     SetToolbarVisibleOptions,
     ViewSwitcherRegistryState
 } from "./composite/ViewSwitcher"
-
-// Migration.tsx
-export { MigrationExport, MigrationMerge, MigrationOverwrite } from "./composite/Migration"
-export type { MigrationExportProps, MigrationMergeProps, MigrationOverwriteProps } from "./composite/Migration"
 
 // ScrollSentry.tsx
 export { ScrollSentry } from "./composite/ScrollSentry"
