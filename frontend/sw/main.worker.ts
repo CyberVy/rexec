@@ -76,7 +76,6 @@ const HUB_API_PREFIXES: readonly string[] = [...Object.values(HUB_ROUTES).map((r
 router.intercept((request, url) => {
     if (url.hostname !== location.hostname) return false
     if (url.href === location.href) return false
-    if (url.pathname === "/build-info.json") return false
 
     // Bypass API requests carrying authorization headers or tokens
     if (request.headers.has("Authorization") || url.searchParams.has("token")) {
