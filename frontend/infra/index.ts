@@ -59,8 +59,9 @@ export type {
     ServiceWorkerApiRequestParams
 } from "./service_worker.client"
 
-// migration.client.ts
-export { MigrationService } from "./migration.client"
+// file.client.ts
+export { save_text_file, read_text_file } from "./file.client"
+export type { SaveFileResult } from "./file.client"
 
 // webview.client.ts
 export { create_child_webview, destroy_child_webview, set_window_layout } from "./webview.client"

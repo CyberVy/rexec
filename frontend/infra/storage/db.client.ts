@@ -86,4 +86,38 @@ export class LocalForageMap<V> {
         })
         return list
     }
+
+    public async entries(): Promise<[string, V][]> {
+        const list: [string, V][] = []
+        await this.lf_instance.iterate((val: V, key: string) => {
+            list.push([key, val])
+        })
+        return list
+    }
+
+    public async set_batch(entries: readonly [string, V][]): Promise<this> {
+        if (entries.length === 0) return this
+
+        await this.lf_instance.ready()
+        const db_info = (this.lf_instance as unknown as { _dbInfo?: { db: IDBDatabase; storeName: string } })._dbInfo
+        if (this.lf_instance.driver() !== localforage.INDEXEDDB || !db_info?.db) {
+            for (const [key, value] of entries) {
+                await this.set(key, value)
+            }
+            return this
+        }
+
+        await new Promise<void>((resolve, reject) => {
+            const transaction = db_info.db.transaction(db_info.storeName, "readwrite")
+            const store = transaction.objectStore(db_info.storeName)
+            for (const [key, value] of entries) {
+                if (value === undefined) continue
+                store.put(value === null ? undefined : value, String(key))
+            }
+            transaction.oncomplete = () => resolve()
+            transaction.onerror = () => reject(transaction.error)
+            transaction.onabort = () => reject(transaction.error)
+        })
+        return this
+    }
 }
