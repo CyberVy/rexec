@@ -118,6 +118,8 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         topControl.addTarget(self, action: #selector(handleSegmentChange), for: .valueChanged)
         bottomStack.alpha = 0
         topControl.alpha = 0
+        bottomStack.isUserInteractionEnabled = false
+        topControl.isUserInteractionEnabled = false
 
         parent.addSubview(bottomStack)
         parent.addSubview(topControl)
@@ -139,8 +141,14 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         let type = body["type"] as? String ?? ""
         let switcherId = body["switcher_id"] as? String ?? ""
         if type == "remove" {
-            if switcherId == bottomSwitcherId { setBottomVisible(false, animated: true) }
-            if switcherId == topSwitcherId { setTopVisible(false, animated: true) }
+            if switcherId == bottomSwitcherId {
+                bottomSwitcherId = nil
+                setBottomVisible(false, animated: true)
+            }
+            if switcherId == topSwitcherId {
+                topSwitcherId = nil
+                setTopVisible(false, animated: true)
+            }
             return
         }
         guard type == "sync" else { return }

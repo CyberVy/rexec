@@ -109,6 +109,7 @@ export function useNativeToolbar<T extends string>({
         })
         return () => {
             select_handlers.delete(switcher_id)
+            snapshot_ref.current = ""
             post_toolbar_message({ type: "remove", switcher_id })
         }
     }, [enabled, switcher_id])
