@@ -3,7 +3,13 @@ import WebKit
 
 /// Floating UIKit chrome for the web view switcher.
 /// The web controller remains the source of truth and pushes snapshots here.
+/// Requires iOS 26+ Liquid Glass `UITabBar` pill geometry; older OS versions fall back to the web toolbar.
 func installNativeToolbar(webView: WKWebView, controller: UIViewController) {
+    guard #available(iOS 26.0, *) else { return }
+    if (Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool) == true {
+        return
+    }
+
     let host = NativeToolbarHost(webView: webView, controller: controller)
     let content = webView.configuration.userContentController
     content.add(host, name: "viewSwitcherToolbar")
@@ -18,16 +24,19 @@ func installNativeToolbar(webView: WKWebView, controller: UIViewController) {
     NativeToolbarRegistry.host = host
 }
 
+@available(iOS 26.0, *)
 private enum NativeToolbarRegistry {
     static var host: NativeToolbarHost?
 }
 
 /// A tab bar placed above the home indicator still inherits a large bottom
 /// safe-area inset, which crushes the icon and title inside a short frame.
+@available(iOS 26.0, *)
 private final class FloatingTabBar: UITabBar {
     override var safeAreaInsets: UIEdgeInsets { .zero }
 }
 
+@available(iOS 26.0, *)
 private enum BottomToolbarMetrics {
     static let itemWidth: CGFloat = 64
     /// Padding and borders around the web cells, on both sides together.
@@ -42,6 +51,7 @@ private enum BottomToolbarMetrics {
     }
 }
 
+@available(iOS 26.0, *)
 private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBarDelegate {
     private weak var webView: WKWebView?
     private weak var controller: UIViewController?
