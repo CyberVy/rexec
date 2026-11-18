@@ -25,4 +25,5 @@ public func on_webview_created(_ webviewPtr: UnsafeRawPointer?, _ controllerPtr:
     applyNoFlickerStyle(to: webview, in: controller)
 
     installFullPageScreenshot(webView: webview, controller: controller)
+    installNativeToolbar(webView: webview, controller: controller)
 }

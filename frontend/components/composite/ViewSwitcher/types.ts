@@ -4,11 +4,18 @@ import type { ComponentPropsWithRef, ReactNode, RefObject, TransitionEvent } fro
 // View & Component Props
 // ============================================================================
 
+export interface NativeToolbarConfig {
+    /** SF Symbol for this view. The web toolbar keeps using View.icon. */
+    icon?: string
+}
+
 export interface View<T extends string = string> {
     /** Unique identifier for the view */
     id: T
     /** React node for the icon displayed in the navigation bar (optional) */
     icon?: ReactNode
+    /** Native presentation for this view. Omitted views still appear, without a symbol. */
+    native_toolbar?: NativeToolbarConfig
     /** Label text or node displayed below the icon (optional) */
     label?: ReactNode
     /** Component or content to render when this view is selected */
@@ -43,20 +50,13 @@ export type ViewSwitcherProps<T extends string = string> = Omit<
     keep_alive_default?: boolean
     /** Whether to automatically remember and restore scroll positions of keep-alive views */
     remember_scroll?: boolean
-    /** Extra actions/buttons to display on the right side of the floating toolbar */
-    toolbar_extra_actions?: ReactNode
-    /** Custom class for the floating bottom bar */
-    toolbar_className?: string
-    /** Custom class for individual view buttons */
-    toolbar_item_className?: string
     /** Layout positioning: bottom floating (default) or top floating */
     toolbar_layout?: "bottom-floating" | "top-floating"
+    /** Suppress floating toolbars for this switcher and nested switchers (e.g. during launch splash) */
+    toolbar_hidden?: boolean
 }
 
-export type ViewSwitcherToolbarProps<T extends string> = Pick<
-    ViewSwitcherProps<T>,
-    "views" | "toolbar_layout" | "toolbar_extra_actions" | "toolbar_className" | "toolbar_item_className"
-> & {
+export type ViewSwitcherToolbarProps<T extends string> = Pick<ViewSwitcherProps<T>, "views" | "toolbar_layout"> & {
     active_view_id: T
     is_toolbar_visible: boolean
     is_navigation_disabled: boolean
