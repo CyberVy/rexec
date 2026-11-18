@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useLayoutEffect, useCallback, useId, useRef } from "react"
+import { createContext, useState, useEffect, useLayoutEffect, useCallback, useContext, useId, useRef } from "react"
 import type { ComponentPropsWithoutRef } from "react"
 import { useMergedRef } from "@/components/hooks"
 import { join_classes } from "@/components/utils"
@@ -15,6 +15,16 @@ import {
     evaluate_toolbar_visibility
 } from "./useViewSwipeGesture"
 import type { ViewSwitcherProps } from "./types"
+
+interface HostVisibilityContextValue {
+    is_visible: boolean
+    is_transitioning: boolean
+}
+
+const ViewSwitcherHostVisibilityContext = createContext<HostVisibilityContextValue>({
+    is_visible: true,
+    is_transitioning: false
+})
 
 /**
  * ARCHITECTURAL DESIGN NOTE: Window Scroll vs. Container Scroll on iOS Safari
@@ -48,6 +58,9 @@ export function ViewSwitcher<T extends string = string>({
 }: ViewSwitcherProps<T>) {
     const fallback_id = useId()
     const switcher_instance_id = id ?? fallback_id
+    const { is_visible: is_host_visible, is_transitioning: is_host_transitioning } = useContext(
+        ViewSwitcherHostVisibilityContext
+    )
 
     // State setup: controlled vs uncontrolled active view ID
     const [internal_active_view_id, set_internal_active_view_id] = useState<T>(default_active_view_id ?? views[0]?.id)
@@ -100,7 +113,7 @@ export function ViewSwitcher<T extends string = string>({
     // Window scroll listener: records scroll position and updates toolbar visibility
     useEffect(() => {
         const handle_scroll = () => {
-            if (is_switching_view_ref.current || is_transitioning) return
+            if (!is_host_visible || is_switching_view_ref.current || is_transitioning) return
 
             const current_scroll_y = window.scrollY
             if (active_view_remember_scroll) {
@@ -116,6 +129,7 @@ export function ViewSwitcher<T extends string = string>({
         window.addEventListener("scroll", handle_scroll, { passive: true })
         return () => window.removeEventListener("scroll", handle_scroll)
     }, [
+        is_host_visible,
         switcher_instance_id,
         current_active_view_id,
         active_view_remember_scroll,
@@ -125,7 +139,7 @@ export function ViewSwitcher<T extends string = string>({
 
     // Restore scroll position synchronously pre-paint on active view change or transition end
     useLayoutEffect(() => {
-        if (is_transitioning) return
+        if (!is_host_visible || is_transitioning) return
 
         is_switching_view_ref.current = true
 
@@ -136,11 +150,11 @@ export function ViewSwitcher<T extends string = string>({
         scroll_positions_ref.current[current_active_view_id] = target_scroll_y
 
         is_switching_view_ref.current = false
-    }, [current_active_view_id, active_view_remember_scroll, is_transitioning])
+    }, [is_host_visible, current_active_view_id, active_view_remember_scroll, is_transitioning])
 
     // Sync toolbar visibility independently so rule updates never trigger unexpected scrollTo jumps
     useLayoutEffect(() => {
-        if (is_transitioning) return
+        if (!is_host_visible || is_transitioning) return
 
         const current_scroll_y = active_view_remember_scroll
             ? (scroll_positions_ref.current[current_active_view_id] ?? window.scrollY)
@@ -148,6 +162,7 @@ export function ViewSwitcher<T extends string = string>({
         const is_visible = evaluate_toolbar_visibility(should_hide_toolbar, current_scroll_y)
         view_switcher_controller.set_toolbar_visible(switcher_instance_id, is_visible)
     }, [
+        is_host_visible,
         current_active_view_id,
         active_view_remember_scroll,
         is_transitioning,
@@ -180,8 +195,8 @@ export function ViewSwitcher<T extends string = string>({
         })
     }, [switcher_instance_id])
 
-    // Keep controller synchronized with instance transition and active view states
-    useEffect(() => {
+    // Keep controller synchronized pre-effect so sibling/child switchers see settled transition flags on first sync
+    useLayoutEffect(() => {
         view_switcher_controller.update_instance(switcher_instance_id, {
             is_transitioning,
             active_view_id: current_active_view_id,
@@ -222,7 +237,8 @@ export function ViewSwitcher<T extends string = string>({
 
     const native_toolbar_active = is_native_toolbar_active()
     useNativeToolbar({
-        enabled: native_toolbar_active,
+        enabled: native_toolbar_active && is_host_visible,
+        host_transitioning: is_host_transitioning,
         switcher_id: switcher_instance_id,
         layout: toolbar_layout,
         views,
@@ -231,6 +247,8 @@ export function ViewSwitcher<T extends string = string>({
         interaction_enabled: !(is_transitioning || has_other_transitioning),
         on_select: handle_toolbar_click
     })
+
+    const is_subtree_transitioning = is_host_transitioning || is_transitioning
 
     return (
         <div
@@ -247,17 +265,26 @@ export function ViewSwitcher<T extends string = string>({
                 )
                 if (!render_config) return null
 
+                const is_panel_visible =
+                    is_host_visible && transition_state.status === "idle" && view.id === current_active_view_id
+
                 return (
-                    <ViewSwitcherPanel
+                    <ViewSwitcherHostVisibilityContext
                         key={view.id}
-                        view_id={view.id}
-                        on_element_ref={set_view_element}
-                        className={render_config.view_class}
-                        style={render_config.style}
-                        onTransitionEnd={render_config.is_view_active_in_transition ? handle_transition_end : undefined}
+                        value={{ is_visible: is_panel_visible, is_transitioning: is_subtree_transitioning }}
                     >
-                        {view.content}
-                    </ViewSwitcherPanel>
+                        <ViewSwitcherPanel
+                            view_id={view.id}
+                            on_element_ref={set_view_element}
+                            className={render_config.view_class}
+                            style={render_config.style}
+                            onTransitionEnd={
+                                render_config.is_view_active_in_transition ? handle_transition_end : undefined
+                            }
+                        >
+                            {view.content}
+                        </ViewSwitcherPanel>
+                    </ViewSwitcherHostVisibilityContext>
                 )
             })}
 

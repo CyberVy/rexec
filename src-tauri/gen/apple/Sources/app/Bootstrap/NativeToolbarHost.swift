@@ -52,6 +52,8 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
 
     private var bottomVisible: Bool?
     private var topVisible: Bool?
+    private var bottomAnimator: UIViewPropertyAnimator?
+    private var topAnimator: UIViewPropertyAnimator?
     private var bottomSwitcherId: String?
     private var topSwitcherId: String?
     private var bottomInteractionEnabled = true
@@ -118,6 +120,8 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         topControl.addTarget(self, action: #selector(handleSegmentChange), for: .valueChanged)
         bottomStack.alpha = 0
         topControl.alpha = 0
+        bottomStack.isUserInteractionEnabled = false
+        topControl.isUserInteractionEnabled = false
 
         parent.addSubview(bottomStack)
         parent.addSubview(topControl)
@@ -139,8 +143,15 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         let type = body["type"] as? String ?? ""
         let switcherId = body["switcher_id"] as? String ?? ""
         if type == "remove" {
-            if switcherId == bottomSwitcherId { setBottomVisible(false, animated: true) }
-            if switcherId == topSwitcherId { setTopVisible(false, animated: true) }
+            let animated = optionalBoolValue(body["animated"]) ?? true
+            if switcherId == bottomSwitcherId {
+                bottomSwitcherId = nil
+                setBottomVisible(false, animated: animated)
+            }
+            if switcherId == topSwitcherId {
+                topSwitcherId = nil
+                setTopVisible(false, animated: animated)
+            }
             return
         }
         guard type == "sync" else { return }
@@ -152,17 +163,20 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         let interactionEnabled = boolValue(body["interaction_enabled"])
 
         if layout == "top-floating" {
+            let shouldShow = visible && !items.isEmpty
+            let animated = optionalBoolValue(body["animated"]) ?? (topVisible != nil)
             topSwitcherId = switcherId
             topInteractionEnabled = interactionEnabled
             rebuildSegments(items: items, activeId: activeId)
-            topControl.isEnabled = interactionEnabled
-            setTopVisible(visible && !items.isEmpty, animated: topVisible != nil)
+            setTopVisible(shouldShow, animated: animated)
+            topControl.isUserInteractionEnabled = shouldShow && interactionEnabled
         } else {
+            let animated = optionalBoolValue(body["animated"]) ?? (bottomVisible != nil)
             bottomSwitcherId = switcherId
             bottomInteractionEnabled = interactionEnabled
             rebuildTabs(items: items, activeId: activeId)
             tabBar.isUserInteractionEnabled = interactionEnabled
-            setBottomVisible(visible && !items.isEmpty, animated: bottomVisible != nil)
+            setBottomVisible(visible && !items.isEmpty, animated: animated)
         }
     }
 
@@ -221,17 +235,44 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
 
     private func setBottomVisible(_ visible: Bool, animated: Bool) {
         guard bottomVisible != visible else { return }
+        let wasUnset = bottomVisible == nil
         bottomVisible = visible
-        animate(bottomStack, visible: visible, downward: true, animated: animated)
+        bottomAnimator = animate(
+            bottomStack,
+            currentAnimator: bottomAnimator,
+            visible: visible,
+            downward: true,
+            animated: animated,
+            prepareHiddenStart: wasUnset && visible && animated
+        )
     }
 
     private func setTopVisible(_ visible: Bool, animated: Bool) {
         guard topVisible != visible else { return }
+        let wasUnset = topVisible == nil
         topVisible = visible
-        animate(topControl, visible: visible, downward: false, animated: animated)
+        topAnimator = animate(
+            topControl,
+            currentAnimator: topAnimator,
+            visible: visible,
+            downward: false,
+            animated: animated,
+            prepareHiddenStart: wasUnset && visible && animated
+        )
     }
 
-    private func animate(_ view: UIView, visible: Bool, downward: Bool, animated: Bool) {
+    private func animate(
+        _ view: UIView,
+        currentAnimator: UIViewPropertyAnimator?,
+        visible: Bool,
+        downward: Bool,
+        animated: Bool,
+        prepareHiddenStart: Bool
+    ) -> UIViewPropertyAnimator? {
+        if let currentAnimator, currentAnimator.state == .active {
+            currentAnimator.stopAnimation(false)
+            currentAnimator.finishAnimation(at: .current)
+        }
         let offset: CGFloat = downward ? 80 : -80
         let hidden = CGAffineTransform(translationX: 0, y: offset).scaledBy(x: 0.9, y: 0.9)
         view.isUserInteractionEnabled = visible
@@ -241,7 +282,11 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         }
         guard animated else {
             changes()
-            return
+            return nil
+        }
+        if prepareHiddenStart {
+            view.superview?.layoutIfNeeded()
+            view.transform = hidden
         }
         let animator = UIViewPropertyAnimator(
             duration: 0.3,
@@ -250,6 +295,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         )
         animator.addAnimations(changes)
         animator.startAnimation()
+        return animator
     }
 
     private func emit(_ payload: [String: String]) {
@@ -259,7 +305,10 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     }
 
     private func boolValue(_ value: Any?) -> Bool {
-        if let number = value as? NSNumber { return number.boolValue }
-        return false
+        optionalBoolValue(value) ?? false
+    }
+
+    private func optionalBoolValue(_ value: Any?) -> Bool? {
+        (value as? NSNumber)?.boolValue
     }
 }
