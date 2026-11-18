@@ -27,6 +27,7 @@ export default function App() {
                     id="rexec_view_switcher"
                     className="select-none"
                     toolbar_layout="bottom-floating"
+                    toolbar_hidden={show_launch_animation}
                     active_view_id={active_view}
                     on_view_change={set_active_view}
                     keep_alive_default={true}
