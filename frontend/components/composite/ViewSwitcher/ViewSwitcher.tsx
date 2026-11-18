@@ -115,6 +115,26 @@ export function ViewSwitcher<T extends string = string>({
         commit_view_change
     })
 
+    const toolbar_hold_ref = useRef(false)
+    const hold_toolbar = useCallback(() => {
+        if (toolbar_hold_ref.current) return
+        toolbar_hold_ref.current = true
+        view_switcher_controller.hide_all_toolbars()
+    }, [])
+    const release_toolbar_hold = useCallback(() => {
+        if (!toolbar_hold_ref.current) return
+        toolbar_hold_ref.current = false
+        view_switcher_controller.show_all_toolbars()
+    }, [])
+    const sync_toolbar_hold = useCallback(
+        (rule: ViewSwitcherProps<T>["views"][number]["should_hide_toolbar"], scroll_y: number) => {
+            const hidden = rule !== undefined && !evaluate_toolbar_visibility(rule, scroll_y)
+            if (hidden) hold_toolbar()
+            else release_toolbar_hold()
+        },
+        [hold_toolbar, release_toolbar_hold]
+    )
+
     // Window scroll listener: records scroll position and updates toolbar visibility
     useEffect(() => {
         const handle_scroll = () => {
@@ -125,10 +145,7 @@ export function ViewSwitcher<T extends string = string>({
                 scroll_positions_ref.current[current_active_view_id] = current_scroll_y
             }
 
-            if (should_hide_toolbar !== undefined) {
-                const is_visible = evaluate_toolbar_visibility(should_hide_toolbar, current_scroll_y)
-                view_switcher_controller.set_toolbar_visible(switcher_instance_id, is_visible)
-            }
+            sync_toolbar_hold(should_hide_toolbar, current_scroll_y)
         }
 
         window.addEventListener("scroll", handle_scroll, { passive: true })
@@ -139,7 +156,8 @@ export function ViewSwitcher<T extends string = string>({
         current_active_view_id,
         active_view_remember_scroll,
         should_hide_toolbar,
-        is_transitioning
+        is_transitioning,
+        sync_toolbar_hold
     ])
 
     // Restore scroll position synchronously pre-paint on active view change or transition end
@@ -157,23 +175,27 @@ export function ViewSwitcher<T extends string = string>({
         is_switching_view_ref.current = false
     }, [is_host_visible, current_active_view_id, active_view_remember_scroll, is_transitioning])
 
-    // Sync toolbar visibility independently so rule updates never trigger unexpected scrollTo jumps
+    // The active view holds one global toolbar hide. Taken before the same-turn
+    // show from a viewer close, so that show cannot flash the toolbar on.
     useLayoutEffect(() => {
         if (!is_host_visible || is_transitioning) return
 
         const current_scroll_y = active_view_remember_scroll
             ? (scroll_positions_ref.current[current_active_view_id] ?? window.scrollY)
             : window.scrollY
-        const is_visible = evaluate_toolbar_visibility(should_hide_toolbar, current_scroll_y)
-        view_switcher_controller.set_toolbar_visible(switcher_instance_id, is_visible)
+        sync_toolbar_hold(should_hide_toolbar, current_scroll_y)
     }, [
         is_host_visible,
         current_active_view_id,
         active_view_remember_scroll,
         is_transitioning,
         should_hide_toolbar,
-        switcher_instance_id
+        sync_toolbar_hold
     ])
+
+    useEffect(() => {
+        return () => release_toolbar_hold()
+    }, [release_toolbar_hold])
 
     // Controller integration
     const { is_toolbar_visible, has_other_transitioning } = useViewSwitcher(switcher_instance_id)
@@ -221,15 +243,16 @@ export function ViewSwitcher<T extends string = string>({
     useEffect(() => {
         const handle_switch = (e: Event) => {
             const custom_event = e as CustomEvent<{ switcher_id: string; view_id: string }>
-            if (custom_event.detail && custom_event.detail.switcher_id === switcher_instance_id) {
-                switch_view(custom_event.detail.view_id)
-            }
+            if (!custom_event.detail || custom_event.detail.switcher_id !== switcher_instance_id) return
+            const target = views.find((view) => view.id === custom_event.detail.view_id)
+            if (target) sync_toolbar_hold(target.should_hide_toolbar, window.scrollY)
+            switch_view(custom_event.detail.view_id)
         }
         view_switcher_controller.addEventListener("switch_view", handle_switch)
         return () => {
             view_switcher_controller.removeEventListener("switch_view", handle_switch)
         }
-    }, [switcher_instance_id, switch_view])
+    }, [switcher_instance_id, switch_view, views, sync_toolbar_hold])
 
     // Toolbar navigation button click handler
     const handle_toolbar_click = (view_id: T): boolean => {
