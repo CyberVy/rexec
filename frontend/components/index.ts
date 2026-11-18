@@ -61,9 +61,11 @@ export {
     view_switcher_controller,
     ViewSwitcherController,
     useViewSwitcher,
-    useViewSwitcherRegistry
+    useViewSwitcherRegistry,
+    is_native_toolbar_active
 } from "./composite/ViewSwitcher"
 export type {
+    NativeToolbarConfig,
     View,
     ViewSwitcherProps,
     ViewSwitcherState,

@@ -14,16 +14,17 @@ export function ViewSwitcherToolbar<T extends string>({
     is_toolbar_visible,
     is_navigation_disabled,
     on_view_select,
-    toolbar_layout,
-    toolbar_extra_actions,
-    toolbar_className,
-    toolbar_item_className
+    toolbar_layout
 }: ViewSwitcherToolbarProps<T>) {
     const is_top = toolbar_layout === "top-floating"
-    const padding_class = is_top ? "p-0.5" : "p-1"
+    // Bottom width is 220px: 64px cells plus 14px of padding and border on each side.
+    const padding_class = is_top ? "p-0.5" : "px-[9px] py-1"
     const items_spacing_class = is_top ? "p-0.5 gap-0.5" : "p-1"
     const item_radius_class = is_top ? "rounded-[14px]" : "rounded-[18px]"
-    const item_size_class = is_top ? "w-16 h-7" : "w-16 h-10"
+    // Bottom capsule is 61px: 43px cell, 8px padding on each side, and a 1px border.
+    // That matches the native glass height. Top cells follow the label between 80px and 120px.
+    const item_size_class = is_top ? "w-[clamp(80px,22vw,120px)] h-7" : "w-16 h-[43px]"
+    const glyph_class = is_top ? "" : "[&_svg]:!size-[25px]"
 
     return (
         <div
@@ -35,73 +36,64 @@ export function ViewSwitcherToolbar<T extends string>({
                 padding_class,
                 "border border-black/10 dark:border-white/10 shadow-lg",
                 styles["viewswitcher-toolbar"],
-                !is_toolbar_visible && styles["toolbar-hidden"],
-                toolbar_className
+                !is_toolbar_visible && styles["toolbar-hidden"]
             )}
         >
-            <div className={join_classes("rounded-full border border-black/10 dark:border-white/10", padding_class)}>
-                <div
-                    className={join_classes(
-                        "inline-flex flex-row items-center bg-background/0! backdrop-blur-none!",
-                        items_spacing_class
-                    )}
-                >
-                    {views.map((view) => {
-                        const is_active = view.id === active_view_id
-                        const text_class = is_active ? "text-black dark:text-white" : "text-black/50 dark:text-white/50"
-                        return (
-                            <button
-                                key={view.id}
-                                type="button"
-                                className="focus-visible:outline-none disabled:pointer-events-none"
-                                disabled={is_navigation_disabled || is_active}
-                                onClick={() => on_view_select(view.id)}
-                            >
-                                <HapticContainer>
-                                    <span
-                                        className={join_classes(
-                                            "relative align-middle inline-block px-4 overflow-hidden",
-                                            item_radius_class,
-                                            "transition duration-300 ease-in-out hover:cursor-pointer",
-                                            toolbar_item_className ?? item_size_class
-                                        )}
-                                    >
-                                        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap">
-                                            <span
-                                                className={join_classes(
-                                                    "flex flex-col items-center justify-center transition-all",
-                                                    text_class
-                                                )}
-                                            >
-                                                {view.icon}
-                                                {view.label && (
-                                                    <span
-                                                        className={join_classes(
-                                                            view.icon
-                                                                ? "text-[9px] mt-0.5 font-medium"
-                                                                : "text-[10px] sm:text-xs font-semibold",
-                                                            is_active && !view.icon ? "font-bold" : ""
-                                                        )}
-                                                    >
-                                                        {view.label}
-                                                    </span>
-                                                )}
-                                            </span>
+            <div
+                className={join_classes(
+                    "inline-flex flex-row items-center bg-background/0! backdrop-blur-none!",
+                    items_spacing_class
+                )}
+            >
+                {views.map((view) => {
+                    const is_active = view.id === active_view_id
+                    const text_class = is_active ? "text-black dark:text-white" : "text-black/50 dark:text-white/50"
+                    return (
+                        <button
+                            key={view.id}
+                            type="button"
+                            className="focus-visible:outline-none disabled:pointer-events-none"
+                            disabled={is_navigation_disabled || is_active}
+                            onClick={() => on_view_select(view.id)}
+                        >
+                            <HapticContainer>
+                                <span
+                                    className={join_classes(
+                                        "relative align-middle inline-block px-4 overflow-hidden",
+                                        item_radius_class,
+                                        "transition duration-300 ease-in-out hover:cursor-pointer",
+                                        item_size_class
+                                    )}
+                                >
+                                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap">
+                                        <span
+                                            className={join_classes(
+                                                "flex flex-col items-center justify-center transition-all",
+                                                glyph_class,
+                                                text_class
+                                            )}
+                                        >
+                                            {view.icon}
+                                            {view.label && (
+                                                <span
+                                                    className={join_classes(
+                                                        view.icon
+                                                            ? "text-[10px] mt-0.5 font-medium leading-none"
+                                                            : "text-[10px] sm:text-xs font-semibold",
+                                                        is_active && !view.icon ? "font-bold" : ""
+                                                    )}
+                                                >
+                                                    {view.label}
+                                                </span>
+                                            )}
                                         </span>
                                     </span>
-                                </HapticContainer>
-                            </button>
-                        )
-                    })}
-                </div>
+                                </span>
+                            </HapticContainer>
+                        </button>
+                    )
+                })}
             </div>
-
-            {toolbar_extra_actions && (
-                <>
-                    <div className="w-px h-6 bg-black/15 dark:bg-white/15" />
-                    <div className="flex items-center justify-center">{toolbar_extra_actions}</div>
-                </>
-            )}
         </div>
     )
 }

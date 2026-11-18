@@ -34,6 +34,7 @@ export default function App() {
                         {
                             id: "terminal",
                             icon: <TerminalIcon className="size-5" />,
+                            native_toolbar: { icon: "terminal" },
                             label: "Terminal",
                             swipe_enabled: true,
                             content: <TerminalView />,
@@ -42,6 +43,7 @@ export default function App() {
                         {
                             id: "exec",
                             icon: <ExecIcon className="size-5" />,
+                            native_toolbar: { icon: "bolt.fill" },
                             label: "Exec",
                             swipe_enabled: true,
                             content: <ExecView />,
@@ -50,6 +52,7 @@ export default function App() {
                         {
                             id: "nodes",
                             icon: <NodesIcon className="size-5" />,
+                            native_toolbar: { icon: "server.rack" },
                             label: "Nodes",
                             swipe_enabled: true,
                             content: <NodesView />

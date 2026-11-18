@@ -6,6 +6,7 @@ import { useMergedRef } from "@/components/hooks"
 import { join_classes } from "@/components/utils"
 import { view_switcher_controller } from "./ViewSwitcherController"
 import { useViewSwitcher } from "./useViewSwitcher"
+import { is_native_toolbar_active, useNativeToolbar } from "./native_toolbar"
 import { ViewSwitcherToolbar } from "./ViewSwitcherToolbar"
 import {
     useViewSwipeGesture,
@@ -40,10 +41,7 @@ export function ViewSwitcher<T extends string = string>({
     on_view_change,
     keep_alive_default = false,
     remember_scroll = true,
-    toolbar_extra_actions,
     className,
-    toolbar_className,
-    toolbar_item_className,
     toolbar_layout = "bottom-floating",
     ref,
     ...props
@@ -222,6 +220,18 @@ export function ViewSwitcher<T extends string = string>({
         commit_view_change(view_id)
     }
 
+    const native_toolbar_active = is_native_toolbar_active()
+    useNativeToolbar({
+        enabled: native_toolbar_active,
+        switcher_id: switcher_instance_id,
+        layout: toolbar_layout,
+        views,
+        active_id: current_active_view_id,
+        visible: is_toolbar_visible,
+        interaction_enabled: !(is_transitioning || has_other_transitioning),
+        on_select: handle_toolbar_click
+    })
+
     return (
         <div
             ref={set_container_element_ref}
@@ -265,17 +275,16 @@ export function ViewSwitcher<T extends string = string>({
                 />
             )}
 
-            <ViewSwitcherToolbar
-                views={views}
-                active_view_id={current_active_view_id}
-                is_toolbar_visible={is_toolbar_visible}
-                is_navigation_disabled={is_transitioning || has_other_transitioning}
-                on_view_select={handle_toolbar_click}
-                toolbar_layout={toolbar_layout}
-                toolbar_extra_actions={toolbar_extra_actions}
-                toolbar_className={toolbar_className}
-                toolbar_item_className={toolbar_item_className}
-            />
+            {native_toolbar_active ? null : (
+                <ViewSwitcherToolbar
+                    views={views}
+                    active_view_id={current_active_view_id}
+                    is_toolbar_visible={is_toolbar_visible}
+                    is_navigation_disabled={is_transitioning || has_other_transitioning}
+                    on_view_select={handle_toolbar_click}
+                    toolbar_layout={toolbar_layout}
+                />
+            )}
         </div>
     )
 }
