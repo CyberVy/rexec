@@ -140,11 +140,11 @@ export function ViewSwitcher<T extends string = string>({
         scroll_positions_ref.current[current_active_view_id] = target_scroll_y
 
         is_switching_view_ref.current = false
-    }, [current_active_view_id, active_view_remember_scroll, is_transitioning])
+    }, [is_host_visible, current_active_view_id, active_view_remember_scroll, is_transitioning])
 
     // Sync toolbar visibility independently so rule updates never trigger unexpected scrollTo jumps
     useLayoutEffect(() => {
-        if (is_transitioning) return
+        if (!is_host_visible || is_transitioning) return
 
         const current_scroll_y = active_view_remember_scroll
             ? (scroll_positions_ref.current[current_active_view_id] ?? window.scrollY)
@@ -152,6 +152,7 @@ export function ViewSwitcher<T extends string = string>({
         const is_visible = evaluate_toolbar_visibility(should_hide_toolbar, current_scroll_y)
         view_switcher_controller.set_toolbar_visible(switcher_instance_id, is_visible)
     }, [
+        is_host_visible,
         current_active_view_id,
         active_view_remember_scroll,
         is_transitioning,
@@ -184,8 +185,8 @@ export function ViewSwitcher<T extends string = string>({
         })
     }, [switcher_instance_id])
 
-    // Keep controller synchronized with instance transition and active view states
-    useEffect(() => {
+    // Keep controller synchronized pre-effect so sibling/child switchers see settled transition flags on first sync
+    useLayoutEffect(() => {
         view_switcher_controller.update_instance(switcher_instance_id, {
             is_transitioning,
             active_view_id: current_active_view_id,

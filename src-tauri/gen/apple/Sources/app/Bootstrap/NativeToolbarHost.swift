@@ -52,6 +52,8 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
 
     private var bottomVisible: Bool?
     private var topVisible: Bool?
+    private var bottomAnimator: UIViewPropertyAnimator?
+    private var topAnimator: UIViewPropertyAnimator?
     private var bottomSwitcherId: String?
     private var topSwitcherId: String?
     private var bottomInteractionEnabled = true
@@ -160,11 +162,12 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         let interactionEnabled = boolValue(body["interaction_enabled"])
 
         if layout == "top-floating" {
+            let shouldShow = visible && !items.isEmpty
             topSwitcherId = switcherId
             topInteractionEnabled = interactionEnabled
             rebuildSegments(items: items, activeId: activeId)
-            topControl.isEnabled = interactionEnabled
-            setTopVisible(visible && !items.isEmpty, animated: topVisible != nil)
+            setTopVisible(shouldShow, animated: topVisible != nil)
+            topControl.isUserInteractionEnabled = shouldShow && interactionEnabled
         } else {
             bottomSwitcherId = switcherId
             bottomInteractionEnabled = interactionEnabled
@@ -230,16 +233,38 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     private func setBottomVisible(_ visible: Bool, animated: Bool) {
         guard bottomVisible != visible else { return }
         bottomVisible = visible
-        animate(bottomStack, visible: visible, downward: true, animated: animated)
+        bottomAnimator = animate(
+            bottomStack,
+            currentAnimator: bottomAnimator,
+            visible: visible,
+            downward: true,
+            animated: animated
+        )
     }
 
     private func setTopVisible(_ visible: Bool, animated: Bool) {
         guard topVisible != visible else { return }
         topVisible = visible
-        animate(topControl, visible: visible, downward: false, animated: animated)
+        topAnimator = animate(
+            topControl,
+            currentAnimator: topAnimator,
+            visible: visible,
+            downward: false,
+            animated: animated
+        )
     }
 
-    private func animate(_ view: UIView, visible: Bool, downward: Bool, animated: Bool) {
+    private func animate(
+        _ view: UIView,
+        currentAnimator: UIViewPropertyAnimator?,
+        visible: Bool,
+        downward: Bool,
+        animated: Bool
+    ) -> UIViewPropertyAnimator? {
+        if let currentAnimator, currentAnimator.state == .active {
+            currentAnimator.stopAnimation(false)
+            currentAnimator.finishAnimation(at: .current)
+        }
         let offset: CGFloat = downward ? 80 : -80
         let hidden = CGAffineTransform(translationX: 0, y: offset).scaledBy(x: 0.9, y: 0.9)
         view.isUserInteractionEnabled = visible
@@ -249,7 +274,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         }
         guard animated else {
             changes()
-            return
+            return nil
         }
         let animator = UIViewPropertyAnimator(
             duration: 0.3,
@@ -258,6 +283,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         )
         animator.addAnimations(changes)
         animator.startAnimation()
+        return animator
     }
 
     private func emit(_ payload: [String: String]) {
