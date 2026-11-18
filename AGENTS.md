@@ -50,6 +50,7 @@
     - `capabilities/`: Tauri capability allowlists.
     - `tauri.conf.json`, `tauri.ios.conf.json`: Platform configs.
 - `cli/`: Local developer tools and debug channel.
+    - `ios/`: Terminal unsigned IPA builder, Apple ID sideload signer (`isideload`), and iOS device installer.
     - `debug/`:
         - Remote engine black-box end-to-end debugging harness and automated test matrix (`serve.ts`, `tests/`).
         - Frontend debug bridge (`plugin.ts`, `host/`, `browser/`, `shared/`, `checks/`) for host-to-browser agent communication and UI debugging.

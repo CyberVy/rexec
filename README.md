@@ -300,6 +300,28 @@ Options:
 
 ---
 
+## iOS Sideload & Device Install
+
+Build an unsigned iOS IPA, sign it with an Apple ID via [`isideload`](https://github.com/nab138/isideload), and install it onto a connected iOS device from the terminal without opening the Xcode GUI (Xcode must still be installed for `xcodebuild`).
+
+```bash
+# List connected iPhones/iPads and verify Trust/pairing status
+npm run ios:devices
+
+# Build an unsigned IPA (src-tauri/target/ios/Rexec.ipa) without opening Xcode
+npm run ios:build
+
+# Sign and install onto a connected device (auto-builds if no IPA is present)
+npm run ios:install
+```
+
+- Pass `-- --build` to `npm run ios:install` to force a fresh build before signing and installing.
+- Pass `-- --device 1` (1-based index or UDID prefix) to skip device selection when multiple devices are connected.
+- Pass an explicit `.ipa` or `.app` path as a positional argument to install a specific build.
+- Signing state, Anisette state, and saved preferences (`apple_id`, `team_id`) are stored in `~/.rexec/ios` (`0700`); your Apple ID password is cached in macOS Keychain after a successful login (`--reauth` forces a fresh password prompt). Rust 1.89 or newer is required.
+
+---
+
 ## Development & Testing
 
 ```bash
