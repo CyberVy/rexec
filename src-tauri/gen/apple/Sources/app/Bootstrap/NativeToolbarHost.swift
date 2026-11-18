@@ -56,8 +56,11 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     private var topAnimator: UIViewPropertyAnimator?
     private var bottomSwitcherId: String?
     private var topSwitcherId: String?
+    private var bottomActiveId: String?
+    private var topActiveId: String?
     private var bottomInteractionEnabled = true
     private var topInteractionEnabled = true
+    private var bottomIconNames: [String] = []
     private var topSegmentIds: [String] = []
     private var tabBarWidth: NSLayoutConstraint?
     private var isApplyingSync = false
@@ -85,7 +88,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
         guard bottomInteractionEnabled, let switcherId = bottomSwitcherId else { return }
-        guard let viewId = item.accessibilityIdentifier, !viewId.isEmpty else { return }
+        guard let viewId = item.accessibilityIdentifier, !viewId.isEmpty, viewId != bottomActiveId else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         emit(["type": "select", "switcher_id": switcherId, "view_id": viewId])
     }
@@ -146,10 +149,12 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
             let animated = optionalBoolValue(body["animated"]) ?? true
             if switcherId == bottomSwitcherId {
                 bottomSwitcherId = nil
+                bottomActiveId = nil
                 setBottomVisible(false, animated: animated)
             }
             if switcherId == topSwitcherId {
                 topSwitcherId = nil
+                topActiveId = nil
                 setTopVisible(false, animated: animated)
             }
             return
@@ -166,6 +171,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
             let shouldShow = visible && !items.isEmpty
             let animated = optionalBoolValue(body["animated"]) ?? (topVisible != nil)
             topSwitcherId = switcherId
+            topActiveId = activeId
             topInteractionEnabled = interactionEnabled
             rebuildSegments(items: items, activeId: activeId)
             setTopVisible(shouldShow, animated: animated)
@@ -173,6 +179,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         } else {
             let animated = optionalBoolValue(body["animated"]) ?? (bottomVisible != nil)
             bottomSwitcherId = switcherId
+            bottomActiveId = activeId
             bottomInteractionEnabled = interactionEnabled
             rebuildTabs(items: items, activeId: activeId)
             tabBar.isUserInteractionEnabled = interactionEnabled
@@ -183,23 +190,36 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     private func rebuildTabs(items: [[String: Any]], activeId: String) {
         let currentIds = tabBar.items?.compactMap(\.accessibilityIdentifier) ?? []
         let nextIds = items.compactMap { $0["id"] as? String }
+        let nextIcons = items.map { $0["icon"] as? String ?? "" }
         if currentIds != nextIds {
+            bottomIconNames = nextIcons
             tabBar.items = items.enumerated().map { index, item in
-                let icon_name = item["icon"] as? String ?? ""
-                let image = icon_name.isEmpty ? nil : UIImage(systemName: icon_name)
+                let iconName = nextIcons[index]
+                let image = iconName.isEmpty ? nil : UIImage(systemName: iconName)
                 let tab = UITabBarItem(title: item["label"] as? String ?? "", image: image, tag: index)
                 tab.accessibilityIdentifier = item["id"] as? String
                 return tab
             }
             tabBarWidth?.constant = BottomToolbarMetrics.frameWidth(itemCount: items.count)
         } else if let tabs = tabBar.items, tabs.count == items.count {
-            for (tab, item) in zip(tabs, items) {
-                tab.title = item["label"] as? String ?? ""
+            for (index, (tab, item)) in zip(tabs, items).enumerated() {
+                let title = item["label"] as? String ?? ""
+                if tab.title != title {
+                    tab.title = title
+                }
+                let iconName = nextIcons[index]
+                if index >= bottomIconNames.count || bottomIconNames[index] != iconName {
+                    tab.image = iconName.isEmpty ? nil : UIImage(systemName: iconName)
+                }
             }
+            bottomIconNames = nextIcons
         }
-        if let selected = tabBar.items?.first(where: { $0.accessibilityIdentifier == activeId }),
-           tabBar.selectedItem !== selected {
-            tabBar.selectedItem = selected
+        if let selected = tabBar.items?.first(where: { $0.accessibilityIdentifier == activeId }) {
+            if tabBar.selectedItem !== selected {
+                tabBar.selectedItem = selected
+            }
+        } else if tabBar.selectedItem != nil {
+            tabBar.selectedItem = nil
         }
     }
 
@@ -215,9 +235,15 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
                 topControl.insertSegment(withTitle: title, at: index, animated: false)
             }
         }
-        if let index = ids.firstIndex(of: activeId), topControl.selectedSegmentIndex != index {
+        if let index = ids.firstIndex(of: activeId) {
+            if topControl.selectedSegmentIndex != index {
+                isApplyingSync = true
+                topControl.selectedSegmentIndex = index
+                isApplyingSync = false
+            }
+        } else if topControl.selectedSegmentIndex != UISegmentedControl.noSegment {
             isApplyingSync = true
-            topControl.selectedSegmentIndex = index
+            topControl.selectedSegmentIndex = UISegmentedControl.noSegment
             isApplyingSync = false
         }
     }
@@ -225,10 +251,9 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     @objc private func handleSegmentChange() {
         guard !isApplyingSync, topInteractionEnabled, let switcherId = topSwitcherId else { return }
         let index = topControl.selectedSegmentIndex
-        guard index >= 0 else { return }
-        // Segment titles are display text. The web id is recovered from the latest sync via accessibility on the segment.
-        guard index < topSegmentIds.count else { return }
+        guard index >= 0, index < topSegmentIds.count else { return }
         let viewId = topSegmentIds[index]
+        guard viewId != topActiveId else { return }
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         emit(["type": "select", "switcher_id": switcherId, "view_id": viewId])
     }

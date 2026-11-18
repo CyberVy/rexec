@@ -96,10 +96,11 @@ export function useNativeToolbar<T extends string>({
     active_id: T
     visible: boolean
     interaction_enabled: boolean
-    on_select: (view_id: T) => void
+    on_select: (view_id: T) => boolean | void
 }) {
     const on_select_ref = useRef(on_select)
     const snapshot_ref = useRef("")
+    const latest_sync_ref = useRef<NativeToolbarSync | null>(null)
     const was_enabled_ref = useRef(false)
     const latest_host_transitioning_ref = useRef(host_transitioning)
     const prev_host_transitioning_ref = useRef(host_transitioning)
@@ -116,11 +117,15 @@ export function useNativeToolbar<T extends string>({
         if (!enabled) return
         ensure_dispatch()
         select_handlers.set(switcher_id, (view_id) => {
-            on_select_ref.current(view_id as T)
+            const accepted = on_select_ref.current(view_id as T)
+            if (accepted === false && latest_sync_ref.current) {
+                post_toolbar_message(latest_sync_ref.current)
+            }
         })
         return () => {
             select_handlers.delete(switcher_id)
             snapshot_ref.current = ""
+            latest_sync_ref.current = null
             was_enabled_ref.current = false
             post_toolbar_message({
                 type: "remove",
@@ -135,6 +140,11 @@ export function useNativeToolbar<T extends string>({
         // Animate on initial show only when settling from a host swipe; keep later visible toggles animated.
         const animated = was_enabled_ref.current || prev_host_transitioning_ref.current || host_transitioning
         was_enabled_ref.current = true
+        const items = views.map((view) => ({
+            id: view.id,
+            label: native_item_label(view.label),
+            icon: view.native_toolbar?.icon ?? ""
+        }))
         const message: NativeToolbarSync = {
             type: "sync",
             switcher_id,
@@ -143,15 +153,19 @@ export function useNativeToolbar<T extends string>({
             animated,
             interaction_enabled,
             active_id,
-            items: views.map((view) => ({
-                id: view.id,
-                label: native_item_label(view.label),
-                icon: view.native_toolbar?.icon ?? ""
-            }))
+            items
         }
-        const encoded = JSON.stringify(message)
-        if (snapshot_ref.current === encoded) return
-        snapshot_ref.current = encoded
+        latest_sync_ref.current = message
+        const state_snapshot = JSON.stringify({
+            switcher_id,
+            layout,
+            visible,
+            interaction_enabled,
+            active_id,
+            items
+        })
+        if (snapshot_ref.current === state_snapshot) return
+        snapshot_ref.current = state_snapshot
         post_toolbar_message(message)
     }, [enabled, host_transitioning, switcher_id, layout, views, active_id, visible, interaction_enabled])
 

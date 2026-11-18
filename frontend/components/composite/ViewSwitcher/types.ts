@@ -52,6 +52,8 @@ export type ViewSwitcherProps<T extends string = string> = Omit<
     remember_scroll?: boolean
     /** Layout positioning: bottom floating (default) or top floating */
     toolbar_layout?: "bottom-floating" | "top-floating"
+    /** Suppress floating toolbars for this switcher and nested switchers (e.g. during launch splash) */
+    toolbar_hidden?: boolean
 }
 
 export type ViewSwitcherToolbarProps<T extends string> = Pick<ViewSwitcherProps<T>, "views" | "toolbar_layout"> & {

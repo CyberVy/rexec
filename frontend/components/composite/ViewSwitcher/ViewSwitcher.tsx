@@ -19,11 +19,13 @@ import type { ViewSwitcherProps } from "./types"
 interface HostVisibilityContextValue {
     is_visible: boolean
     is_transitioning: boolean
+    is_toolbar_hidden: boolean
 }
 
 const ViewSwitcherHostVisibilityContext = createContext<HostVisibilityContextValue>({
     is_visible: true,
-    is_transitioning: false
+    is_transitioning: false,
+    is_toolbar_hidden: false
 })
 
 /**
@@ -53,14 +55,17 @@ export function ViewSwitcher<T extends string = string>({
     remember_scroll = true,
     className,
     toolbar_layout = "bottom-floating",
+    toolbar_hidden = false,
     ref,
     ...props
 }: ViewSwitcherProps<T>) {
     const fallback_id = useId()
     const switcher_instance_id = id ?? fallback_id
-    const { is_visible: is_host_visible, is_transitioning: is_host_transitioning } = useContext(
-        ViewSwitcherHostVisibilityContext
-    )
+    const {
+        is_visible: is_host_visible,
+        is_transitioning: is_host_transitioning,
+        is_toolbar_hidden: is_host_toolbar_hidden
+    } = useContext(ViewSwitcherHostVisibilityContext)
 
     // State setup: controlled vs uncontrolled active view ID
     const [internal_active_view_id, set_internal_active_view_id] = useState<T>(default_active_view_id ?? views[0]?.id)
@@ -227,17 +232,19 @@ export function ViewSwitcher<T extends string = string>({
     }, [switcher_instance_id, switch_view])
 
     // Toolbar navigation button click handler
-    const handle_toolbar_click = (view_id: T) => {
-        if (is_transitioning || view_id === current_active_view_id) return
-        if (is_in_overscroll()) return
-        if (has_other_transitioning) return
+    const handle_toolbar_click = (view_id: T): boolean => {
+        if (is_transitioning || view_id === current_active_view_id) return false
+        if (is_in_overscroll()) return false
+        if (has_other_transitioning) return false
 
         commit_view_change(view_id)
+        return true
     }
 
+    const is_effective_toolbar_hidden = is_host_toolbar_hidden || toolbar_hidden
     const native_toolbar_active = is_native_toolbar_active()
     useNativeToolbar({
-        enabled: native_toolbar_active && is_host_visible,
+        enabled: native_toolbar_active && is_host_visible && !is_effective_toolbar_hidden,
         host_transitioning: is_host_transitioning,
         switcher_id: switcher_instance_id,
         layout: toolbar_layout,
@@ -271,7 +278,11 @@ export function ViewSwitcher<T extends string = string>({
                 return (
                     <ViewSwitcherHostVisibilityContext
                         key={view.id}
-                        value={{ is_visible: is_panel_visible, is_transitioning: is_subtree_transitioning }}
+                        value={{
+                            is_visible: is_panel_visible,
+                            is_transitioning: is_subtree_transitioning,
+                            is_toolbar_hidden: is_effective_toolbar_hidden
+                        }}
                     >
                         <ViewSwitcherPanel
                             view_id={view.id}
@@ -302,7 +313,7 @@ export function ViewSwitcher<T extends string = string>({
                 />
             )}
 
-            {native_toolbar_active ? null : (
+            {native_toolbar_active || is_effective_toolbar_hidden ? null : (
                 <ViewSwitcherToolbar
                     views={views}
                     active_view_id={current_active_view_id}
