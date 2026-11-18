@@ -16,7 +16,15 @@ import {
 } from "./useViewSwipeGesture"
 import type { ViewSwitcherProps } from "./types"
 
-const ViewSwitcherHostVisibilityContext = createContext(true)
+interface HostVisibilityContextValue {
+    is_visible: boolean
+    is_transitioning: boolean
+}
+
+const ViewSwitcherHostVisibilityContext = createContext<HostVisibilityContextValue>({
+    is_visible: true,
+    is_transitioning: false
+})
 
 /**
  * ARCHITECTURAL DESIGN NOTE: Window Scroll vs. Container Scroll on iOS Safari
@@ -50,7 +58,9 @@ export function ViewSwitcher<T extends string = string>({
 }: ViewSwitcherProps<T>) {
     const fallback_id = useId()
     const switcher_instance_id = id ?? fallback_id
-    const is_host_visible = useContext(ViewSwitcherHostVisibilityContext)
+    const { is_visible: is_host_visible, is_transitioning: is_host_transitioning } = useContext(
+        ViewSwitcherHostVisibilityContext
+    )
 
     // State setup: controlled vs uncontrolled active view ID
     const [internal_active_view_id, set_internal_active_view_id] = useState<T>(default_active_view_id ?? views[0]?.id)
@@ -228,6 +238,7 @@ export function ViewSwitcher<T extends string = string>({
     const native_toolbar_active = is_native_toolbar_active()
     useNativeToolbar({
         enabled: native_toolbar_active && is_host_visible,
+        host_transitioning: is_host_transitioning,
         switcher_id: switcher_instance_id,
         layout: toolbar_layout,
         views,
@@ -236,6 +247,8 @@ export function ViewSwitcher<T extends string = string>({
         interaction_enabled: !(is_transitioning || has_other_transitioning),
         on_select: handle_toolbar_click
     })
+
+    const is_subtree_transitioning = is_host_transitioning || is_transitioning
 
     return (
         <div
@@ -256,7 +269,10 @@ export function ViewSwitcher<T extends string = string>({
                     is_host_visible && transition_state.status === "idle" && view.id === current_active_view_id
 
                 return (
-                    <ViewSwitcherHostVisibilityContext key={view.id} value={is_panel_visible}>
+                    <ViewSwitcherHostVisibilityContext
+                        key={view.id}
+                        value={{ is_visible: is_panel_visible, is_transitioning: is_subtree_transitioning }}
+                    >
                         <ViewSwitcherPanel
                             view_id={view.id}
                             on_element_ref={set_view_element}

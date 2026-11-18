@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useLayoutEffect, useRef } from "react"
 import type { ReactNode } from "react"
 import type { View } from "./types"
 
@@ -17,6 +17,7 @@ interface NativeToolbarSync {
     switcher_id: string
     layout: NativeToolbarLayout
     visible: boolean
+    animated: boolean
     interaction_enabled: boolean
     active_id: string
     items: NativeToolbarItem[]
@@ -25,6 +26,7 @@ interface NativeToolbarSync {
 interface NativeToolbarRemove {
     type: "remove"
     switcher_id: string
+    animated: boolean
 }
 
 interface NativeToolbarSelect {
@@ -77,6 +79,7 @@ function native_item_label(label: ReactNode): string {
 
 export function useNativeToolbar<T extends string>({
     enabled,
+    host_transitioning = false,
     switcher_id,
     layout,
     views,
@@ -86,6 +89,7 @@ export function useNativeToolbar<T extends string>({
     on_select
 }: {
     enabled: boolean
+    host_transitioning?: boolean
     switcher_id: string
     layout: NativeToolbarLayout
     views: View<T>[]
@@ -96,10 +100,17 @@ export function useNativeToolbar<T extends string>({
 }) {
     const on_select_ref = useRef(on_select)
     const snapshot_ref = useRef("")
+    const was_enabled_ref = useRef(false)
+    const latest_host_transitioning_ref = useRef(host_transitioning)
+    const prev_host_transitioning_ref = useRef(host_transitioning)
 
     useEffect(() => {
         on_select_ref.current = on_select
     }, [on_select])
+
+    useLayoutEffect(() => {
+        latest_host_transitioning_ref.current = host_transitioning
+    }, [host_transitioning])
 
     useEffect(() => {
         if (!enabled) return
@@ -110,17 +121,26 @@ export function useNativeToolbar<T extends string>({
         return () => {
             select_handlers.delete(switcher_id)
             snapshot_ref.current = ""
-            post_toolbar_message({ type: "remove", switcher_id })
+            was_enabled_ref.current = false
+            post_toolbar_message({
+                type: "remove",
+                switcher_id,
+                animated: latest_host_transitioning_ref.current
+            })
         }
     }, [enabled, switcher_id])
 
     useEffect(() => {
         if (!enabled) return
+        // Animate on initial show only when settling from a host swipe; keep later visible toggles animated.
+        const animated = was_enabled_ref.current || prev_host_transitioning_ref.current || host_transitioning
+        was_enabled_ref.current = true
         const message: NativeToolbarSync = {
             type: "sync",
             switcher_id,
             layout,
             visible,
+            animated,
             interaction_enabled,
             active_id,
             items: views.map((view) => ({
@@ -133,5 +153,9 @@ export function useNativeToolbar<T extends string>({
         if (snapshot_ref.current === encoded) return
         snapshot_ref.current = encoded
         post_toolbar_message(message)
-    }, [enabled, switcher_id, layout, views, active_id, visible, interaction_enabled])
+    }, [enabled, host_transitioning, switcher_id, layout, views, active_id, visible, interaction_enabled])
+
+    useEffect(() => {
+        prev_host_transitioning_ref.current = host_transitioning
+    }, [host_transitioning])
 }

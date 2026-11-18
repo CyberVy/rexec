@@ -143,13 +143,14 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         let type = body["type"] as? String ?? ""
         let switcherId = body["switcher_id"] as? String ?? ""
         if type == "remove" {
+            let animated = optionalBoolValue(body["animated"]) ?? true
             if switcherId == bottomSwitcherId {
                 bottomSwitcherId = nil
-                setBottomVisible(false, animated: true)
+                setBottomVisible(false, animated: animated)
             }
             if switcherId == topSwitcherId {
                 topSwitcherId = nil
-                setTopVisible(false, animated: true)
+                setTopVisible(false, animated: animated)
             }
             return
         }
@@ -163,17 +164,19 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
 
         if layout == "top-floating" {
             let shouldShow = visible && !items.isEmpty
+            let animated = optionalBoolValue(body["animated"]) ?? (topVisible != nil)
             topSwitcherId = switcherId
             topInteractionEnabled = interactionEnabled
             rebuildSegments(items: items, activeId: activeId)
-            setTopVisible(shouldShow, animated: topVisible != nil)
+            setTopVisible(shouldShow, animated: animated)
             topControl.isUserInteractionEnabled = shouldShow && interactionEnabled
         } else {
+            let animated = optionalBoolValue(body["animated"]) ?? (bottomVisible != nil)
             bottomSwitcherId = switcherId
             bottomInteractionEnabled = interactionEnabled
             rebuildTabs(items: items, activeId: activeId)
             tabBar.isUserInteractionEnabled = interactionEnabled
-            setBottomVisible(visible && !items.isEmpty, animated: bottomVisible != nil)
+            setBottomVisible(visible && !items.isEmpty, animated: animated)
         }
     }
 
@@ -232,25 +235,29 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
 
     private func setBottomVisible(_ visible: Bool, animated: Bool) {
         guard bottomVisible != visible else { return }
+        let wasUnset = bottomVisible == nil
         bottomVisible = visible
         bottomAnimator = animate(
             bottomStack,
             currentAnimator: bottomAnimator,
             visible: visible,
             downward: true,
-            animated: animated
+            animated: animated,
+            prepareHiddenStart: wasUnset && visible && animated
         )
     }
 
     private func setTopVisible(_ visible: Bool, animated: Bool) {
         guard topVisible != visible else { return }
+        let wasUnset = topVisible == nil
         topVisible = visible
         topAnimator = animate(
             topControl,
             currentAnimator: topAnimator,
             visible: visible,
             downward: false,
-            animated: animated
+            animated: animated,
+            prepareHiddenStart: wasUnset && visible && animated
         )
     }
 
@@ -259,7 +266,8 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         currentAnimator: UIViewPropertyAnimator?,
         visible: Bool,
         downward: Bool,
-        animated: Bool
+        animated: Bool,
+        prepareHiddenStart: Bool
     ) -> UIViewPropertyAnimator? {
         if let currentAnimator, currentAnimator.state == .active {
             currentAnimator.stopAnimation(false)
@@ -275,6 +283,10 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         guard animated else {
             changes()
             return nil
+        }
+        if prepareHiddenStart {
+            view.superview?.layoutIfNeeded()
+            view.transform = hidden
         }
         let animator = UIViewPropertyAnimator(
             duration: 0.3,
@@ -293,7 +305,10 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     }
 
     private func boolValue(_ value: Any?) -> Bool {
-        if let number = value as? NSNumber { return number.boolValue }
-        return false
+        optionalBoolValue(value) ?? false
+    }
+
+    private func optionalBoolValue(_ value: Any?) -> Bool? {
+        (value as? NSNumber)?.boolValue
     }
 }
