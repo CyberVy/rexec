@@ -49,6 +49,7 @@
     - `Cargo.toml`: Rust package manifest.
     - `capabilities/`: Tauri capability allowlists.
     - `tauri.conf.json`, `tauri.ios.conf.json`: Platform configs.
+- `tools/ios-device/`: Terminal signer and installer for an unsigned iOS IPA. It uses the MIT-licensed `isideload` crate and does not open Xcode.
 - `cli/`: Local developer tools and debug channel.
     - `debug/`:
         - Remote engine black-box end-to-end debugging harness and automated test matrix (`serve.ts`, `tests/`).

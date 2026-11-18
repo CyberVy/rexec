@@ -300,6 +300,17 @@ Options:
 
 ---
 
+## iOS device install
+
+Xcode stays installed because `xcodebuild` compiles the app. Signing and installation run in the terminal through [`isideload`](https://github.com/nab138/isideload), so the Xcode window stays closed.
+
+```bash
+npm run tauri ios build -- --ci --target aarch64 --no-sign
+npm run ios:install
+```
+
+`npm run ios:devices` lists connected devices. `npm run ios:install -- --device 1` picks one without a second prompt, and an extra path argument selects the IPA. The command asks for an Apple ID and password, then the two-factor code. A free Apple ID signs the build for about 7 days and the installed bundle id keeps a stable Team ID suffix. The signing state is stored in `~/.rexec/ios`. Rust 1.89 or newer is required.
+
 ## Development & Testing
 
 ```bash

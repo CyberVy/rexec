@@ -46,7 +46,9 @@
     "lint": "oxlint src cli frontend extensions/vscode/src --deny-warnings",
     "format": "oxfmt src cli frontend extensions/vscode/src",
     "format:check": "oxfmt --check src cli frontend extensions/vscode/src",
-    "check": "concurrently \"oxlint src cli frontend extensions/vscode/src --deny-warnings\" \"npm run typecheck\""
+    "check": "concurrently \"oxlint src cli frontend extensions/vscode/src --deny-warnings\" \"npm run typecheck\"",
+    "ios:devices": "cargo run --manifest-path tools/ios-device/Cargo.toml -- devices",
+    "ios:install": "cargo run --manifest-path tools/ios-device/Cargo.toml -- install"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
