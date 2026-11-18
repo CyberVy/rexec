@@ -27,6 +27,7 @@ export default function App() {
                     id="rexec_view_switcher"
                     className="select-none"
                     toolbar_layout="bottom-floating"
+                    toolbar_hidden={show_launch_animation}
                     active_view_id={active_view}
                     on_view_change={set_active_view}
                     keep_alive_default={true}
@@ -34,6 +35,7 @@ export default function App() {
                         {
                             id: "terminal",
                             icon: <TerminalIcon className="size-5" />,
+                            native_toolbar: { icon: "terminal" },
                             label: "Terminal",
                             swipe_enabled: true,
                             content: <TerminalView />,
@@ -42,6 +44,7 @@ export default function App() {
                         {
                             id: "exec",
                             icon: <ExecIcon className="size-5" />,
+                            native_toolbar: { icon: "bolt.fill" },
                             label: "Exec",
                             swipe_enabled: true,
                             content: <ExecView />,
@@ -50,6 +53,7 @@ export default function App() {
                         {
                             id: "nodes",
                             icon: <NodesIcon className="size-5" />,
+                            native_toolbar: { icon: "server.rack" },
                             label: "Nodes",
                             swipe_enabled: true,
                             content: <NodesView />
