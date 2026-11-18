@@ -7,7 +7,9 @@ export {
     STATIC_EMPTY_VIEW_SWITCHER_STATE
 } from "./ViewSwitcherController"
 export { useViewSwitcher, useViewSwitcherRegistry } from "./useViewSwitcher"
+export { is_native_toolbar_active } from "./native_toolbar"
 export type {
+    NativeToolbarConfig,
     View,
     ViewSwitcherProps,
     ViewSwitcherToolbarProps,
