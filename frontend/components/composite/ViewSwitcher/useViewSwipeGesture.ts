@@ -19,13 +19,12 @@ export const RELEASE_TRANSITION_CSS = "transform 300ms cubic-bezier(0.4, 0, 0.2,
 export function resolve_swipe_start<T extends string>(
     transition_state: TransitionState<T>,
     current_active_view_id: T,
-    scroll_positions: Record<string, number>,
     window_scroll_y: number
 ): { view_id: T; scroll_y: number } {
     if (transition_state.status === "released" && transition_state.release.view_id) {
         return { view_id: transition_state.release.view_id, scroll_y: transition_state.release.scroll_y }
     }
-    return { view_id: current_active_view_id, scroll_y: scroll_positions[current_active_view_id] ?? window_scroll_y }
+    return { view_id: current_active_view_id, scroll_y: window_scroll_y }
 }
 
 export function resolve_swipe_release<T extends string>(
@@ -175,8 +174,8 @@ export function useViewSwipeGesture<T extends string>({
 }: UseViewSwipeGestureOptions<T>): UseViewSwipeGestureResult<T> {
     const [transition_state, set_transition_state] = useState<TransitionState<T>>({ status: "idle" })
     const [prev_active_view_id, set_prev_active_view_id] = useState<T>(current_active_view_id)
+    const transition_state_ref = useRef<TransitionState<T>>({ status: "idle" })
     const view_elements_ref = useRef<Record<string, HTMLDivElement | null>>({})
-    const swipe_gesture_ref = useRef<ReturnType<typeof create_swipe_gesture> | null>(null)
 
     if (prev_active_view_id !== current_active_view_id) {
         set_prev_active_view_id(current_active_view_id)
@@ -191,10 +190,12 @@ export function useViewSwipeGesture<T extends string>({
 
     const is_transitioning = transition_state.status !== "idle"
 
-    const sync_controller_transition = useCallback(
-        (next_is_transitioning: boolean) => {
+    const set_transition = useCallback(
+        (next: TransitionState<T>) => {
+            transition_state_ref.current = next
+            set_transition_state(next)
             view_switcher_controller.update_instance(switcher_instance_id, {
-                is_transitioning: next_is_transitioning
+                is_transitioning: next.status !== "idle"
             })
         },
         [switcher_instance_id]
@@ -202,10 +203,10 @@ export function useViewSwipeGesture<T extends string>({
 
     useLayoutEffect(() => {
         if (transition_state.status === "idle") {
-            swipe_gesture_ref.current?.reset_swipe()
-            sync_controller_transition(false)
+            transition_state_ref.current = transition_state
+            view_switcher_controller.update_instance(switcher_instance_id, { is_transitioning: false })
         }
-    }, [transition_state.status, sync_controller_transition])
+    }, [transition_state, switcher_instance_id])
 
     const set_view_element = useCallback((view_id: T, element: HTMLDivElement | null) => {
         if (element) view_elements_ref.current[view_id] = element
@@ -213,7 +214,6 @@ export function useViewSwipeGesture<T extends string>({
     }, [])
 
     const context_ref = useRef({
-        transition_state,
         current_active_view_id,
         views,
         active_view_index,
@@ -223,7 +223,6 @@ export function useViewSwipeGesture<T extends string>({
 
     useLayoutEffect(() => {
         context_ref.current = {
-            transition_state,
             current_active_view_id,
             views,
             active_view_index,
@@ -233,31 +232,29 @@ export function useViewSwipeGesture<T extends string>({
     })
 
     const reset_transition = useCallback(() => {
-        if (transition_state.status !== "idle") {
-            sync_controller_transition(false)
-            set_transition_state({ status: "idle" })
+        if (transition_state_ref.current.status !== "idle") {
+            set_transition({ status: "idle" })
         }
-    }, [transition_state.status, sync_controller_transition])
+    }, [set_transition])
 
     const handle_transition_end = useCallback(
         (e?: TransitionEvent) => {
             if (e && e.target !== e.currentTarget) return
-            if (transition_state.status === "idle") return
-            sync_controller_transition(false)
-            set_transition_state({ status: "idle" })
+            if (transition_state_ref.current.status === "released") {
+                set_transition({ status: "idle" })
+            }
         },
-        [transition_state.status, sync_controller_transition]
+        [set_transition]
     )
 
     // Safety fallback: ensure transition recovers to idle even if browser drops transitionend event
     useEffect(() => {
         if (transition_state.status !== "released") return
         const timer = setTimeout(() => {
-            sync_controller_transition(false)
-            set_transition_state({ status: "idle" })
+            set_transition({ status: "idle" })
         }, 350)
         return () => clearTimeout(timer)
-    }, [transition_state.status, sync_controller_transition])
+    }, [transition_state.status, set_transition])
 
     // Lock touchmove document scrolling while transition animation is active
     useEffect(() => {
@@ -277,7 +274,6 @@ export function useViewSwipeGesture<T extends string>({
         const swipe_gesture = create_swipe_gesture({
             enabled: (swipe_direction) => {
                 const {
-                    transition_state: current_ts,
                     active_swipe_enabled: swipe_enabled,
                     active_view_index: curr_idx,
                     views: all_views
@@ -288,11 +284,9 @@ export function useViewSwipeGesture<T extends string>({
 
                 if (view_switcher_controller.has_other_transitioning(switcher_instance_id)) return false
 
-                if (current_ts.status === "dragging") {
-                    // Recover from lost events on busy thread
-                    sync_controller_transition(false)
-                    set_transition_state({ status: "idle" })
-                    return false
+                if (transition_state_ref.current.status === "dragging") {
+                    // Recover from lost events without leaking the touch to an outer switcher
+                    set_transition({ status: "idle" })
                 }
 
                 if (!swipe_enabled) return false
@@ -302,18 +296,18 @@ export function useViewSwipeGesture<T extends string>({
                 return true
             },
             on_start: () => {
-                const {
-                    transition_state: current_ts,
-                    current_active_view_id: active_id,
-                    views: all_views
-                } = context_ref.current
+                const current_ts = transition_state_ref.current
+                const { current_active_view_id: active_id, views: all_views } = context_ref.current
 
                 const { view_id: resolved_id, scroll_y: active_scroll_y } = resolve_swipe_start(
                     current_ts,
                     active_id,
-                    scroll_positions_ref.current,
                     window.scrollY
                 )
+                if (current_ts.status === "idle") {
+                    scroll_positions_ref.current[resolved_id] = active_scroll_y
+                }
+
                 const active_idx = all_views.findIndex((v) => v.id === resolved_id)
                 if (active_idx === -1) return false
 
@@ -336,8 +330,7 @@ export function useViewSwipeGesture<T extends string>({
 
                 const container_width = container_element.clientWidth || window.innerWidth
 
-                sync_controller_transition(true)
-                set_transition_state({
+                set_transition({
                     status: "dragging",
                     active_view_id: resolved_id,
                     active_view_height: active_height,
@@ -353,7 +346,7 @@ export function useViewSwipeGesture<T extends string>({
                 return true
             },
             on_move: (delta_x) => {
-                const current_transition = context_ref.current.transition_state
+                const current_transition = transition_state_ref.current
                 if (current_transition.status !== "dragging") return
 
                 const { prev_view_id, next_view_id } = current_transition
@@ -365,15 +358,20 @@ export function useViewSwipeGesture<T extends string>({
                     next_view_id,
                     swipe_enabled
                 )
-                update_transition_elements(current_transition, view_elements_ref.current, effective_translation_x)
+                update_transition_elements(
+                    current_transition,
+                    view_elements_ref.current,
+                    effective_translation_x,
+                    "none"
+                )
             },
             on_end: (swipe_result) => {
-                const current_transition = context_ref.current.transition_state
+                const current_transition = transition_state_ref.current
                 if (current_transition.status === "idle") return
 
                 const release = resolve_swipe_release(current_transition, swipe_result)
                 const { prev_view_id, next_view_id } = current_transition
-                const { active_swipe_enabled: swipe_enabled } = context_ref.current
+                const { active_swipe_enabled: swipe_enabled, commit_view_change: commit } = context_ref.current
                 const current_translation_x = calculate_effective_translation_x(
                     swipe_result.diff_x,
                     prev_view_id,
@@ -382,19 +380,9 @@ export function useViewSwipeGesture<T extends string>({
                 )
 
                 if (Math.abs(current_translation_x - release.translation_x) < 1) {
-                    for (const view_id of [
-                        current_transition.active_view_id,
-                        prev_view_id || undefined,
-                        next_view_id || undefined
-                    ]) {
-                        const element = view_id === undefined ? null : view_elements_ref.current[view_id]
-                        if (element) element.style.transform = ""
-                    }
-
-                    sync_controller_transition(false)
-                    set_transition_state({ status: "idle" })
+                    set_transition({ status: "idle" })
                     if (release.outcome === "switch") {
-                        context_ref.current.commit_view_change(release.view_id)
+                        commit(release.view_id)
                     }
                     return
                 }
@@ -406,32 +394,20 @@ export function useViewSwipeGesture<T extends string>({
                     RELEASE_TRANSITION_CSS
                 )
 
-                sync_controller_transition(true)
-                set_transition_state((prev) =>
-                    prev.status === "idle"
-                        ? prev
-                        : {
-                              ...prev,
-                              status: "released",
-                              release
-                          }
-                )
+                set_transition({
+                    ...current_transition,
+                    status: "released",
+                    release
+                })
                 if (release.outcome === "switch") {
-                    context_ref.current.commit_view_change(release.view_id)
+                    commit(release.view_id)
                 }
             },
             stop_propagation: true
         })
 
-        swipe_gesture_ref.current = swipe_gesture
-        const unbind_swipe = swipe_gesture.bind(container_element)
-        return () => {
-            unbind_swipe()
-            if (swipe_gesture_ref.current === swipe_gesture) {
-                swipe_gesture_ref.current = null
-            }
-        }
-    }, [container_element_ref, switcher_instance_id, scroll_positions_ref, sync_controller_transition])
+        return swipe_gesture.bind(container_element)
+    }, [container_element_ref, switcher_instance_id, scroll_positions_ref, set_transition])
 
     return {
         transition_state,

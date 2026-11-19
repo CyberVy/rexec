@@ -158,14 +158,21 @@ export function ViewSwitcher<T extends string = string>({
         server_snapshot: INITIAL_VIEW_SWITCHER_STATE
     })
 
+    const save_active_scroll = useCallback(() => {
+        if (is_host_visible && !is_transitioning && active_view_remember_scroll) {
+            scroll_positions_ref.current[current_active_view_id] = window.scrollY
+        }
+    }, [is_host_visible, is_transitioning, active_view_remember_scroll, current_active_view_id])
+
     const switch_view = useCallback(
         (target_view_id: string) => {
             const target = views.find((v) => v.id === target_view_id)
             if (!target) return
+            save_active_scroll()
             reset_transition()
             commit_view_change(target.id)
         },
-        [views, reset_transition, commit_view_change]
+        [views, save_active_scroll, reset_transition, commit_view_change]
     )
 
     // Register instance with controller on mount
@@ -215,6 +222,7 @@ export function ViewSwitcher<T extends string = string>({
         if (!is_toolbar_interactive || view_id === current_active_view_id) return false
         if (is_in_overscroll()) return false
 
+        save_active_scroll()
         commit_view_change(view_id)
         return true
     }
@@ -285,6 +293,7 @@ export function ViewSwitcher<T extends string = string>({
                     style={{
                         height: Math.max(
                             transition_state.active_view_height,
+                            transition_state.active_view_scroll_y + transition_state.viewport_height,
                             (transition_state.prev_view_scroll_y ?? 0) + transition_state.viewport_height,
                             (transition_state.next_view_scroll_y ?? 0) + transition_state.viewport_height
                         )
