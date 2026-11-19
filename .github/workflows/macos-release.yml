@@ -1,0 +1,60 @@
+name: Release macOS
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS targets
+        run: |
+          rustup target add aarch64-apple-darwin
+          rustup target add x86_64-apple-darwin
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Build Tauri app (universal)
+        run: npm run tauri build -- --target universal-apple-darwin
+
+      - name: Package DMG bundle (universal)
+        run: zip -r macos-arm64-and-x86-dmg.zip target/universal-apple-darwin/release/bundle/dmg
+
+      - name: Build Tauri app (aarch64-apple-darwin)
+        run: npm run tauri build -- --target aarch64-apple-darwin
+
+      - name: Package DMG bundle (aarch64-apple-darwin)
+        run: zip -r macos-arm64-dmg.zip target/aarch64-apple-darwin/release/bundle/dmg
+
+      - name: Package frontend (dist)
+        run: zip -r frontend-macos-arm64.zip dist
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            macos-arm64-and-x86-dmg.zip
+            macos-arm64-dmg.zip
+            frontend-macos-arm64.zip

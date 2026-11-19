@@ -1,0 +1,177 @@
+name: Release iOS
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add iOS targets
+        run: |
+          rustup target add aarch64-apple-ios
+          rustup target add aarch64-apple-ios-sim
+          rustup target add x86_64-apple-ios
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Detect signing mode
+        id: signing_mode
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          if [[ -n "$IOS_CERTIFICATE_P12_BASE64" && -n "$IOS_CERTIFICATE_PASSWORD" && -n "$IOS_PROVISIONING_PROFILE_BASE64" ]]; then
+            echo "has_signing=true" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets detected. Building signed IPA."
+          elif [[ -z "$IOS_CERTIFICATE_P12_BASE64" && -z "$IOS_CERTIFICATE_PASSWORD" && -z "$IOS_PROVISIONING_PROFILE_BASE64" ]]; then
+            echo "has_signing=false" >> "$GITHUB_OUTPUT"
+            echo "Signing secrets missing. Building unsigned device app."
+          else
+            echo "Partial signing secrets detected. Please set all of IOS_CERTIFICATE_P12_BASE64, IOS_CERTIFICATE_PASSWORD, IOS_PROVISIONING_PROFILE_BASE64 or leave all empty."
+            exit 1
+          fi
+
+      - name: Detect TestFlight mode
+        id: testflight_mode
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          if [[ -n "$APP_STORE_CONNECT_API_KEY_ID" && -n "$APP_STORE_CONNECT_ISSUER_ID" && -n "$APP_STORE_CONNECT_API_PRIVATE_KEY" ]]; then
+            echo "has_testflight=true" >> "$GITHUB_OUTPUT"
+            echo "TestFlight secrets detected. Upload will run for signed builds."
+          elif [[ -z "$APP_STORE_CONNECT_API_KEY_ID" && -z "$APP_STORE_CONNECT_ISSUER_ID" && -z "$APP_STORE_CONNECT_API_PRIVATE_KEY" ]]; then
+            echo "has_testflight=false" >> "$GITHUB_OUTPUT"
+            echo "TestFlight secrets missing. Upload will be skipped."
+          else
+            echo "Partial TestFlight secrets detected. Please set all of APP_STORE_CONNECT_API_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_API_PRIVATE_KEY or leave all empty."
+            exit 1
+          fi
+
+      - name: Setup iOS signing
+        id: signing
+        if: ${{ steps.signing_mode.outputs.has_signing == 'true' }}
+        env:
+          IOS_CERTIFICATE_P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          decode_base64() {
+            printf '%s' "$1" | base64 --decode 2>/dev/null || printf '%s' "$1" | base64 -D
+          }
+
+          CERT_PATH="$RUNNER_TEMP/signing_certificate.p12"
+          PROFILE_PATH="$RUNNER_TEMP/signing_profile.mobileprovision"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+
+          decode_base64 "$IOS_CERTIFICATE_P12_BASE64" > "$CERT_PATH"
+          decode_base64 "$IOS_PROVISIONING_PROFILE_BASE64" > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_CONTENT="$(security cms -D -i "$PROFILE_PATH")"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' /dev/stdin <<< "$PROFILE_CONTENT")"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "keychain_path=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Build iOS IPA
+        if: ${{ steps.signing_mode.outputs.has_signing == 'true' }}
+        run: npm run tauri ios build -- --ci --export-method app-store-connect
+
+      - name: Collect IPA
+        if: ${{ steps.signing_mode.outputs.has_signing == 'true' }}
+        run: |
+          IPA_PATH="$(find src-tauri/gen/apple -type f -name '*.ipa' | head -n 1)"
+          if [[ -z "$IPA_PATH" ]]; then
+            echo "No IPA generated."
+            exit 1
+          fi
+          cp "$IPA_PATH" "$GITHUB_WORKSPACE/ios-release.ipa"
+
+      - name: Build unsigned iOS device IPA
+        if: ${{ steps.signing_mode.outputs.has_signing != 'true' }}
+        run: npm run tauri ios build -- --ci --target aarch64 --no-sign
+
+      - name: Collect unsigned iOS device build
+        if: ${{ steps.signing_mode.outputs.has_signing != 'true' }}
+        run: |
+          IPA_PATH="$(find src-tauri/gen/apple target -type f -name '*.ipa' 2>/dev/null | head -n 1)"
+          if [[ -z "$IPA_PATH" ]]; then
+            echo "No unsigned device .ipa generated."
+            exit 1
+          fi
+          cp "$IPA_PATH" "$GITHUB_WORKSPACE/ios-device-unsigned.ipa"
+
+          APP_PATH="$(find src-tauri/gen/apple target -type d -name '*.app' 2>/dev/null | head -n 1)"
+          if [[ -z "$APP_PATH" ]]; then
+            echo "No unsigned device .app generated."
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$GITHUB_WORKSPACE/ios-device-unsigned-app.zip"
+
+      - name: Upload signed IPA to release
+        if: ${{ steps.signing_mode.outputs.has_signing == 'true' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: ios-release.ipa
+
+      - name: Upload unsigned device build to release
+        if: ${{ steps.signing_mode.outputs.has_signing != 'true' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: |
+            ios-device-unsigned.ipa
+            ios-device-unsigned-app.zip
+
+      - name: Upload to TestFlight (optional)
+        if: ${{ steps.signing_mode.outputs.has_signing == 'true' && steps.testflight_mode.outputs.has_testflight == 'true' }}
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_API_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$APP_STORE_CONNECT_API_PRIVATE_KEY" > "$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8"
+          xcrun altool --upload-app --type ios --file "$GITHUB_WORKSPACE/ios-release.ipa" --apiKey "$APP_STORE_CONNECT_API_KEY_ID" --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+
+      - name: Cleanup signing assets
+        if: ${{ always() && steps.signing_mode.outputs.has_signing == 'true' }}
+        run: |
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/${{ steps.signing.outputs.profile_uuid }}.mobileprovision"
+          security delete-keychain "${{ steps.signing.outputs.keychain_path }}" || true

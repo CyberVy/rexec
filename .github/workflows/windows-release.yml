@@ -1,0 +1,49 @@
+name: Release Windows
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+        shell: pwsh
+
+      - name: Install JS deps
+        run: npm ci
+        shell: pwsh
+
+      - name: Build Tauri app (Windows)
+        run: npm run tauri build
+        shell: pwsh
+
+      - name: Package Windows bundle
+        run: |
+          cd target/release/bundle
+          tar -a -c -f "$env:GITHUB_WORKSPACE/windows-bundle.zip" *
+        shell: pwsh
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: windows-bundle.zip

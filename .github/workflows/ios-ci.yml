@@ -1,0 +1,53 @@
+name: iOS CI Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios-simulator:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Select simulator target
+        id: target
+        run: |
+          if [[ "$(uname -m)" == "arm64" ]]; then
+            echo "ios_target=aarch64-sim" >> "$GITHUB_OUTPUT"
+            echo "rust_target=aarch64-apple-ios-sim" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios_target=x86_64" >> "$GITHUB_OUTPUT"
+            echo "rust_target=x86_64-apple-ios" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Align iOS simulator arch with runner
+        run: |
+          if [[ "$(uname -m)" == "arm64" ]]; then
+            perl -0777 -i -pe 's/ARCHS = \(\s*arm64,\s*x86_64,\s*\);/ARCHS = arm64;/g; s/VALID_ARCHS = "arm64  x86_64";/VALID_ARCHS = arm64;/g' src-tauri/gen/apple/app.xcodeproj/project.pbxproj
+          fi
+
+      - name: Add iOS simulator rust target
+        run: rustup target add "${{ steps.target.outputs.rust_target }}"
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      - name: Install JS deps
+        run: npm ci
+
+      - name: Build iOS app for simulator (CI compile check)
+        run: npm run tauri ios build -- --ci --debug --target "${{ steps.target.outputs.ios_target }}"
