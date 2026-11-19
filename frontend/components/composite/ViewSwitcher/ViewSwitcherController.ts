@@ -1,184 +1,73 @@
 import { BaseController } from "@/infra"
 import type {
-    ViewSwitcherState,
-    ViewSwitcherInitState,
-    ViewSwitcherListener,
-    SetToolbarVisibleOptions,
+    ResolvedToolbarColor,
     SwitchViewEventDetail,
-    ViewSwitcherRegistryState
+    ToolbarColor,
+    ViewSwitcherControllerState,
+    ViewSwitcherInstance
 } from "./types"
 
-export type {
-    ViewSwitcherState,
-    ViewSwitcherInitState,
-    ViewSwitcherListener,
-    SetToolbarVisibleOptions,
-    SwitchViewEventDetail,
-    ViewSwitcherRegistryState
-} from "./types"
+const GLOBAL_COLOR_SCOPE = "*"
 
-export const STATIC_EMPTY_VIEW_SWITCHER_STATE: ViewSwitcherState = {
-    id: "",
-    is_toolbar_visible: true,
-    is_transitioning: false,
-    has_other_transitioning: false,
-    active_view_id: "",
-    target_view_id: null,
-    overscroll_enabled: true
-}
-
-export const INITIAL_VIEW_SWITCHER_REGISTRY_STATE: ViewSwitcherRegistryState = {
+export const INITIAL_VIEW_SWITCHER_STATE: ViewSwitcherControllerState = {
     instances: {},
-    has_any_transitioning: false,
-    global_hide_count: 0
+    is_toolbar_hidden: false,
+    active_color_overrides: {},
+    view_active_color_overrides: {}
 }
 
-export const INITIAL_VIEW_SWITCHER_STATE = INITIAL_VIEW_SWITCHER_REGISTRY_STATE
-
-export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryState, "change" | "switch_view"> {
-    protected override _state: ViewSwitcherRegistryState = INITIAL_VIEW_SWITCHER_REGISTRY_STATE
-
-    private raw_instances: Record<string, ViewSwitcherInitState> = {}
-    private instance_counts: Record<string, number> = {}
-    private pending_visibilities: Record<string, boolean> = {}
-    private fallback_states: Record<string, ViewSwitcherState> = {}
-
-    public register(id: string, initial_state: ViewSwitcherInitState | ViewSwitcherState): () => void {
-        this.instance_counts[id] = (this.instance_counts[id] ?? 0) + 1
-
-        const existing_raw = this.raw_instances[id]
-        const raw_state: ViewSwitcherInitState = existing_raw
-            ? {
-                  id: initial_state.id,
-                  is_transitioning: initial_state.is_transitioning,
-                  active_view_id: initial_state.active_view_id,
-                  target_view_id: initial_state.target_view_id,
-                  is_toolbar_visible: existing_raw.is_toolbar_visible,
-                  overscroll_enabled: initial_state.overscroll_enabled
-              }
-            : {
-                  id: initial_state.id,
-                  is_toolbar_visible: initial_state.is_toolbar_visible,
-                  is_transitioning: initial_state.is_transitioning,
-                  active_view_id: initial_state.active_view_id,
-                  target_view_id: initial_state.target_view_id,
-                  overscroll_enabled: initial_state.overscroll_enabled
-              }
-
-        this.raw_instances[id] = raw_state
-        this.recompute_state()
-
-        return () => {
-            const count = (this.instance_counts[id] ?? 1) - 1
-            if (count <= 0) {
-                delete this.instance_counts[id]
-                delete this.raw_instances[id]
-                delete this.pending_visibilities[id]
-                delete this.fallback_states[id]
-            } else {
-                this.instance_counts[id] = count
-            }
-            this.recompute_state()
-        }
+export function normalize_toolbar_color(color: ToolbarColor | null | undefined): ResolvedToolbarColor | null {
+    if (!color) return null
+    if (typeof color === "string") {
+        const trimmed = color.trim()
+        return trimmed ? { light: trimmed, dark: trimmed } : null
     }
+    const light = color.light.trim()
+    const dark = color.dark.trim()
+    if (!light && !dark) return null
+    return { light: light || dark, dark: dark || light }
+}
 
-    public update_instance(
-        id: string,
-        updates: Partial<Omit<ViewSwitcherInitState, "id" | "is_toolbar_visible">>
-    ): void {
-        const current_raw = this.raw_instances[id]
-        if (!current_raw) return
+function view_color_key(view_id: string, switcher_id?: string): string {
+    return `${switcher_id ?? GLOBAL_COLOR_SCOPE}:${view_id}`
+}
 
-        let changed = false
-        const next_raw: ViewSwitcherInitState = { ...current_raw }
+function are_colors_equal(a: ResolvedToolbarColor | undefined, b: ResolvedToolbarColor | null): boolean {
+    if (!a && !b) return true
+    if (!a || !b) return false
+    return a.light === b.light && a.dark === b.dark
+}
 
-        if (updates.is_transitioning !== undefined && updates.is_transitioning !== current_raw.is_transitioning) {
-            next_raw.is_transitioning = updates.is_transitioning
-            changed = true
-        }
+export function resolve_toolbar_active_color(
+    state: Readonly<ViewSwitcherControllerState>,
+    switcher_id: string,
+    view_id: string,
+    view_default?: ToolbarColor,
+    toolbar_default?: ToolbarColor
+): ResolvedToolbarColor | null {
+    return (
+        state.view_active_color_overrides[view_color_key(view_id, switcher_id)] ??
+        state.view_active_color_overrides[view_color_key(view_id)] ??
+        state.active_color_overrides[switcher_id] ??
+        state.active_color_overrides[GLOBAL_COLOR_SCOPE] ??
+        normalize_toolbar_color(view_default) ??
+        normalize_toolbar_color(toolbar_default) ??
+        null
+    )
+}
 
-        if (updates.active_view_id !== undefined && updates.active_view_id !== current_raw.active_view_id) {
-            next_raw.active_view_id = updates.active_view_id
-            changed = true
-        }
+class ViewSwitcherController extends BaseController<ViewSwitcherControllerState, "change" | "switch_view"> {
+    protected override _state: ViewSwitcherControllerState = INITIAL_VIEW_SWITCHER_STATE
 
-        if (updates.target_view_id !== undefined && updates.target_view_id !== current_raw.target_view_id) {
-            next_raw.target_view_id = updates.target_view_id
-            changed = true
-        }
+    private registration_tokens = new Map<string, symbol>()
 
-        if (updates.overscroll_enabled !== undefined && updates.overscroll_enabled !== current_raw.overscroll_enabled) {
-            next_raw.overscroll_enabled = updates.overscroll_enabled
-            changed = true
-        }
-
-        if (!changed) return
-
-        if (updates.is_transitioning === false && id in this.pending_visibilities) {
-            const pending = this.pending_visibilities[id]
-            delete this.pending_visibilities[id]
-            if (pending !== undefined && next_raw.is_toolbar_visible !== pending) {
-                next_raw.is_toolbar_visible = pending
-            }
-        }
-
-        this.raw_instances[id] = next_raw
-        this.recompute_state()
-    }
-
-    public set_toolbar_visible(id: string, visible: boolean, options?: SetToolbarVisibleOptions): void {
-        const current_raw = this.raw_instances[id]
-        const wait_until_stable = options?.wait_until_stable ?? false
-
-        if (wait_until_stable && current_raw?.is_transitioning) {
-            this.pending_visibilities[id] = visible
-            return
-        }
-
-        delete this.pending_visibilities[id]
-
-        if (current_raw) {
-            if (current_raw.is_toolbar_visible !== visible) {
-                this.raw_instances[id] = {
-                    ...current_raw,
-                    is_toolbar_visible: visible
-                }
-                this.recompute_state()
-            }
-        } else {
-            this.raw_instances[id] = {
-                id,
-                is_toolbar_visible: visible,
-                is_transitioning: false,
-                active_view_id: "",
-                target_view_id: null,
-                overscroll_enabled: true
-            }
-            this.recompute_state()
-        }
-    }
-
-    public show_toolbar(id: string, options?: SetToolbarVisibleOptions): void {
-        this.set_toolbar_visible(id, true, options)
-    }
-
-    public hide_toolbar(id: string, options?: SetToolbarVisibleOptions): void {
-        this.set_toolbar_visible(id, false, options)
-    }
-
-    public hide_all_toolbars(): void {
-        const next_hide_count = this.state.global_hide_count + 1
-        this.recompute_state(next_hide_count)
-    }
-
-    public show_all_toolbars(): void {
-        const next_hide_count = Math.max(0, this.state.global_hide_count - 1)
-        this.recompute_state(next_hide_count)
-    }
+    // ============================================================================
+    // Public Imperative API
+    // ============================================================================
 
     public switch_view(view_id: string, switcher_id?: string): boolean {
-        const id = switcher_id ?? this.get_default_switcher_id()
-        if (!id || !(id in this.state.instances)) return false
+        const id = switcher_id ?? this.get_root_switcher_id()
+        if (!id || !(id in this._state.instances)) return false
 
         this.dispatchEvent(
             new CustomEvent<SwitchViewEventDetail>("switch_view", {
@@ -188,138 +77,119 @@ export class ViewSwitcherController extends BaseController<ViewSwitcherRegistryS
         return true
     }
 
-    public get_default_switcher_id(): string | undefined {
-        if ("main_switcher" in this.state.instances) {
-            return "main_switcher"
+    public hide_toolbar(): void {
+        if (this._state.is_toolbar_hidden) return
+        this.update_state({ is_toolbar_hidden: true })
+    }
+
+    public show_toolbar(): void {
+        if (!this._state.is_toolbar_hidden) return
+        this.update_state({ is_toolbar_hidden: false })
+    }
+
+    public set_active_color(color: ToolbarColor | null, switcher_id?: string): void {
+        const key = switcher_id ?? GLOBAL_COLOR_SCOPE
+        const resolved = normalize_toolbar_color(color)
+        if (are_colors_equal(this._state.active_color_overrides[key], resolved)) return
+
+        const next_overrides = { ...this._state.active_color_overrides }
+        if (resolved) {
+            next_overrides[key] = resolved
+        } else {
+            delete next_overrides[key]
         }
-        return Object.keys(this.state.instances)[0]
+        this.update_state({ active_color_overrides: next_overrides })
     }
 
-    public get_active_view_id(switcher_id?: string): string | undefined {
-        const id = switcher_id ?? this.get_default_switcher_id()
-        if (!id) return undefined
-        return this.state.instances[id]?.active_view_id
+    public set_view_active_color(view_id: string, color: ToolbarColor | null, switcher_id?: string): void {
+        const key = view_color_key(view_id, switcher_id)
+        const resolved = normalize_toolbar_color(color)
+        if (are_colors_equal(this._state.view_active_color_overrides[key], resolved)) return
+
+        const next_overrides = { ...this._state.view_active_color_overrides }
+        if (resolved) {
+            next_overrides[key] = resolved
+        } else {
+            delete next_overrides[key]
+        }
+        this.update_state({ view_active_color_overrides: next_overrides })
     }
 
-    public get_state(id: string): ViewSwitcherState {
-        const found = this.state.instances[id]
-        if (found) return found
+    // ============================================================================
+    // Internal Registry Coordination
+    // ============================================================================
 
-        const is_toolbar_visible = this.state.global_hide_count === 0
-        const has_other_transitioning = this.state.has_any_transitioning
-        const cached_fallback = this.fallback_states[id]
+    public register(instance: ViewSwitcherInstance): () => void {
+        const token = Symbol(instance.id)
+        this.registration_tokens.set(instance.id, token)
+
+        this.update_state({
+            instances: {
+                ...this._state.instances,
+                [instance.id]: instance
+            }
+        })
+
+        return () => {
+            if (this.registration_tokens.get(instance.id) !== token) return
+            this.registration_tokens.delete(instance.id)
+
+            const next_instances = { ...this._state.instances }
+            delete next_instances[instance.id]
+            this.update_state({ instances: next_instances })
+        }
+    }
+
+    public update_instance(
+        id: string,
+        updates: Partial<Pick<ViewSwitcherInstance, "parent_id" | "active_view_id" | "is_transitioning">>
+    ): void {
+        const current = this._state.instances[id]
+        if (!current) return
+
+        const next_parent_id = updates.parent_id !== undefined ? updates.parent_id : current.parent_id
+        const next_active_view_id =
+            updates.active_view_id !== undefined ? updates.active_view_id : current.active_view_id
+        const next_is_transitioning =
+            updates.is_transitioning !== undefined ? updates.is_transitioning : current.is_transitioning
+
         if (
-            cached_fallback &&
-            cached_fallback.is_toolbar_visible === is_toolbar_visible &&
-            cached_fallback.has_other_transitioning === has_other_transitioning
+            next_parent_id === current.parent_id &&
+            next_active_view_id === current.active_view_id &&
+            next_is_transitioning === current.is_transitioning
         ) {
-            return cached_fallback
+            return
         }
 
-        const new_fallback: ViewSwitcherState = {
-            id,
-            is_toolbar_visible,
-            is_transitioning: false,
-            has_other_transitioning,
-            active_view_id: "",
-            target_view_id: null,
-            overscroll_enabled: true
-        }
-        this.fallback_states[id] = new_fallback
-        return new_fallback
+        this.update_state({
+            instances: {
+                ...this._state.instances,
+                [id]: {
+                    id: current.id,
+                    parent_id: next_parent_id,
+                    active_view_id: next_active_view_id,
+                    is_transitioning: next_is_transitioning
+                }
+            }
+        })
     }
 
-    public has_any_transitioning(exclude_id?: string): boolean {
-        if (!exclude_id) {
-            return this.state.has_any_transitioning
-        }
-        const instance = this.state.instances[exclude_id]
-        if (instance) {
-            return instance.has_other_transitioning
-        }
-        for (const inst of Object.values(this.state.instances)) {
-            if (inst.id !== exclude_id && inst.is_transitioning) {
+    public has_other_transitioning(exclude_id: string): boolean {
+        for (const instance of Object.values(this._state.instances)) {
+            if (instance.id !== exclude_id && instance.is_transitioning) {
                 return true
             }
         }
         return false
     }
 
-    private recompute_state(next_global_hide_count: number = this.state.global_hide_count): void {
-        const is_globally_hidden = next_global_hide_count > 0
-        const current_instances = this.state.instances
-        let any_instance_changed = false
-        const next_instances: Record<string, ViewSwitcherState> = {}
-
-        const raw_keys = Object.keys(this.raw_instances)
-        const current_keys = Object.keys(current_instances)
-        if (raw_keys.length !== current_keys.length) {
-            any_instance_changed = true
-        }
-
-        let transitioning_count = 0
-        for (const raw of Object.values(this.raw_instances)) {
-            if (raw.is_transitioning) {
-                transitioning_count++
+    private get_root_switcher_id(): string | undefined {
+        for (const instance of Object.values(this._state.instances)) {
+            if (instance.parent_id === null) {
+                return instance.id
             }
         }
-        const has_any_trans = transitioning_count > 0
-
-        for (const [id, raw] of Object.entries(this.raw_instances)) {
-            const effective_toolbar = is_globally_hidden ? false : raw.is_toolbar_visible
-            const has_other_trans = raw.is_transitioning ? transitioning_count > 1 : transitioning_count > 0
-
-            const prev = current_instances[id]
-            if (
-                prev &&
-                prev.id === raw.id &&
-                prev.is_toolbar_visible === effective_toolbar &&
-                prev.is_transitioning === raw.is_transitioning &&
-                prev.has_other_transitioning === has_other_trans &&
-                prev.active_view_id === raw.active_view_id &&
-                prev.target_view_id === raw.target_view_id &&
-                prev.overscroll_enabled === raw.overscroll_enabled
-            ) {
-                next_instances[id] = prev
-            } else {
-                next_instances[id] = {
-                    id: raw.id,
-                    is_toolbar_visible: effective_toolbar,
-                    is_transitioning: raw.is_transitioning,
-                    has_other_transitioning: has_other_trans,
-                    active_view_id: raw.active_view_id,
-                    target_view_id: raw.target_view_id,
-                    overscroll_enabled: raw.overscroll_enabled
-                }
-                any_instance_changed = true
-            }
-        }
-
-        const count_changed = next_global_hide_count !== this.state.global_hide_count
-        const transitioning_changed = has_any_trans !== this.state.has_any_transitioning
-
-        if (any_instance_changed || count_changed || transitioning_changed) {
-            this._state = {
-                instances: next_instances,
-                has_any_transitioning: has_any_trans,
-                global_hide_count: next_global_hide_count
-            }
-            this.dispatchEvent(new Event("change"))
-        }
-
-        this.sync_root_overscroll()
-    }
-
-    private sync_root_overscroll(): void {
-        if (typeof document === "undefined") return
-        let should_disable = false
-        for (const raw of Object.values(this.raw_instances)) {
-            if (raw.overscroll_enabled === false) {
-                should_disable = true
-                break
-            }
-        }
-        document.documentElement.style.overscrollBehaviorY = should_disable ? "none" : ""
+        return Object.keys(this._state.instances)[0]
     }
 }
 

@@ -72,6 +72,8 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     private var topInteractionEnabled = true
     private var bottomIconNames: [String] = []
     private var topSegmentIds: [String] = []
+    private var bottomActiveColorKey: String?
+    private var topActiveColorKey: String?
     private var tabBarWidth: NSLayoutConstraint?
     private var isApplyingSync = false
 
@@ -174,6 +176,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         let layout = body["layout"] as? String ?? "bottom-floating"
         let items = body["items"] as? [[String: Any]] ?? []
         let activeId = body["active_id"] as? String ?? ""
+        let activeColor = body["active_color"] as? [String: Any]
         let visible = boolValue(body["visible"])
         let interactionEnabled = boolValue(body["interaction_enabled"])
 
@@ -184,6 +187,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
             topActiveId = activeId
             topInteractionEnabled = interactionEnabled
             rebuildSegments(items: items, activeId: activeId)
+            applyTopActiveColor(activeColor)
             setTopVisible(shouldShow, animated: animated)
             topControl.isUserInteractionEnabled = shouldShow && interactionEnabled
         } else {
@@ -192,6 +196,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
             bottomActiveId = activeId
             bottomInteractionEnabled = interactionEnabled
             rebuildTabs(items: items, activeId: activeId)
+            applyBottomActiveColor(activeColor)
             tabBar.isUserInteractionEnabled = interactionEnabled
             setBottomVisible(visible && !items.isEmpty, animated: animated)
         }
@@ -337,6 +342,114 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
         webView?.evaluateJavaScript("window.__view_switcher_native_toolbar_dispatch?.(\(json))")
+    }
+
+    private func colorKey(for dict: [String: Any]?) -> String? {
+        guard let dict,
+              let light = dict["light"] as? String,
+              let dark = dict["dark"] as? String else {
+            return nil
+        }
+        return "\(light)|\(dark)"
+    }
+
+    private func dynamicColor(from dict: [String: Any]?) -> UIColor? {
+        guard let dict,
+              let lightString = dict["light"] as? String,
+              let darkString = dict["dark"] as? String,
+              let lightColor = parseCSSColor(lightString),
+              let darkColor = parseCSSColor(darkString) else {
+            return nil
+        }
+        if lightString == darkString {
+            return lightColor
+        }
+        return UIColor { traits in
+            traits.userInterfaceStyle == .dark ? darkColor : lightColor
+        }
+    }
+
+    private func applyBottomActiveColor(_ dict: [String: Any]?) {
+        let nextKey = colorKey(for: dict)
+        guard nextKey != bottomActiveColorKey else { return }
+        bottomActiveColorKey = nextKey
+        tabBar.tintColor = dynamicColor(from: dict)
+    }
+
+    private func applyTopActiveColor(_ dict: [String: Any]?) {
+        let nextKey = colorKey(for: dict)
+        guard nextKey != topActiveColorKey else { return }
+        topActiveColorKey = nextKey
+        if let color = dynamicColor(from: dict) {
+            topControl.setTitleTextAttributes([.foregroundColor: color], for: .selected)
+        } else {
+            topControl.setTitleTextAttributes(nil, for: .selected)
+        }
+    }
+
+    private func parseCSSColor(_ raw: String) -> UIColor? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.hasPrefix("#") {
+            let hex = String(value.dropFirst())
+            let expanded: String
+            switch hex.count {
+            case 3:
+                expanded = hex.map { "\($0)\($0)" }.joined() + "ff"
+            case 4:
+                expanded = hex.map { "\($0)\($0)" }.joined()
+            case 6:
+                expanded = hex + "ff"
+            case 8:
+                expanded = hex
+            default:
+                return nil
+            }
+            guard let rgba = UInt64(expanded, radix: 16) else { return nil }
+            let r = CGFloat((rgba & 0xff000000) >> 24) / 255.0
+            let g = CGFloat((rgba & 0x00ff0000) >> 16) / 255.0
+            let b = CGFloat((rgba & 0x0000ff00) >> 8) / 255.0
+            let a = CGFloat(rgba & 0x000000ff) / 255.0
+            return UIColor(red: r, green: g, blue: b, alpha: a)
+        }
+
+        let prefix: String
+        if value.hasPrefix("rgba(") {
+            prefix = "rgba("
+        } else if value.hasPrefix("rgb(") {
+            prefix = "rgb("
+        } else {
+            return nil
+        }
+        guard value.hasSuffix(")") else { return nil }
+        let inner = value.dropFirst(prefix.count).dropLast()
+        let parts = inner
+            .replacingOccurrences(of: ",", with: " ")
+            .replacingOccurrences(of: "/", with: " ")
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+        guard parts.count == 3 || parts.count == 4 else { return nil }
+
+        func parseChannel(_ token: String, maxVal: CGFloat) -> CGFloat? {
+            if token.hasSuffix("%"), let num = Double(token.dropLast()) {
+                return min(max(CGFloat(num) / 100.0, 0), 1)
+            }
+            guard let num = Double(token) else { return nil }
+            return min(max(CGFloat(num) / maxVal, 0), 1)
+        }
+
+        guard let r = parseChannel(parts[0], maxVal: 255),
+              let g = parseChannel(parts[1], maxVal: 255),
+              let b = parseChannel(parts[2], maxVal: 255) else {
+            return nil
+        }
+        let a: CGFloat
+        if parts.count == 4 {
+            guard let parsedAlpha = parseChannel(parts[3], maxVal: 1) else { return nil }
+            a = parsedAlpha
+        } else {
+            a = 1
+        }
+        return UIColor(red: r, green: g, blue: b, alpha: a)
     }
 
     private func boolValue(_ value: Any?) -> Bool {

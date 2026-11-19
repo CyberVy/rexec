@@ -1,10 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useRef } from "react"
-import type { ReactNode } from "react"
-import type { View } from "./types"
-
-type NativeToolbarLayout = "bottom-floating" | "top-floating"
+import type { ResolvedToolbarColor, ToolbarLayout, View } from "./types"
 
 interface NativeToolbarItem {
     id: string
@@ -15,11 +12,12 @@ interface NativeToolbarItem {
 interface NativeToolbarSync {
     type: "sync"
     switcher_id: string
-    layout: NativeToolbarLayout
+    layout: ToolbarLayout
     visible: boolean
     animated: boolean
     interaction_enabled: boolean
     active_id: string
+    active_color: ResolvedToolbarColor | null
     items: NativeToolbarItem[]
 }
 
@@ -35,11 +33,9 @@ interface NativeToolbarSelect {
     view_id: string
 }
 
-type NativeToolbarInbound = NativeToolbarSelect
-
 type NativeToolbarWindow = Window & {
     __VIEW_SWITCHER_NATIVE_TOOLBAR__?: boolean
-    __view_switcher_native_toolbar_dispatch?: (message: NativeToolbarInbound) => void
+    __view_switcher_native_toolbar_dispatch?: (message: NativeToolbarSelect) => void
     webkit?: {
         messageHandlers?: {
             viewSwitcherToolbar?: { postMessage: (body: NativeToolbarSync | NativeToolbarRemove) => void }
@@ -58,7 +54,7 @@ export function is_native_toolbar_active(): boolean {
     return native_window()?.__VIEW_SWITCHER_NATIVE_TOOLBAR__ === true
 }
 
-function ensure_dispatch() {
+function ensure_dispatch(): void {
     const host = native_window()
     if (!host || host.__view_switcher_native_toolbar_dispatch) return
     host.__view_switcher_native_toolbar_dispatch = (message) => {
@@ -69,12 +65,8 @@ function ensure_dispatch() {
     }
 }
 
-function post_toolbar_message(message: NativeToolbarSync | NativeToolbarRemove) {
+function post_toolbar_message(message: NativeToolbarSync | NativeToolbarRemove): void {
     native_window()?.webkit?.messageHandlers?.viewSwitcherToolbar?.postMessage(message)
-}
-
-function native_item_label(label: ReactNode): string {
-    return typeof label === "string" ? label : ""
 }
 
 export function useNativeToolbar<T extends string>({
@@ -84,20 +76,22 @@ export function useNativeToolbar<T extends string>({
     layout,
     views,
     active_id,
+    active_color,
     visible,
-    interaction_enabled,
+    interactive,
     on_select
 }: {
     enabled: boolean
     host_transitioning?: boolean
     switcher_id: string
-    layout: NativeToolbarLayout
+    layout: ToolbarLayout
     views: View<T>[]
     active_id: T
+    active_color: ResolvedToolbarColor | null
     visible: boolean
-    interaction_enabled: boolean
+    interactive: boolean
     on_select: (view_id: T) => boolean | void
-}) {
+}): void {
     const on_select_ref = useRef(on_select)
     const snapshot_ref = useRef("")
     const latest_sync_ref = useRef<NativeToolbarSync | null>(null)
@@ -140,10 +134,10 @@ export function useNativeToolbar<T extends string>({
         // Animate on initial show only when settling from a host swipe; keep later visible toggles animated.
         const animated = was_enabled_ref.current || prev_host_transitioning_ref.current || host_transitioning
         was_enabled_ref.current = true
-        const items = views.map((view) => ({
+        const items: NativeToolbarItem[] = views.map((view) => ({
             id: view.id,
-            label: native_item_label(view.label),
-            icon: view.native_toolbar?.icon ?? ""
+            label: view.label ?? "",
+            icon: view.native_icon ?? ""
         }))
         const message: NativeToolbarSync = {
             type: "sync",
@@ -151,8 +145,9 @@ export function useNativeToolbar<T extends string>({
             layout,
             visible,
             animated,
-            interaction_enabled,
+            interaction_enabled: interactive,
             active_id,
+            active_color,
             items
         }
         latest_sync_ref.current = message
@@ -160,14 +155,15 @@ export function useNativeToolbar<T extends string>({
             switcher_id,
             layout,
             visible,
-            interaction_enabled,
+            interaction_enabled: interactive,
             active_id,
+            active_color,
             items
         })
         if (snapshot_ref.current === state_snapshot) return
         snapshot_ref.current = state_snapshot
         post_toolbar_message(message)
-    }, [enabled, host_transitioning, switcher_id, layout, views, active_id, visible, interaction_enabled])
+    }, [enabled, host_transitioning, switcher_id, layout, views, active_id, active_color, visible, interactive])
 
     useEffect(() => {
         prev_host_transitioning_ref.current = host_transitioning

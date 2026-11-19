@@ -31,19 +31,15 @@ export function ExecShortcutBar({ disabled = false, on_run }: ExecShortcutBarPro
     }, [])
 
     const handle_open_editor = useCallback(() => {
-        if (!is_editor_open) {
-            view_switcher_controller.hide_all_toolbars()
-            set_is_editor_open(true)
-        }
-    }, [is_editor_open])
+        view_switcher_controller.hide_toolbar()
+        set_is_editor_open(true)
+    }, [])
 
     const handle_close_editor = useCallback(() => {
-        if (is_editor_open) {
-            view_switcher_controller.show_all_toolbars()
-            set_is_editor_open(false)
-        }
+        view_switcher_controller.show_toolbar()
+        set_is_editor_open(false)
         reset_form()
-    }, [is_editor_open, reset_form])
+    }, [reset_form])
 
     const handle_save = (event: React.FormEvent) => {
         event.preventDefault()

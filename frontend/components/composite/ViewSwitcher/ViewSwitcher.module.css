@@ -26,3 +26,13 @@
 .viewswitcher-toolbar-bottom {
     bottom: calc(22.5px + var(--switcher-bottom-offset, 0px));
 }
+
+.toolbar-item-active-custom {
+    color: var(--viewswitcher-active-light);
+}
+
+@media (prefers-color-scheme: dark) {
+    .toolbar-item-active-custom {
+        color: var(--viewswitcher-active-dark);
+    }
+}

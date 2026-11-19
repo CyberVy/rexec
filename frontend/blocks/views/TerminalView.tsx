@@ -122,33 +122,25 @@ export function TerminalView() {
 
     const handle_open_sessions_modal = useCallback(() => {
         void pty_controller.refresh_sessions()
-        if (!is_sessions_modal_open) {
-            view_switcher_controller.hide_all_toolbars()
-            set_is_sessions_modal_open(true)
-        }
-    }, [is_sessions_modal_open])
+        view_switcher_controller.hide_toolbar()
+        set_is_sessions_modal_open(true)
+    }, [])
 
     const handle_close_sessions_modal = useCallback(() => {
-        if (is_sessions_modal_open) {
-            view_switcher_controller.show_all_toolbars()
-            set_is_sessions_modal_open(false)
-        }
-    }, [is_sessions_modal_open])
+        view_switcher_controller.show_toolbar()
+        set_is_sessions_modal_open(false)
+    }, [])
 
     const handle_open_workspace_modal = useCallback(() => {
         void pty_controller.load_directory(pty_controller.state.cwd ?? undefined)
-        if (!is_workspace_modal_open) {
-            view_switcher_controller.hide_all_toolbars()
-            set_is_workspace_modal_open(true)
-        }
-    }, [is_workspace_modal_open])
+        view_switcher_controller.hide_toolbar()
+        set_is_workspace_modal_open(true)
+    }, [])
 
     const handle_close_workspace_modal = useCallback(() => {
-        if (is_workspace_modal_open) {
-            view_switcher_controller.show_all_toolbars()
-            set_is_workspace_modal_open(false)
-        }
-    }, [is_workspace_modal_open])
+        view_switcher_controller.show_toolbar()
+        set_is_workspace_modal_open(false)
+    }, [])
 
     const [command_input, set_command_input] = useState("")
     const [command_history, set_command_history] = useState<string[]>([])

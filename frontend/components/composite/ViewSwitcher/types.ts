@@ -1,23 +1,29 @@
 import type { ComponentPropsWithRef, ReactNode, RefObject, TransitionEvent } from "react"
 
 // ============================================================================
-// View & Component Props
+// Public View & Component Types
 // ============================================================================
 
-export interface NativeToolbarConfig {
-    /** SF Symbol for this view. The web toolbar keeps using View.icon. */
-    icon?: string
+export type ToolbarColor = string | { light: string; dark: string }
+
+export interface ResolvedToolbarColor {
+    light: string
+    dark: string
 }
+
+export type ToolbarLayout = "bottom-floating" | "top-floating"
 
 export interface View<T extends string = string> {
     /** Unique identifier for the view */
     id: T
-    /** React node for the icon displayed in the navigation bar (optional) */
+    /** Label text displayed in web and native toolbars */
+    label?: string
+    /** React node for the icon displayed in the web navigation bar */
     icon?: ReactNode
-    /** Native presentation for this view. Omitted views still appear, without a symbol. */
-    native_toolbar?: NativeToolbarConfig
-    /** Label text or node displayed below the icon (optional) */
-    label?: ReactNode
+    /** SF Symbol name for the iOS native toolbar */
+    native_icon?: string
+    /** Default active icon and label color for this view (overrides toolbar active_color) */
+    active_color?: ToolbarColor
     /** Component or content to render when this view is selected */
     content: ReactNode
     /** Override global keep-alive setting for this specific view */
@@ -25,9 +31,9 @@ export interface View<T extends string = string> {
     /** Override global scroll memory setting for this specific view. Only effective when keep_alive resolves to true. */
     remember_scroll?: boolean
     /** Whether horizontal swipe transition is enabled for this view. Defaults to true. */
-    swipe_enabled?: boolean | "left" | "right" | "both" | "none"
-    /** Control whether to hide the floating toolbar based on scroll position */
-    should_hide_toolbar?: boolean | ((scroll_y: number) => boolean)
+    swipe_enabled?: boolean
+    /** Hide the floating toolbar while this view is active */
+    hide_toolbar?: boolean
     /** Whether overscroll (rubber-band) behavior is enabled on the root element for this view. Defaults to true. */
     overscroll_enabled?: boolean
 }
@@ -51,38 +57,29 @@ export type ViewSwitcherProps<T extends string = string> = Omit<
     /** Whether to automatically remember and restore scroll positions of keep-alive views */
     remember_scroll?: boolean
     /** Layout positioning: bottom floating (default) or top floating */
-    toolbar_layout?: "bottom-floating" | "top-floating"
+    toolbar_layout?: ToolbarLayout
     /** Suppress floating toolbars for this switcher and nested switchers (e.g. during launch splash) */
     toolbar_hidden?: boolean
-}
-
-export type ViewSwitcherToolbarProps<T extends string> = Pick<ViewSwitcherProps<T>, "views" | "toolbar_layout"> & {
-    active_view_id: T
-    is_toolbar_visible: boolean
-    is_navigation_disabled: boolean
-    on_view_select: (view_id: T) => void
+    /** Default active icon and label color for the toolbar */
+    active_color?: ToolbarColor
 }
 
 // ============================================================================
-// Controller & Registry State Types
+// Internal Controller & Presentation Types
 // ============================================================================
 
-export interface ViewSwitcherState {
+export interface ViewSwitcherInstance {
     id: string
-    is_toolbar_visible: boolean
-    is_transitioning: boolean
-    has_other_transitioning: boolean
+    parent_id: string | null
     active_view_id: string
-    target_view_id: string | null
-    overscroll_enabled: boolean
+    is_transitioning: boolean
 }
 
-export type ViewSwitcherInitState = Omit<ViewSwitcherState, "has_other_transitioning">
-
-export type ViewSwitcherListener = (state: ViewSwitcherState) => void
-
-export interface SetToolbarVisibleOptions {
-    wait_until_stable?: boolean
+export interface ViewSwitcherControllerState {
+    instances: Record<string, ViewSwitcherInstance>
+    is_toolbar_hidden: boolean
+    active_color_overrides: Record<string, ResolvedToolbarColor>
+    view_active_color_overrides: Record<string, ResolvedToolbarColor>
 }
 
 export interface SwitchViewEventDetail {
@@ -90,14 +87,18 @@ export interface SwitchViewEventDetail {
     view_id: string
 }
 
-export interface ViewSwitcherRegistryState {
-    instances: Record<string, ViewSwitcherState>
-    has_any_transitioning: boolean
-    global_hide_count: number
+export interface ViewSwitcherToolbarProps<T extends string> {
+    views: View<T>[]
+    active_view_id: T
+    toolbar_layout: ToolbarLayout
+    visible: boolean
+    interactive: boolean
+    active_color: ResolvedToolbarColor | null
+    on_view_select: (view_id: T) => void
 }
 
 // ============================================================================
-// Gesture & Swipe Transition Types
+// Internal Gesture & Swipe Transition Types
 // ============================================================================
 
 /** Geometry captured at gesture start and retained through the release animation. */
@@ -136,7 +137,7 @@ export interface UseViewSwipeGestureOptions<T extends string> {
     views: View<T>[]
     current_active_view_id: T
     active_view_index: number
-    active_swipe_enabled?: View<T>["swipe_enabled"]
+    active_swipe_enabled: boolean
     container_element_ref: RefObject<HTMLDivElement | null>
     scroll_positions_ref: RefObject<Record<string, number>>
     commit_view_change: (view_id: T) => void
@@ -145,8 +146,6 @@ export interface UseViewSwipeGestureOptions<T extends string> {
 export interface UseViewSwipeGestureResult<T extends string> {
     transition_state: TransitionState<T>
     is_transitioning: boolean
-    target_view_id: T | null
-    view_elements_ref: RefObject<Record<string, HTMLDivElement | null>>
     set_view_element: (view_id: T, element: HTMLDivElement | null) => void
     handle_transition_end: (e?: TransitionEvent) => void
     reset_transition: () => void

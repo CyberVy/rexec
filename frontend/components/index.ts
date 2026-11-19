@@ -56,24 +56,8 @@ export type { UseControllerOptions } from "./hooks"
 export { SearchIcon, BackIcon, ForwardIcon, SettingIcon, CloseIcon, ChevronDownIcon, FilterIcon } from "./icons"
 
 // ViewSwitcher.tsx
-export {
-    ViewSwitcher,
-    view_switcher_controller,
-    ViewSwitcherController,
-    useViewSwitcher,
-    useViewSwitcherRegistry,
-    is_native_toolbar_active
-} from "./composite/ViewSwitcher"
-export type {
-    NativeToolbarConfig,
-    View,
-    ViewSwitcherProps,
-    ViewSwitcherState,
-    ViewSwitcherInitState,
-    ViewSwitcherListener,
-    SetToolbarVisibleOptions,
-    ViewSwitcherRegistryState
-} from "./composite/ViewSwitcher"
+export { ViewSwitcher, view_switcher_controller } from "./composite/ViewSwitcher"
+export type { ToolbarColor, ToolbarLayout, View, ViewSwitcherProps } from "./composite/ViewSwitcher"
 
 // ScrollSentry.tsx
 export { ScrollSentry } from "./composite/ScrollSentry"

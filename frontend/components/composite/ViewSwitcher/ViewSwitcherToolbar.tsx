@@ -1,20 +1,20 @@
 "use client"
 
+import type { CSSProperties } from "react"
 import { HapticContainer } from "@/components/base/HapticContainer"
 import { join_classes } from "@/components/utils"
 import type { ViewSwitcherToolbarProps } from "./types"
 import styles from "./ViewSwitcher.module.css"
 
-export type { ViewSwitcherToolbarProps } from "./types"
-
 /** Presentation only; the parent owns navigation rules and transition state. */
 export function ViewSwitcherToolbar<T extends string>({
     views,
     active_view_id,
-    is_toolbar_visible,
-    is_navigation_disabled,
-    on_view_select,
-    toolbar_layout
+    toolbar_layout,
+    visible,
+    interactive,
+    active_color,
+    on_view_select
 }: ViewSwitcherToolbarProps<T>) {
     const is_top = toolbar_layout === "top-floating"
     // Bottom width is 220px: 64px cells plus 14px of padding and border on each side.
@@ -36,7 +36,7 @@ export function ViewSwitcherToolbar<T extends string>({
                 padding_class,
                 "border border-black/10 dark:border-white/10 shadow-lg",
                 styles["viewswitcher-toolbar"],
-                !is_toolbar_visible && styles["toolbar-hidden"]
+                !visible && styles["toolbar-hidden"]
             )}
         >
             <div
@@ -47,13 +47,25 @@ export function ViewSwitcherToolbar<T extends string>({
             >
                 {views.map((view) => {
                     const is_active = view.id === active_view_id
-                    const text_class = is_active ? "text-black dark:text-white" : "text-black/50 dark:text-white/50"
+                    const custom_active_style =
+                        is_active && active_color
+                            ? ({
+                                  "--viewswitcher-active-light": active_color.light,
+                                  "--viewswitcher-active-dark": active_color.dark
+                              } as CSSProperties)
+                            : undefined
+                    const text_class = is_active
+                        ? active_color
+                            ? styles["toolbar-item-active-custom"]
+                            : "text-black dark:text-white"
+                        : "text-black/50 dark:text-white/50"
+
                     return (
                         <button
                             key={view.id}
                             type="button"
                             className="focus-visible:outline-none disabled:pointer-events-none"
-                            disabled={is_navigation_disabled || is_active}
+                            disabled={!interactive || is_active}
                             onClick={() => on_view_select(view.id)}
                         >
                             <HapticContainer>
@@ -67,6 +79,7 @@ export function ViewSwitcherToolbar<T extends string>({
                                 >
                                     <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap">
                                         <span
+                                            style={custom_active_style}
                                             className={join_classes(
                                                 "flex flex-col items-center justify-center transition-all",
                                                 glyph_class,

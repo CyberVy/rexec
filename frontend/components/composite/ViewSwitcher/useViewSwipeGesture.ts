@@ -14,14 +14,6 @@ import type {
 } from "./types"
 import { view_switcher_controller } from "./ViewSwitcherController"
 
-export type {
-    TransitionGeometry,
-    SwipeRelease,
-    TransitionState,
-    UseViewSwipeGestureOptions,
-    UseViewSwipeGestureResult
-} from "./types"
-
 export const RELEASE_TRANSITION_CSS = "transform 300ms cubic-bezier(0.4, 0, 0.2, 1)"
 
 export function resolve_swipe_start<T extends string>(
@@ -70,37 +62,18 @@ export function is_in_overscroll(): boolean {
 }
 
 /**
- * Evaluates whether the floating toolbar should be hidden based on a boolean or function rule and current scroll position.
- */
-export function evaluate_toolbar_visibility(
-    rule: boolean | ((scroll_y: number) => boolean) | undefined,
-    scroll_y: number
-): boolean {
-    if (rule === undefined) return true
-    return typeof rule === "function" ? !rule(scroll_y) : !rule
-}
-
-/**
  * Calculates effective DOM translation X offset from raw swipe gesture displacement diff_x
- * considering edge boundaries and view swipe permission settings.
+ * considering edge boundaries and swipe permission.
  */
 export function calculate_effective_translation_x<T extends string>(
     diff_x: number,
-    prev_view_id?: T,
-    next_view_id?: T,
-    active_swipe_enabled?: View<T>["swipe_enabled"]
+    prev_view_id: T | undefined,
+    next_view_id: T | undefined,
+    swipe_enabled: boolean
 ): number {
-    const is_left_allowed =
-        active_swipe_enabled !== false && active_swipe_enabled !== "none" && active_swipe_enabled !== "right"
-    const is_right_allowed =
-        active_swipe_enabled !== false && active_swipe_enabled !== "none" && active_swipe_enabled !== "left"
-
-    if (diff_x < 0 && (!next_view_id || !is_left_allowed)) {
-        return 0
-    }
-    if (diff_x > 0 && (!prev_view_id || !is_right_allowed)) {
-        return 0
-    }
+    if (!swipe_enabled) return 0
+    if (diff_x < 0 && !next_view_id) return 0
+    if (diff_x > 0 && !prev_view_id) return 0
     return diff_x
 }
 
@@ -216,22 +189,28 @@ export function useViewSwipeGesture<T extends string>({
         }
     }
 
+    const is_transitioning = transition_state.status !== "idle"
+
+    const sync_controller_transition = useCallback(
+        (next_is_transitioning: boolean) => {
+            view_switcher_controller.update_instance(switcher_instance_id, {
+                is_transitioning: next_is_transitioning
+            })
+        },
+        [switcher_instance_id]
+    )
+
     useLayoutEffect(() => {
         if (transition_state.status === "idle") {
             swipe_gesture_ref.current?.reset_swipe()
+            sync_controller_transition(false)
         }
-    }, [transition_state.status])
+    }, [transition_state.status, sync_controller_transition])
 
     const set_view_element = useCallback((view_id: T, element: HTMLDivElement | null) => {
         if (element) view_elements_ref.current[view_id] = element
         else delete view_elements_ref.current[view_id]
     }, [])
-
-    const is_transitioning = transition_state.status !== "idle"
-    const target_view_id =
-        transition_state.status === "released" && transition_state.release.outcome === "switch"
-            ? transition_state.release.view_id
-            : null
 
     const context_ref = useRef({
         transition_state,
@@ -253,16 +232,6 @@ export function useViewSwipeGesture<T extends string>({
         }
     })
 
-    const sync_controller_transition = useCallback(
-        (next_is_transitioning: boolean, next_target_view_id: T | null = null) => {
-            view_switcher_controller.update_instance(switcher_instance_id, {
-                is_transitioning: next_is_transitioning,
-                target_view_id: next_target_view_id
-            })
-        },
-        [switcher_instance_id]
-    )
-
     const reset_transition = useCallback(() => {
         if (transition_state.status !== "idle") {
             sync_controller_transition(false)
@@ -277,7 +246,7 @@ export function useViewSwipeGesture<T extends string>({
             sync_controller_transition(false)
             set_transition_state({ status: "idle" })
         },
-        [transition_state, sync_controller_transition]
+        [transition_state.status, sync_controller_transition]
     )
 
     // Safety fallback: ensure transition recovers to idle even if browser drops transitionend event
@@ -309,7 +278,7 @@ export function useViewSwipeGesture<T extends string>({
             enabled: (swipe_direction) => {
                 const {
                     transition_state: current_ts,
-                    active_swipe_enabled: swipe_perm,
+                    active_swipe_enabled: swipe_enabled,
                     active_view_index: curr_idx,
                     views: all_views
                 } = context_ref.current
@@ -317,7 +286,7 @@ export function useViewSwipeGesture<T extends string>({
                 // Forbid swipe during iOS overscroll/bounce
                 if (is_in_overscroll()) return false
 
-                if (view_switcher_controller.has_any_transitioning(switcher_instance_id)) return false
+                if (view_switcher_controller.has_other_transitioning(switcher_instance_id)) return false
 
                 if (current_ts.status === "dragging") {
                     // Recover from lost events on busy thread
@@ -326,11 +295,7 @@ export function useViewSwipeGesture<T extends string>({
                     return false
                 }
 
-                if (swipe_perm === false || swipe_perm === "none") return false
-                if (swipe_perm === "left" || swipe_perm === "right") {
-                    if (swipe_perm !== swipe_direction) return false
-                }
-
+                if (!swipe_enabled) return false
                 if (swipe_direction === "right" && curr_idx <= 0) return false
                 if (swipe_direction === "left" && curr_idx >= all_views.length - 1) return false
 
@@ -392,13 +357,13 @@ export function useViewSwipeGesture<T extends string>({
                 if (current_transition.status !== "dragging") return
 
                 const { prev_view_id, next_view_id } = current_transition
-                const { active_swipe_enabled: swipe_perm } = context_ref.current
+                const { active_swipe_enabled: swipe_enabled } = context_ref.current
 
                 const effective_translation_x = calculate_effective_translation_x(
                     delta_x,
                     prev_view_id,
                     next_view_id,
-                    swipe_perm
+                    swipe_enabled
                 )
                 update_transition_elements(current_transition, view_elements_ref.current, effective_translation_x)
             },
@@ -408,12 +373,12 @@ export function useViewSwipeGesture<T extends string>({
 
                 const release = resolve_swipe_release(current_transition, swipe_result)
                 const { prev_view_id, next_view_id } = current_transition
-                const { active_swipe_enabled: swipe_perm } = context_ref.current
+                const { active_swipe_enabled: swipe_enabled } = context_ref.current
                 const current_translation_x = calculate_effective_translation_x(
                     swipe_result.diff_x,
                     prev_view_id,
                     next_view_id,
-                    swipe_perm
+                    swipe_enabled
                 )
 
                 if (Math.abs(current_translation_x - release.translation_x) < 1) {
@@ -441,7 +406,7 @@ export function useViewSwipeGesture<T extends string>({
                     RELEASE_TRANSITION_CSS
                 )
 
-                sync_controller_transition(true, release.outcome === "switch" ? release.view_id : null)
+                sync_controller_transition(true)
                 set_transition_state((prev) =>
                     prev.status === "idle"
                         ? prev
@@ -471,8 +436,6 @@ export function useViewSwipeGesture<T extends string>({
     return {
         transition_state,
         is_transitioning,
-        target_view_id,
-        view_elements_ref,
         set_view_element,
         handle_transition_end,
         reset_transition
