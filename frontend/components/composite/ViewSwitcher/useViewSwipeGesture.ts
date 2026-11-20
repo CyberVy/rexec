@@ -175,6 +175,8 @@ export function useViewSwipeGesture<T extends string>({
     const [transition_state, set_transition_state] = useState<TransitionState<T>>({ status: "idle" })
     const [prev_active_view_id, set_prev_active_view_id] = useState<T>(current_active_view_id)
     const transition_state_ref = useRef<TransitionState<T>>({ status: "idle" })
+    const committed_transition_ref = useRef<TransitionState<T>>({ status: "idle" })
+    const pending_translation_x_ref = useRef(0)
     const view_elements_ref = useRef<Record<string, HTMLDivElement | null>>({})
 
     if (prev_active_view_id !== current_active_view_id) {
@@ -190,22 +192,28 @@ export function useViewSwipeGesture<T extends string>({
 
     const is_transitioning = transition_state.status !== "idle"
 
-    const set_transition = useCallback(
-        (next: TransitionState<T>) => {
-            transition_state_ref.current = next
-            set_transition_state(next)
-            view_switcher_controller.update_instance(switcher_instance_id, {
-                is_transitioning: next.status !== "idle"
-            })
-        },
-        [switcher_instance_id]
-    )
+    // Must not update the controller synchronously: its useSyncExternalStore subscribers would render inside the
+    // touchmove dispatch and delay the preventDefault reply, letting iOS start a native scroll that cannot be cancelled.
+    const set_transition = useCallback((next: TransitionState<T>) => {
+        transition_state_ref.current = next
+        set_transition_state(next)
+    }, [])
 
     useLayoutEffect(() => {
+        committed_transition_ref.current = transition_state
         if (transition_state.status === "idle") {
             transition_state_ref.current = transition_state
-            view_switcher_controller.update_instance(switcher_instance_id, { is_transitioning: false })
+        } else if (transition_state.status === "dragging") {
+            update_transition_elements(
+                transition_state,
+                view_elements_ref.current,
+                pending_translation_x_ref.current,
+                "none"
+            )
         }
+        view_switcher_controller.update_instance(switcher_instance_id, {
+            is_transitioning: transition_state.status !== "idle"
+        })
     }, [transition_state, switcher_instance_id])
 
     const set_view_element = useCallback((view_id: T, element: HTMLDivElement | null) => {
@@ -247,14 +255,17 @@ export function useViewSwipeGesture<T extends string>({
         [set_transition]
     )
 
-    // Safety fallback: ensure transition recovers to idle even if browser drops transitionend event
+    // Safety fallback: ensure transition recovers to idle even if browser drops transitionend event.
+    // Keyed on the release object so a new gesture replaces the timer, and the callback no-ops if it already has.
     useEffect(() => {
         if (transition_state.status !== "released") return
+        const released_state = transition_state
         const timer = setTimeout(() => {
+            if (transition_state_ref.current !== released_state) return
             set_transition({ status: "idle" })
         }, 350)
         return () => clearTimeout(timer)
-    }, [transition_state.status, set_transition])
+    }, [transition_state, set_transition])
 
     // Lock touchmove document scrolling while transition animation is active
     useEffect(() => {
@@ -299,13 +310,11 @@ export function useViewSwipeGesture<T extends string>({
                 const current_ts = transition_state_ref.current
                 const { current_active_view_id: active_id, views: all_views } = context_ref.current
 
-                const { view_id: resolved_id, scroll_y: active_scroll_y } = resolve_swipe_start(
-                    current_ts,
-                    active_id,
-                    window.scrollY
-                )
+                const resolved = resolve_swipe_start(current_ts, active_id, window.scrollY)
+                const resolved_id = resolved.view_id
+                let active_scroll_y = resolved.scroll_y
                 if (current_ts.status === "idle") {
-                    scroll_positions_ref.current[resolved_id] = active_scroll_y
+                    active_scroll_y = scroll_positions_ref.current[resolved_id] ?? active_scroll_y
                 }
 
                 const active_idx = all_views.findIndex((v) => v.id === resolved_id)
@@ -358,6 +367,9 @@ export function useViewSwipeGesture<T extends string>({
                     next_view_id,
                     swipe_enabled
                 )
+                pending_translation_x_ref.current = effective_translation_x
+                // Views are still in flow until React commits this drag; fixed-space transforms would misplace them
+                if (committed_transition_ref.current !== current_transition) return
                 update_transition_elements(
                     current_transition,
                     view_elements_ref.current,
@@ -387,12 +399,14 @@ export function useViewSwipeGesture<T extends string>({
                     return
                 }
 
-                update_transition_elements(
-                    current_transition,
-                    view_elements_ref.current,
-                    release.translation_x,
-                    RELEASE_TRANSITION_CSS
-                )
+                if (committed_transition_ref.current === current_transition) {
+                    update_transition_elements(
+                        current_transition,
+                        view_elements_ref.current,
+                        release.translation_x,
+                        RELEASE_TRANSITION_CSS
+                    )
+                }
 
                 set_transition({
                     ...current_transition,

@@ -126,17 +126,28 @@ export function ViewSwitcher<T extends string = string>({
 
     useRootOverscrollLock(switcher_instance_id, is_host_visible && !active_overscroll_enabled)
 
-    // Window scroll listener: records scroll position for keep-alive views
+    const other_transitioning = view_switcher_controller.has_other_transitioning(switcher_instance_id)
+
+    // Records the active view's scroll while it is idle. The subscription is dropped for the whole
+    // transition and does not record until the next touch, so the browser's scroll adjustment is ignored.
     useEffect(() => {
-        if (!active_view_remember_scroll) return
+        if (!active_view_remember_scroll || !is_host_visible || is_transitioning || other_transitioning) return
+        let record_scroll = false
+        const handle_touch_start = () => {
+            record_scroll = true
+        }
         const handle_scroll = () => {
-            if (!is_host_visible || is_switching_view_ref.current || is_transitioning) return
+            if (!record_scroll || is_switching_view_ref.current) return
             scroll_positions_ref.current[current_active_view_id] = window.scrollY
         }
 
+        window.addEventListener("touchstart", handle_touch_start, { passive: true })
         window.addEventListener("scroll", handle_scroll, { passive: true })
-        return () => window.removeEventListener("scroll", handle_scroll)
-    }, [is_host_visible, current_active_view_id, active_view_remember_scroll, is_transitioning])
+        return () => {
+            window.removeEventListener("touchstart", handle_touch_start)
+            window.removeEventListener("scroll", handle_scroll)
+        }
+    }, [is_host_visible, current_active_view_id, active_view_remember_scroll, is_transitioning, other_transitioning])
 
     // Restore scroll position synchronously pre-paint on active view change or transition end
     useLayoutEffect(() => {
