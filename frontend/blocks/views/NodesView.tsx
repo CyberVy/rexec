@@ -1,19 +1,11 @@
 "use client"
 
+
+import { X as CloseIcon, ArrowLeft as BackIcon, Plus as PlusIcon, RefreshCw as RefreshIcon, Trash2 as TrashIcon } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import {
-    FullscreenModalContainer,
-    AnimationContainer,
-    BodyPortal,
-    view_switcher_controller,
-    CloseIcon,
-    ButtonGroup,
-    BackIcon
-} from "@/components"
+import { FullscreenModalContainer, AnimationContainer, BodyPortal, view_switcher_controller, ButtonGroup } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
-import { PlusIcon, RefreshIcon, TrashIcon } from "../icons"
-
 export function NodesView() {
     const session = useController(session_controller, {
         events: ["change", "status_change"]

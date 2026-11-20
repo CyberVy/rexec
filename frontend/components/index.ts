@@ -52,9 +52,6 @@ export { BodyPortal } from "./base/Portal"
 export { useAutoSyncRefAndState, useOptimizedRotation, useMediaQuery, useController, useKeyedController } from "./hooks"
 export type { UseControllerOptions } from "./hooks"
 
-// icons.tsx
-export { SearchIcon, BackIcon, ForwardIcon, SettingIcon, CloseIcon, ChevronDownIcon, FilterIcon } from "./icons"
-
 // ViewSwitcher.tsx
 export { ViewSwitcher, view_switcher_controller } from "./composite/ViewSwitcher"
 export type { ToolbarColor, ToolbarLayout, View, ViewSwitcherProps } from "./composite/ViewSwitcher"

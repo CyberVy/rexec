@@ -1,9 +1,10 @@
 "use client"
 
+
+import { Play as RunIcon, Square as AbortIcon, Trash2 as ClearIcon, Copy as CopyIcon, Check as CheckIcon } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { useController } from "@/components/hooks"
 import { exec_controller } from "@/core/controllers/exec_controller"
-import { RunIcon, AbortIcon, ClearIcon, CopyIcon, CheckIcon } from "../icons"
 import { ExecShortcutBar } from "../shortcuts"
 
 export function ExecView() {

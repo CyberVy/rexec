@@ -1,16 +1,8 @@
 "use client"
 
+import { ArrowLeft as BackIcon, X as CloseIcon, Trash2 as TrashIcon } from "lucide-react"
 import type { ReactNode } from "react"
-import {
-    AnimationContainer,
-    BackIcon,
-    BodyPortal,
-    ButtonGroup,
-    CloseIcon,
-    FullscreenModalContainer
-} from "@/components"
-import { TrashIcon } from "../icons"
-
+import { AnimationContainer, BodyPortal, ButtonGroup, FullscreenModalContainer } from "@/components"
 export interface ShortcutEditorModalEntry {
     id: string
     label: string

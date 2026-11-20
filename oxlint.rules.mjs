@@ -137,17 +137,17 @@ const noInlineSvgsRule = {
     meta: {
         type: "suggestion",
         docs: {
-            description: "Enforce SVG icon component centralization in icons.tsx"
+            description: "Keep hand-drawn SVG in the launch animation only"
         },
         messages: {
             noInlineSvg:
-                "Do not use inline <svg> tags outside of icons.tsx. Write SVG components in the corresponding icons.tsx and import them instead."
+                "Do not use inline <svg> tags. Use a Lucide icon. The launch mark in LaunchAnimation.tsx is the only hand-drawn SVG."
         }
     },
     create(context) {
         const filename = context.filename || (context.getFilename && context.getFilename()) || ""
-        const isIconFile = filename.endsWith("icons.tsx") || filename.endsWith("icons.ts")
-        if (isIconFile) return {}
+        const isLaunchAnimation = filename.endsWith("LaunchAnimation.tsx")
+        if (isLaunchAnimation) return {}
 
         return {
             JSXOpeningElement(node) {

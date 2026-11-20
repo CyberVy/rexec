@@ -1,39 +1,18 @@
 "use client"
 
+
+import { X as CloseIcon, ChevronDown as ChevronDownIcon, ArrowLeft as BackIcon, Play as RunIcon, Plus as PlusIcon, Trash2 as TrashIcon, RefreshCw as RefreshIcon, Keyboard as KeyboardIcon, Folder as FolderIcon, File as FileIcon, FolderUp as FolderUpIcon, MapPin as PinIcon, Copy as CopyIcon, Check as CheckIcon, Trash2 as ClearIcon } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Terminal } from "@xterm/xterm"
 import type { ITheme } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
 import { useController } from "@/components/hooks"
-import {
-    FullscreenModalContainer,
-    AnimationContainer,
-    BodyPortal,
-    view_switcher_controller,
-    CloseIcon,
-    ChevronDownIcon,
-    ButtonGroup,
-    BackIcon
-} from "@/components"
+import { FullscreenModalContainer, AnimationContainer, BodyPortal, view_switcher_controller, ButtonGroup } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
 import { format_entry_size } from "@/core/workspace"
 import { NaiveButton } from "@/components/base/Buttons"
-import {
-    RunIcon,
-    PlusIcon,
-    TrashIcon,
-    RefreshIcon,
-    KeyboardIcon,
-    FolderIcon,
-    FileIcon,
-    FolderUpIcon,
-    PinIcon,
-    CopyIcon,
-    CheckIcon,
-    ClearIcon
-} from "../icons"
 import { TerminalShortcutBar } from "../shortcuts"
 
 function format_display_path(cwd: string | null): string {

@@ -1,9 +1,9 @@
 "use client"
 
+
+import { Plus as PlusIcon } from "lucide-react"
 import { useCallback } from "react"
 import { NaiveButton } from "@/components/base/Buttons"
-import { PlusIcon } from "../icons"
-
 export interface ShortcutStripItem {
     id: string
     label: string

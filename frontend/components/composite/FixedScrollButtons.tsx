@@ -1,7 +1,7 @@
 "use client"
 
 import { ButtonGroup } from "@/components/base/Buttons"
-import { string_icons } from "@/components/ui_constants"
+import { ChevronDown, ChevronUp } from "lucide-react"
 import React from "react"
 import { join_classes } from "../utils"
 
@@ -47,7 +47,7 @@ const ScrollToTopButton = React.memo(function ScrollToTopButton({
                 className="rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
                 items={[
                     {
-                        content: string_icons.up_triangle,
+                        content: <ChevronUp width={18} height={18} />,
                         className: "w-10 h-10",
                         on_click: () => scroll_element({ element_ref, on_scroll, offset }, "top")
                     }
@@ -71,7 +71,7 @@ const ScrollToBottomButton = React.memo(function ScrollToBottomButton({
                 className="rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
                 items={[
                     {
-                        content: string_icons.down_triangle,
+                        content: <ChevronDown width={18} height={18} />,
                         className: "w-10 h-10",
                         on_click: () => scroll_element({ element_ref, on_scroll, offset }, "bottom")
                     }
@@ -95,12 +95,12 @@ const ScrollButtonGroup = React.memo(function ScrollButtonGroup({
                 className="rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
                 items={[
                     {
-                        content: string_icons.up_triangle,
+                        content: <ChevronUp width={18} height={18} />,
                         className: "w-13 h-10",
                         on_click: () => scroll_element({ element_ref, on_scroll, offset }, "top")
                     },
                     {
-                        content: string_icons.down_triangle,
+                        content: <ChevronDown width={18} height={18} />,
                         className: "w-13 h-10",
                         on_click: () => scroll_element({ element_ref, on_scroll, offset }, "bottom")
                     }

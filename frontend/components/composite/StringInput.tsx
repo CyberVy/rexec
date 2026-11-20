@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { SearchIcon } from "@/components/icons"
+import { Search } from "lucide-react"
 import { vibrate } from "@/infra/device.client"
 
 export type StringInputProps = Omit<React.ComponentPropsWithRef<"div">, "children"> & {
@@ -122,7 +122,7 @@ function StringInput({
                             onClick={handle_submit}
                             className="flex items-center justify-center p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/60 dark:text-white/60 transition-colors cursor-pointer"
                         >
-                            {typeof submit_button === "boolean" ? <SearchIcon width={24} height={24} /> : submit_button}
+                            {typeof submit_button === "boolean" ? <Search width={24} height={24} /> : submit_button}
                         </button>
                     )}
                 </div>

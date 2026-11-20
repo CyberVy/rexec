@@ -1,7 +1,9 @@
 "use client"
 
+
+import { Terminal as TerminalIcon, Terminal as ExecIcon, Network as NodesIcon } from "lucide-react"
 import { useState, useEffect } from "react"
-import { TerminalView, ExecView, NodesView, TerminalIcon, ExecIcon, NodesIcon, LaunchAnimation } from "@/blocks"
+import { TerminalView, ExecView, NodesView, LaunchAnimation } from "@/blocks"
 import { ViewSwitcher } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 import { mount_debug_controllers } from "@/core/controllers/mount"
