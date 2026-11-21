@@ -133,35 +133,6 @@ const noEmojisRule = {
     }
 }
 
-const noInlineSvgsRule = {
-    meta: {
-        type: "suggestion",
-        docs: {
-            description: "Keep hand-drawn SVG in the launch animation only"
-        },
-        messages: {
-            noInlineSvg:
-                "Do not use inline <svg> tags. Use a Lucide icon. The launch mark in LaunchAnimation.tsx is the only hand-drawn SVG."
-        }
-    },
-    create(context) {
-        const filename = context.filename || (context.getFilename && context.getFilename()) || ""
-        const isLaunchAnimation = filename.endsWith("LaunchAnimation.tsx")
-        if (isLaunchAnimation) return {}
-
-        return {
-            JSXOpeningElement(node) {
-                if (node.name && node.name.name === "svg") {
-                    context.report({
-                        node,
-                        messageId: "noInlineSvg"
-                    })
-                }
-            }
-        }
-    }
-}
-
 const layeringRestrictionsRule = {
     meta: {
         type: "suggestion",
@@ -543,7 +514,6 @@ const plugin = {
     rules: {
         "jsx-text-indent": jsxTextIndentRule,
         "no-emojis": noEmojisRule,
-        "no-inline-svgs": noInlineSvgsRule,
         "layering-restrictions": layeringRestrictionsRule,
         "naming-conventions": namingConventionsRule,
         "no-sync-set-state-in-effect": noSyncSetStateInEffectRule,

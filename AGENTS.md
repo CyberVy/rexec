@@ -190,7 +190,7 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
     - **High-Frequency & Looping Animations**: Continuous, high-frequency, or infinite animations (e.g., playback indicators, spectrum bounces, pulsing effects, spinners) MUST strictly use composited, hardware-accelerated properties (`transform`, `opacity`) to prevent CPU layout reflow and repaint thrashing.
     - **Low-Frequency & Discrete Transitions**: Infrequent, one-off state transitions triggered by user interaction (e.g., toggle, accordion expansion) may animate layout properties (e.g., `height`, `width`) when geometric fidelity (such as preserving true circular/capsule `border-radius` without affine scale distortion) is required, provided the transition is brief and layout impact is localized.
 - **Filter & Effect Restraint (GPU)**: Do not abuse CSS filters (e.g., `blur`, `backdrop-filter`) and animations that cause excessive GPU overhead and rendering bottlenecks.
-- **Icons & SVGs**: Use `lucide-react` icons directly at the call site. Do not add icon wrapper modules. Inline `<svg>` is prohibited by Oxlint except for the launch mark in `frontend/blocks/LaunchAnimation.tsx`.
+- **Icons & SVGs**: Use `lucide-react` icons directly at the call site. Do not add icon wrapper modules. Inline `<svg>` is allowed only when no Lucide icon can express the visual (e.g. progress rings).
 - **Modals & Dialogs**:
     - Do not use native window dialogs (`window.alert`, `window.confirm`, `window.prompt`). This is enforced by Oxlint.
     - Use [ModalContainer.tsx](frontend/components/composite/ModalContainer.tsx) to build modals and dialog components.

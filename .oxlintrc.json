@@ -26,7 +26,6 @@
     "react-hooks/exhaustive-deps": "off",
     "react/set-state-in-effect": "off",
     "local/no-emojis": "error",
-    "local/no-inline-svgs": "error",
     "local/layering-restrictions": "error",
     "local/naming-conventions": "error",
     "local/no-sync-set-state-in-effect": "error",
