@@ -1,13 +1,14 @@
 "use client"
 
-import { HapticContainer } from "./HapticContainer"
+import { HapticContainer } from "../feedback/HapticContainer"
 import { join_classes } from "../utils"
 
 import type { ComponentPropsWithRef } from "react"
 
-export type NaiveButtonProps = ComponentPropsWithRef<"button">
+export type ButtonProps = ComponentPropsWithRef<"button">
 
-function NaiveButton({ children, className, type = "button", ref, ...props }: NaiveButtonProps) {
+/** Unstyled interactive button primitive with press feedback and iOS native switch haptics. */
+function Button({ children, className, type = "button", ref, ...props }: ButtonProps) {
     return (
         <button
             {...props}
@@ -25,4 +26,4 @@ function NaiveButton({ children, className, type = "button", ref, ...props }: Na
     )
 }
 
-export { NaiveButton }
+export { Button }

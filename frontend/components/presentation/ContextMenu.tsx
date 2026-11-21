@@ -1,28 +1,28 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { vibrate } from "@/infra/device.client"
 import { create_press_gesture } from "@/infra/gestures.client"
-import { FullscreenModalContainer } from "@/components/composite/ModalContainer"
-import { VerticalMenuBar } from "@/components/base/MenuBar"
-import { AnimationContainer } from "@/components/animation/AnimationContainer"
-import { BodyPortal } from "@/components/base/Portal"
-import type { PointerEvent, ReactNode, Ref } from "react"
-import type { VerticalMenuBarItem, VerticalMenuBarSection } from "@/components/base/MenuBar"
+import { Menu } from "../controls/Menu"
+import { useEscapeKey } from "../hooks"
+import { Portal } from "./Portal"
+import { Transition } from "./Transition"
+
+import type { MouseEvent as ReactMouseEvent, PointerEvent, ReactNode, Ref } from "react"
+import type { MenuItem, MenuSection } from "../controls/Menu"
 
 export type ContextMenuProps = {
     children: ReactNode
-    sections: VerticalMenuBarSection[]
-    on_select?: (key: string, item: VerticalMenuBarItem) => void
+    sections: MenuSection[]
+    on_select?: (key: string, item: MenuItem) => void
     header?: ReactNode
     footer?: ReactNode
     selected_key?: string
     default_selected_key?: string
-    enable_vibration?: boolean
+    enable_haptic?: boolean
     disabled?: boolean
     long_press_ms?: number
     close_after_select?: boolean
-    close_label: string
+    close_label?: string
     on_click_trigger?: (event: PointerEvent<HTMLDivElement>) => void
     // className and ref apply to the trigger wrapper, not to the menu panel.
     className?: string
@@ -47,13 +47,13 @@ function ContextMenu({
     disabled = false,
     long_press_ms = 300,
     close_after_select = true,
-    close_label,
+    close_label = "Close",
     on_click_trigger,
     className,
     ref,
     sections,
     on_select,
-    enable_vibration = true,
+    enable_haptic = true,
     header,
     footer,
     selected_key,
@@ -69,18 +69,15 @@ function ContextMenu({
 
     const has_context_menu = Boolean(sections && sections.length > 0)
 
-    const context_menu_enter_from = useMemo(() => {
-        return { transform: "scale(0.0)" }
-    }, [])
-
-    const context_menu_enter_to = useMemo(() => {
-        return { transform: "scale(1.0)" }
-    }, [])
+    const context_menu_enter_from = useMemo(() => ({ transform: "scale(0.0)" }), [])
+    const context_menu_enter_to = useMemo(() => ({ transform: "scale(1.0)" }), [])
 
     const close_context_menu = useCallback(() => {
         backdrop_press_active_ref.current = false
         set_show_context_menu(false)
     }, [])
+
+    useEscapeKey(show_context_menu, close_context_menu)
 
     const open_context_menu = useCallback(
         (client_x: number, client_y: number, target_el?: HTMLElement | null) => {
@@ -117,7 +114,6 @@ function ContextMenu({
     const press_config_ref = useRef({
         disabled,
         has_context_menu,
-        enable_vibration,
         on_click_trigger,
         open_context_menu
     })
@@ -127,7 +123,6 @@ function ContextMenu({
         press_config_ref.current = {
             disabled,
             has_context_menu,
-            enable_vibration,
             on_click_trigger,
             open_context_menu
         }
@@ -140,11 +135,6 @@ function ContextMenu({
                 if (event.button !== 0) return false
                 if (cfg.on_click_trigger) return true
                 return !cfg.disabled && cfg.has_context_menu
-            },
-            on_success: () => {
-                if (press_config_ref.current.enable_vibration) {
-                    vibrate()
-                }
             },
             click: {
                 on_trigger: (event) => {
@@ -178,7 +168,7 @@ function ContextMenu({
         }
     }, [disabled, has_context_menu, on_click_trigger])
 
-    const handle_context_menu = (event: React.MouseEvent<HTMLDivElement>) => {
+    const handle_context_menu = (event: ReactMouseEvent<HTMLDivElement>) => {
         if (disabled || !has_context_menu) return
 
         event.preventDefault()
@@ -190,7 +180,7 @@ function ContextMenu({
         <>
             <div
                 ref={ref}
-                className={[className].filter(Boolean).join(" ")}
+                className={className}
                 onContextMenu={handle_context_menu}
                 onPointerDown={(event) => press_gesture_ref.current?.on_pointer_down(event)}
                 onPointerMove={(event) => press_gesture_ref.current?.on_pointer_move(event)}
@@ -201,77 +191,75 @@ function ContextMenu({
                 {children}
             </div>
             {has_context_menu && !disabled && (
-                <BodyPortal>
-                    <AnimationContainer
+                <Portal>
+                    <Transition
                         duration={300}
                         enter_from={context_menu_enter_from}
                         enter_to={context_menu_enter_to}
                         show={show_context_menu}
                         unmount_on_exit={true}
-                        className={"fixed inset-0 z-100 select-none"}
+                        className="fixed inset-0 z-100 select-none"
                         style={{
                             transformOrigin: `${context_menu_point[0]}px ${context_menu_point[1]}px`
                         }}
                     >
-                        <FullscreenModalContainer on_escape={close_context_menu}>
-                            <button
-                                type="button"
-                                aria-label={close_label}
-                                className="fixed inset-0"
-                                onPointerDown={(event) => {
+                        <button
+                            type="button"
+                            aria-label={close_label}
+                            className="fixed inset-0 block w-full h-full"
+                            onPointerDown={(event) => {
+                                event.stopPropagation()
+                                backdrop_press_active_ref.current = true
+                                close_context_menu()
+                            }}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                if (!backdrop_press_active_ref.current) return
+                                close_context_menu()
+                            }}
+                        />
+                        <div
+                            ref={menu_element_ref}
+                            className="fixed z-10 w-[min(208px,calc(100vw-24px))]"
+                            style={{
+                                left: context_menu_render_point[0],
+                                top: context_menu_render_point[1]
+                            }}
+                            onContextMenu={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }}
+                            onPointerDown={(event) => {
+                                event.stopPropagation()
+                                context_menu_active_ref.current = true
+                            }}
+                            onClickCapture={(event) => {
+                                if (!context_menu_active_ref.current) {
                                     event.stopPropagation()
-                                    backdrop_press_active_ref.current = true
-                                    close_context_menu()
-                                }}
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                    if (!backdrop_press_active_ref.current) return
+                                }
+                                context_menu_active_ref.current = false
+                            }}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                            }}
+                        >
+                            <Menu
+                                className="overscroll-none overflow-auto w-full"
+                                header={header}
+                                footer={footer}
+                                selected_key={selected_key}
+                                default_selected_key={default_selected_key}
+                                sections={sections || []}
+                                enable_haptic={enable_haptic}
+                                on_select={(key, item) => {
+                                    on_select?.(key, item)
+                                    if (close_after_select === false) return
                                     close_context_menu()
                                 }}
                             />
-                            <div
-                                ref={menu_element_ref}
-                                className="fixed z-10 w-[min(208px,calc(100vw-24px))]"
-                                style={{
-                                    left: context_menu_render_point[0],
-                                    top: context_menu_render_point[1]
-                                }}
-                                onContextMenu={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                }}
-                                onPointerDown={(event) => {
-                                    event.stopPropagation()
-                                    context_menu_active_ref.current = true
-                                }}
-                                onClickCapture={(event) => {
-                                    if (!context_menu_active_ref.current) {
-                                        event.stopPropagation()
-                                    }
-                                    context_menu_active_ref.current = false
-                                }}
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                }}
-                            >
-                                <VerticalMenuBar
-                                    className="overscroll-none overflow-auto w-full"
-                                    header={header}
-                                    footer={footer}
-                                    selected_key={selected_key}
-                                    default_selected_key={default_selected_key}
-                                    sections={sections || []}
-                                    enable_vibration={enable_vibration}
-                                    on_select={(key, item) => {
-                                        on_select?.(key, item)
-                                        if (close_after_select === false) return
-                                        close_context_menu()
-                                    }}
-                                />
-                            </div>
-                        </FullscreenModalContainer>
-                    </AnimationContainer>
-                </BodyPortal>
+                        </div>
+                    </Transition>
+                </Portal>
             )}
         </>
     )

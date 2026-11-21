@@ -1,15 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { vibrate } from "@/infra/device.client"
+import { HapticContainer } from "../feedback/HapticContainer"
+import { join_classes } from "../utils"
 import type { KeyboardEvent, ReactNode, Ref } from "react"
 
-export type StringInputProps = {
+export type TextFieldProps = {
     value?: string
     default_value?: string
-    placeholder: string
-    clear_label: string
-    clear_icon: ReactNode
+    placeholder?: string
+    clear_label?: string
+    clear_icon?: ReactNode
     icon?: ReactNode
     show_clear?: boolean
     submit_button?: ReactNode
@@ -17,12 +18,13 @@ export type StringInputProps = {
     on_submit?: (value: string) => void
     auto_focus?: boolean
     input_ref?: Ref<HTMLInputElement>
+    input_class_name?: string
     shape?: "field" | "pill"
     className?: string
     ref?: Ref<HTMLDivElement>
 }
 
-function StringInput({
+function TextField({
     value: controlled_value,
     default_value = "",
     placeholder,
@@ -35,10 +37,11 @@ function StringInput({
     on_submit,
     auto_focus = false,
     input_ref,
+    input_class_name,
     shape = "field",
-    className = "",
+    className,
     ref
-}: StringInputProps) {
+}: TextFieldProps) {
     const [internal_value, set_internal_value] = useState(
         controlled_value !== undefined ? controlled_value : default_value
     )
@@ -62,7 +65,6 @@ function StringInput({
     }
 
     const handle_clear = () => {
-        vibrate()
         if (!is_controlled) {
             set_internal_value("")
         }
@@ -70,7 +72,6 @@ function StringInput({
     }
 
     const handle_submit = () => {
-        vibrate()
         on_submit?.(current_value)
     }
 
@@ -82,7 +83,7 @@ function StringInput({
         }
     }
 
-    const is_clear_visible = Boolean(show_clear && current_value)
+    const is_clear_visible = Boolean(show_clear && clear_icon && current_value)
     const is_submit_visible = Boolean(submit_button)
 
     let right_padding = "pr-3.5"
@@ -99,10 +100,14 @@ function StringInput({
     return (
         <div
             ref={ref}
-            className={`relative flex items-center w-full py-2 border border-black/10 dark:border-white/10 focus-within:ring-1 focus-within:ring-black/30 dark:focus-within:ring-white/30 ${shape_class} ${className}`}
+            className={join_classes(
+                "relative flex items-center w-full py-2 border border-(--ui-border) focus-within:ring-1 focus-within:ring-(--ui-border-strong)",
+                shape_class,
+                className
+            )}
         >
             {icon && (
-                <div className="absolute left-3.5 flex items-center pointer-events-none text-black/40 dark:text-white/40 z-10">
+                <div className="absolute left-3.5 flex items-center pointer-events-none text-(--ui-tertiary-label) z-10">
                     {icon}
                 </div>
             )}
@@ -114,9 +119,12 @@ function StringInput({
                 value={current_value}
                 onChange={(event) => handle_change(event.target.value)}
                 onKeyDown={handle_key_down}
-                className={`w-full bg-transparent focus:outline-none transition-all duration-200 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 ${
-                    icon ? "pl-9" : "pl-3.5"
-                } ${right_padding}`}
+                className={join_classes(
+                    "w-full bg-transparent focus:outline-none transition-all duration-200 text-black dark:text-white placeholder:text-(--ui-tertiary-label)",
+                    icon ? "pl-9" : "pl-3.5",
+                    right_padding,
+                    input_class_name
+                )}
             />
             {(is_clear_visible || is_submit_visible) && (
                 <div className="absolute right-2.5 flex items-center gap-1.5 z-10">
@@ -125,18 +133,22 @@ function StringInput({
                             type="button"
                             onClick={handle_clear}
                             aria-label={clear_label}
-                            className="flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/40 dark:text-white/40 transition-colors cursor-pointer"
+                            className="flex items-center justify-center rounded-full hover:bg-(--ui-fill-hover) text-(--ui-tertiary-label) transition-colors cursor-pointer"
                         >
-                            {clear_icon}
+                            <HapticContainer>
+                                <span className="flex items-center justify-center">{clear_icon}</span>
+                            </HapticContainer>
                         </button>
                     )}
                     {is_submit_visible && (
                         <button
                             type="button"
                             onClick={handle_submit}
-                            className="flex items-center justify-center p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/60 dark:text-white/60 transition-colors cursor-pointer"
+                            className="flex items-center justify-center p-1 rounded-full hover:bg-(--ui-fill-hover) text-black/60 dark:text-white/60 transition-colors cursor-pointer"
                         >
-                            {submit_button}
+                            <HapticContainer>
+                                <span className="flex items-center justify-center">{submit_button}</span>
+                            </HapticContainer>
                         </button>
                     )}
                 </div>
@@ -145,4 +157,4 @@ function StringInput({
     )
 }
 
-export { StringInput }
+export { TextField }

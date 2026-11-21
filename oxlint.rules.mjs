@@ -142,6 +142,8 @@ const layeringRestrictionsRule = {
         messages: {
             noComponentsToBlocks: "Layering violation: components must not depend on blocks or app.",
             noCoreInComponents: "Layering violation: components must not depend on core.",
+            noDeepComponentsImport:
+                "Layering violation: '{{file}}' must import from '@/components', '@/components/hooks', or '@/components/utils' instead of deep path '{{imported}}'.",
             noUiInNonUi:
                 "Layering violation: Non-UI file '{{file}}' must not import UI-related directory '{{imported}}'.",
             noCoreInInfra: "Layering violation: infra must not depend on core."
@@ -219,6 +221,26 @@ const layeringRestrictionsRule = {
                     context.report({
                         node,
                         messageId: "noCoreInComponents"
+                    })
+                }
+            } else if (is_in_directory(resolved, "frontend/components")) {
+                const ALLOWED_COMPONENT_ENTRIES = new Set([
+                    "frontend/components",
+                    "frontend/components/index",
+                    "frontend/components/index.ts",
+                    "frontend/components/hooks",
+                    "frontend/components/hooks.tsx",
+                    "frontend/components/utils",
+                    "frontend/components/utils.ts"
+                ])
+                if (!ALLOWED_COMPONENT_ENTRIES.has(resolved)) {
+                    context.report({
+                        node,
+                        messageId: "noDeepComponentsImport",
+                        data: {
+                            file: relativeFile,
+                            imported: importSource
+                        }
                     })
                 }
             }

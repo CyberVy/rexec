@@ -10,6 +10,20 @@ export type HapticContainerProps = {
 
 const IS_IOS_DEVICE = typeof window !== "undefined" && is_ios_device()
 
+function attach_switch_attribute(node: HTMLInputElement | null) {
+    if (!node) return
+    node.setAttribute("switch", "")
+}
+
+/**
+ * Fallback haptic feedback for non-iOS devices on controls that manage their own native <label>
+ * (e.g., Switch) so UI layers never call vibrate() directly.
+ */
+export function trigger_non_ios_haptic() {
+    if (IS_IOS_DEVICE) return
+    vibrate()
+}
+
 function HapticContainer({ children, disabled }: HapticContainerProps) {
     if (IS_IOS_DEVICE) {
         return (
@@ -39,10 +53,7 @@ function HapticContainer({ children, disabled }: HapticContainerProps) {
                     onPointerOverCapture={(event) => event.stopPropagation()}
                     onPointerUp={(event) => event.stopPropagation()}
                     onPointerUpCapture={(event) => event.stopPropagation()}
-                    ref={(node) => {
-                        if (!node) return
-                        node.setAttribute("switch", "")
-                    }}
+                    ref={attach_switch_attribute}
                     type="checkbox"
                     className="hidden"
                 />
@@ -52,7 +63,7 @@ function HapticContainer({ children, disabled }: HapticContainerProps) {
     }
 
     return (
-        <label
+        <span
             className="contents"
             onClickCapture={() => {
                 if (disabled) return
@@ -60,7 +71,7 @@ function HapticContainer({ children, disabled }: HapticContainerProps) {
             }}
         >
             {children}
-        </label>
+        </span>
     )
 }
 

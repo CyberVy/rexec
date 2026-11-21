@@ -1,0 +1,39 @@
+:root {
+    --ui-surface: rgba(255, 255, 255, 0.85);
+    --ui-surface-elevated: rgba(255, 255, 255, 0.8);
+    --ui-surface-fullscreen: rgba(255, 255, 255, 0.95);
+    --ui-backdrop: rgba(0, 0, 0, 0.4);
+    --ui-border: rgba(0, 0, 0, 0.1);
+    --ui-border-strong: rgba(0, 0, 0, 0.3);
+    --ui-separator: rgba(0, 0, 0, 0.06);
+    --ui-fill-subtle: rgba(0, 0, 0, 0.05);
+    --ui-fill-hover: rgba(0, 0, 0, 0.1);
+    --ui-label: rgba(0, 0, 0, 0.9);
+    --ui-secondary-label: rgba(0, 0, 0, 0.5);
+    --ui-tertiary-label: rgba(0, 0, 0, 0.4);
+
+    /* Semantic control tokens */
+    --ui-accent: #0a84ff;
+    --ui-destructive: #ff3b30;
+    --ui-destructive-hover: #ff453a;
+    --ui-switch-track: #e9e9ea;
+    --ui-switch-checked: #34c759;
+    --ui-switch-disabled-track: #f1f1f3;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ui-surface: rgba(20, 20, 20, 0.85);
+        --ui-surface-elevated: rgba(24, 24, 24, 0.85);
+        --ui-surface-fullscreen: rgba(17, 17, 17, 0.95);
+        --ui-backdrop: rgba(0, 0, 0, 0.6);
+        --ui-border: rgba(255, 255, 255, 0.1);
+        --ui-border-strong: rgba(255, 255, 255, 0.3);
+        --ui-separator: rgba(255, 255, 255, 0.06);
+        --ui-fill-subtle: rgba(255, 255, 255, 0.05);
+        --ui-fill-hover: rgba(255, 255, 255, 0.1);
+        --ui-label: rgba(255, 255, 255, 0.9);
+        --ui-secondary-label: rgba(255, 255, 255, 0.5);
+        --ui-tertiary-label: rgba(255, 255, 255, 0.4);
+    }
+}

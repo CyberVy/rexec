@@ -1,22 +1,22 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
-import { useMergedRef } from "@/components/hooks"
+import { useMergedRef } from "../hooks"
 import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react"
 
-export type AnimationStyle = Pick<CSSProperties, "opacity" | "transform" | "filter">
+export type TransitionStyle = Pick<CSSProperties, "opacity" | "transform" | "filter">
 
 // Passthrough div props (aria-*, role, onClick...) land on the root div.
-export type AnimationContainerProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
+export type TransitionProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
     show?: boolean
     children: ReactNode
     duration?: number
     delay?: number
     easing?: string
-    enter_from: AnimationStyle
-    enter_to: AnimationStyle
-    exit_from?: AnimationStyle
-    exit_to?: AnimationStyle
+    enter_from: TransitionStyle
+    enter_to: TransitionStyle
+    exit_from?: TransitionStyle
+    exit_to?: TransitionStyle
     on_enter_start?: () => void
     on_enter_end?: () => void
     on_exit_start?: () => void
@@ -28,14 +28,11 @@ export type AnimationContainerProps = Omit<ComponentPropsWithRef<"div">, "childr
 /**
  * Ensure the container and its children stay visually aligned before using this wrapper.
  * This is especially important when children include `absolute`, `fixed`, or other positioned content.
- * If the children are laid out against a different coordinate system than the container,
- * the animation's reference coordinates can become incorrect.
- * The failure mode may also differ across browser engines because their implementations are not identical.
  *
  * Note: To ensure exit animations play correctly, do not conditionally unmount this component
  * in the parent. Use `show={state}` and `unmount_on_exit={true}` instead.
  */
-function AnimationContainer({
+function Transition({
     show = true,
     children,
     className,
@@ -55,7 +52,7 @@ function AnimationContainer({
     animate_on_mount = true,
     ref,
     ...props
-}: AnimationContainerProps) {
+}: TransitionProps) {
     const element_ref = useRef<HTMLDivElement>(null)
     const animation_ref = useRef<Animation | null>(null)
     const set_element_ref = useMergedRef(element_ref, ref)
@@ -63,18 +60,9 @@ function AnimationContainer({
         "entering" | "visible" | "exiting_to_hidden" | "hidden" | "exiting_to_unmount" | "unmount"
     >(() => {
         if (show) {
-            if (animate_on_mount) {
-                return "entering"
-            } else {
-                return "visible"
-            }
-        } else {
-            if (unmount_on_exit) {
-                return "unmount"
-            } else {
-                return "hidden"
-            }
+            return animate_on_mount ? "entering" : "visible"
         }
+        return unmount_on_exit ? "unmount" : "hidden"
     })
 
     const [prev_show, set_prev_show] = useState(show)
@@ -161,11 +149,7 @@ function AnimationContainer({
                     set_render_mode("visible")
                 } else {
                     latest.on_exit_end?.()
-                    if (latest.unmount_on_exit) {
-                        set_render_mode("unmount")
-                    } else {
-                        set_render_mode("hidden")
-                    }
+                    set_render_mode(latest.unmount_on_exit ? "unmount" : "hidden")
                 }
             })
             .catch(() => {})
@@ -184,7 +168,8 @@ function AnimationContainer({
                 {children}
             </div>
         )
-    } else if (render_mode === "hidden") {
+    }
+    if (render_mode === "hidden") {
         return (
             <div
                 {...props}
@@ -200,4 +185,4 @@ function AnimationContainer({
     return null
 }
 
-export { AnimationContainer }
+export { Transition }

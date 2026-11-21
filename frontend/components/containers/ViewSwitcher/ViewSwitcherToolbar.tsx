@@ -1,8 +1,8 @@
 "use client"
 
 import type { CSSProperties } from "react"
-import { HapticContainer } from "@/components/base/HapticContainer"
-import { join_classes } from "@/components/utils"
+import { HapticContainer } from "../../feedback/HapticContainer"
+import { join_classes } from "../../utils"
 import type { ViewSwitcherToolbarProps } from "./types"
 import styles from "./ViewSwitcher.module.css"
 

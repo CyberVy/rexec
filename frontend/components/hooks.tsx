@@ -1,5 +1,5 @@
 import type { Ref, RefCallback, RefObject } from "react"
-import { useCallback, useRef, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import type { BaseController, BaseKeyedController } from "@/infra"
 import { is_ios_device } from "@/infra/device.client"
 
@@ -216,4 +216,26 @@ export function useMergedRef<T>(ref_a: Ref<T> | undefined, ref_b: Ref<T> | undef
         },
         [ref_a, ref_b]
     )
+}
+
+export function useEscapeKey(enabled: boolean, on_escape?: () => void): void {
+    const on_escape_ref = useRef(on_escape)
+
+    useLayoutEffect(() => {
+        on_escape_ref.current = on_escape
+    }, [on_escape])
+
+    useEffect(() => {
+        if (!enabled) return
+
+        const handle_keydown = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && on_escape_ref.current) {
+                event.preventDefault()
+                on_escape_ref.current()
+            }
+        }
+
+        window.addEventListener("keydown", handle_keydown)
+        return () => window.removeEventListener("keydown", handle_keydown)
+    }, [enabled])
 }

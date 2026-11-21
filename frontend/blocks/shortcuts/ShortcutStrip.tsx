@@ -1,9 +1,8 @@
 "use client"
 
-
 import { Plus as PlusIcon } from "lucide-react"
 import { useCallback } from "react"
-import { NaiveButton } from "@/components/base/Buttons"
+import { Button } from "@/components"
 export interface ShortcutStripItem {
     id: string
     label: string
@@ -46,7 +45,7 @@ export function ShortcutStrip({
         <div ref={handle_strip_ref} className="shrink-0 flex items-center gap-1.5 min-w-0">
             <div className="flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono">
                 {items.map((item) => (
-                    <NaiveButton
+                    <Button
                         key={item.id}
                         type="button"
                         title={item.title ?? item.label}
@@ -59,13 +58,13 @@ export function ShortcutStrip({
                             <span>{item.label}</span>
                             {item.note && <span className="text-[10px] text-muted-foreground">{item.note}</span>}
                         </span>
-                    </NaiveButton>
+                    </Button>
                 ))}
                 {items.length === 0 && (
                     <span className="px-1 text-[11px] text-muted-foreground shrink-0">No shortcuts</span>
                 )}
             </div>
-            <NaiveButton
+            <Button
                 type="button"
                 title={manage_label}
                 aria-label={manage_label}
@@ -73,7 +72,7 @@ export function ShortcutStrip({
                 className="shrink-0 size-8 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 text-foreground"
             >
                 <PlusIcon className="size-3.5" />
-            </NaiveButton>
+            </Button>
         </div>
     )
 }

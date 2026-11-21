@@ -2,8 +2,8 @@
 
 import { createContext, useState, useEffect, useLayoutEffect, useCallback, useContext, useId, useRef } from "react"
 import type { ComponentPropsWithoutRef } from "react"
-import { useController, useMergedRef } from "@/components/hooks"
-import { join_classes } from "@/components/utils"
+import { useController, useMergedRef } from "../../hooks"
+import { join_classes } from "../../utils"
 import {
     INITIAL_VIEW_SWITCHER_STATE,
     resolve_toolbar_active_color,

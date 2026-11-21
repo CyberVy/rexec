@@ -9,13 +9,7 @@ import {
 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import {
-    FullscreenModalContainer,
-    AnimationContainer,
-    BodyPortal,
-    view_switcher_controller,
-    NaiveButton
-} from "@/components"
+import { FullscreenSheet, view_switcher_controller, Button } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 export function NodesView() {
     const session = useController(session_controller, {
@@ -276,100 +270,87 @@ export function NodesView() {
             </div>
 
             {/* Add Node Fullscreen Modal */}
-            <BodyPortal>
-                <AnimationContainer
-                    enter_from={{ transform: "translateY(100vh)" }}
-                    enter_to={{ transform: "translateY(0)" }}
-                    show={is_add_modal_open}
-                    unmount_on_exit={true}
-                    duration={250}
-                    className="fixed inset-0 z-50"
-                >
-                    <FullscreenModalContainer
-                        enable_escape={is_add_modal_open}
-                        on_escape={handle_close_add_modal}
-                        className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
-                    >
-                        <div className="w-full max-w-xl mx-auto flex flex-col gap-5 py-2">
-                            <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
-                                <span className="font-semibold text-base font-mono text-foreground">
-                                    Add Node Agent
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={handle_close_add_modal}
-                                    className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                    title="Close"
-                                >
-                                    <CloseIcon className="size-5" />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handle_add_node} className="flex flex-col gap-4">
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-xs font-mono text-muted-foreground">Name (optional)</label>
-                                    <input
-                                        type="text"
-                                        value={new_name}
-                                        onChange={(e) => set_new_name(e.target.value)}
-                                        placeholder="e.g. Colab GPU, AWS Node"
-                                        className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-xs font-mono text-muted-foreground">Hub URL</label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={new_hub}
-                                        onChange={(e) => set_new_hub(e.target.value)}
-                                        placeholder="e.g. https://hub.example.com"
-                                        className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-xs font-mono text-muted-foreground">Session Token</label>
-                                    <input
-                                        type="text"
-                                        value={new_token}
-                                        onChange={(e) => set_new_token(e.target.value)}
-                                        placeholder="Session token (optional)"
-                                        className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
-                                    />
-                                </div>
-
-                                <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
-                                    <button
-                                        type="button"
-                                        onClick={handle_close_add_modal}
-                                        className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-5 py-2 rounded-xl bg-foreground text-background font-medium text-xs font-mono transition cursor-pointer hover:opacity-90"
-                                    >
-                                        Save & Connect
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </FullscreenModalContainer>
-
-                    <div
-                        className={
-                            "inline-flex items-center select-none inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        }
-                    >
-                        <NaiveButton className={"w-10 h-10"} onClick={handle_close_add_modal}>
-                            {<BackIcon key="back" />}
-                        </NaiveButton>
+            <FullscreenSheet
+                open={is_add_modal_open}
+                on_close={handle_close_add_modal}
+                duration={250}
+                className="bg-background/95 pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
+            >
+                <div className="w-full max-w-xl mx-auto flex flex-col gap-5 py-2">
+                    <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+                        <span className="font-semibold text-base font-mono text-foreground">Add Node Agent</span>
+                        <button
+                            type="button"
+                            onClick={handle_close_add_modal}
+                            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                            title="Close"
+                        >
+                            <CloseIcon className="size-5" />
+                        </button>
                     </div>
-                </AnimationContainer>
-            </BodyPortal>
+
+                    <form onSubmit={handle_add_node} className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-mono text-muted-foreground">Name (optional)</label>
+                            <input
+                                type="text"
+                                value={new_name}
+                                onChange={(e) => set_new_name(e.target.value)}
+                                placeholder="e.g. Colab GPU, AWS Node"
+                                className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-mono text-muted-foreground">Hub URL</label>
+                            <input
+                                type="text"
+                                required
+                                value={new_hub}
+                                onChange={(e) => set_new_hub(e.target.value)}
+                                placeholder="e.g. https://hub.example.com"
+                                className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-mono text-muted-foreground">Session Token</label>
+                            <input
+                                type="text"
+                                value={new_token}
+                                onChange={(e) => set_new_token(e.target.value)}
+                                placeholder="Session token (optional)"
+                                className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                            />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
+                            <button
+                                type="button"
+                                onClick={handle_close_add_modal}
+                                className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-5 py-2 rounded-xl bg-foreground text-background font-medium text-xs font-mono transition cursor-pointer hover:opacity-90"
+                            >
+                                Save & Connect
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div
+                    className={
+                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                    }
+                >
+                    <Button className={"w-10 h-10"} onClick={handle_close_add_modal}>
+                        {<BackIcon key="back" />}
+                    </Button>
+                </div>
+            </FullscreenSheet>
         </div>
     )
 }

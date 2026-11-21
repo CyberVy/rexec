@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import type { FC, ReactNode, Ref, RefObject } from "react"
-import { useMergedRef } from "@/components/hooks"
-import { is_element_hidden } from "@/components/utils"
+import { useMergedRef } from "../hooks"
+import { is_element_hidden } from "../utils"
 
 export type KeepLoadedMargin = {
     top?: number
@@ -43,10 +43,7 @@ const LazyContainer: FC<LazyContainerProps> = ({
         right: keep_loaded_right
     } = keep_loaded_margin || {}
 
-    // Track visibility of the element in the viewport
     const [is_visible, set_is_visible] = useState<boolean>(false)
-
-    // Use a ref to access the latest loaded state inside the observer callback
     const has_loaded_ref = useRef<boolean>(false)
 
     const element_ref = useRef<HTMLDivElement>(null)
@@ -56,7 +53,6 @@ const LazyContainer: FC<LazyContainerProps> = ({
         const current_ref = element_ref.current
         if (!current_ref) return
 
-        // Resolve the root element whether passed as a DOM node or a React ref object
         const root_element =
             root && typeof root === "object" && "current" in root ? root.current : (root as Element | null)
 
@@ -69,14 +65,11 @@ const LazyContainer: FC<LazyContainerProps> = ({
                 const [entry] = entries
 
                 if (entry.isIntersecting) {
-                    // The element enters the viewport
                     set_is_visible(true)
                     has_loaded_ref.current = true
                 } else {
-                    // The element leaves the viewport
                     if (has_loaded_ref.current && element_ref.current) {
                         // If the element (or its parent) has display: none, skip unmounting to prevent layout collapse.
-                        // We use the optimized, reflow-free is_element_hidden implementation here.
                         if (is_element_hidden(element_ref.current)) {
                             return
                         }
@@ -137,7 +130,6 @@ const LazyContainer: FC<LazyContainerProps> = ({
                             return
                         }
 
-                        // Unmount the real children to save memory
                         set_is_visible(false)
                     }
                 }

@@ -27,7 +27,7 @@
         - Put app-specific composite UI here and bind it directly to domain controllers.
     - `components/`: Base reusable UI components and UI infrastructure.
         - Put framework-level or reusable domain-agnostic primitives here.
-        - Categorized into `base/` (atomic UI), `composite/` (generic composite components), and `animation/` (transitions/animations).
+        - Organized by UI system role into `views/` (display primitives), `controls/` (interactive controls), `presentation/` (portals, transitions, modals, sheets, popovers, context menus), `containers/` (view/lifecycle containers), `observers/` (DOM/viewport observers), and `feedback/` (haptic feedback), exposed solely through `@/components`, `@/components/hooks`, and `@/components/utils`.
     - `core/`: Domain logic, algorithms, and application state coordination.
         - `controllers/`: Centralized reactive state and data controllers (`exec_controller.ts`, `pty_controller.ts`, `session_controller.ts`).
     - `infra/`: Infrastructure, platform adapters, Web IPC client, and utilities.
@@ -193,8 +193,8 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
 - **Icons & SVGs**: Use `lucide-react` icons directly at the call site. Do not add icon wrapper modules. Inline `<svg>` is allowed only when no Lucide icon can express the visual (e.g. progress rings).
 - **Modals & Dialogs**:
     - Do not use native window dialogs (`window.alert`, `window.confirm`, `window.prompt`). This is enforced by Oxlint.
-    - Use [ModalContainer.tsx](frontend/components/composite/ModalContainer.tsx) to build modals and dialog components.
-    - If a modal requires animations, compose it with [AnimationContainer.tsx](frontend/components/animation/AnimationContainer.tsx).
+    - Use [Modal.tsx](frontend/components/presentation/Modal.tsx) and [FullscreenSheet.tsx](frontend/components/presentation/FullscreenSheet.tsx) to build modals, sheets, and dialog components.
+    - Use [Popover.tsx](frontend/components/presentation/Popover.tsx) for anchored overlay menus and [Transition.tsx](frontend/components/presentation/Transition.tsx) when custom standalone transitions are needed.
 
 ## Layering Rules
 

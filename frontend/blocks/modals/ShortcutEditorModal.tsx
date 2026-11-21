@@ -2,7 +2,7 @@
 
 import { ArrowLeft as BackIcon, X as CloseIcon, Trash2 as TrashIcon } from "lucide-react"
 import type { ReactNode } from "react"
-import { AnimationContainer, BodyPortal, FullscreenModalContainer, NaiveButton } from "@/components"
+import { FullscreenSheet, Button } from "@/components"
 export interface ShortcutEditorModalEntry {
     id: string
     label: string
@@ -45,109 +45,96 @@ export function ShortcutEditorModal({
     children
 }: ShortcutEditorModalProps) {
     return (
-        <BodyPortal>
-            <AnimationContainer
-                enter_from={{ transform: "translateY(100vh)" }}
-                enter_to={{ transform: "translateY(0)" }}
-                show={open}
-                unmount_on_exit={true}
-                duration={250}
-                className="fixed inset-0 z-50"
-            >
-                <FullscreenModalContainer
-                    enable_escape={open}
-                    on_escape={on_close}
-                    className="bg-background/95 backdrop-blur-2xl text-foreground pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
-                >
-                    <div className="w-full max-w-xl mx-auto flex flex-col gap-4 py-2">
-                        <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
-                            <span className="font-semibold text-base font-mono text-foreground">{title}</span>
-                            <button
-                                type="button"
-                                onClick={on_close}
-                                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
-                                title="Close"
-                            >
-                                <CloseIcon className="size-5" />
-                            </button>
-                        </div>
-
-                        {children}
-
-                        <div className="flex flex-col gap-2">
-                            {entries.length === 0 && (
-                                <div className="text-xs font-mono text-muted-foreground py-6 text-center">
-                                    No shortcuts yet.
-                                </div>
-                            )}
-                            {entries.map((entry, index) => {
-                                const is_editing = entry.id === editing_id
-                                return (
-                                    <div
-                                        key={entry.id}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
-                                            is_editing
-                                                ? "border-foreground/40 bg-black/5 dark:bg-white/10"
-                                                : "border-black/10 dark:border-white/10"
-                                        }`}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() => on_edit(entry.id)}
-                                            className="flex-1 min-w-0 text-left cursor-pointer"
-                                        >
-                                            <div className="text-sm font-mono text-foreground truncate">
-                                                {entry.label}
-                                            </div>
-                                            <div className="text-[11px] font-mono text-muted-foreground truncate">
-                                                {entry.detail}
-                                            </div>
-                                        </button>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <button
-                                                type="button"
-                                                title="Move earlier"
-                                                disabled={index === 0}
-                                                onClick={() => on_move(entry.id, -1)}
-                                                className="px-1.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-                                            >
-                                                ↑
-                                            </button>
-                                            <button
-                                                type="button"
-                                                title="Move later"
-                                                disabled={index === entries.length - 1}
-                                                onClick={() => on_move(entry.id, 1)}
-                                                className="px-1.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-                                            >
-                                                ↓
-                                            </button>
-                                            <button
-                                                type="button"
-                                                title="Delete shortcut"
-                                                onClick={() => on_remove(entry.id)}
-                                                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
-                                            >
-                                                <TrashIcon className="size-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </div>
-                </FullscreenModalContainer>
-
-                <div
-                    className={
-                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                    }
-                >
-                    <NaiveButton className={"w-10 h-10"} onClick={on_close}>
-                        {<BackIcon key="back" />}
-                    </NaiveButton>
+        <FullscreenSheet
+            open={open}
+            on_close={on_close}
+            duration={250}
+            className="bg-background/95 pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
+        >
+            <div className="w-full max-w-xl mx-auto flex flex-col gap-4 py-2">
+                <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+                    <span className="font-semibold text-base font-mono text-foreground">{title}</span>
+                    <button
+                        type="button"
+                        onClick={on_close}
+                        className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                        title="Close"
+                    >
+                        <CloseIcon className="size-5" />
+                    </button>
                 </div>
-            </AnimationContainer>
-        </BodyPortal>
+
+                {children}
+
+                <div className="flex flex-col gap-2">
+                    {entries.length === 0 && (
+                        <div className="text-xs font-mono text-muted-foreground py-6 text-center">
+                            No shortcuts yet.
+                        </div>
+                    )}
+                    {entries.map((entry, index) => {
+                        const is_editing = entry.id === editing_id
+                        return (
+                            <div
+                                key={entry.id}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                                    is_editing
+                                        ? "border-foreground/40 bg-black/5 dark:bg-white/10"
+                                        : "border-black/10 dark:border-white/10"
+                                }`}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={() => on_edit(entry.id)}
+                                    className="flex-1 min-w-0 text-left cursor-pointer"
+                                >
+                                    <div className="text-sm font-mono text-foreground truncate">{entry.label}</div>
+                                    <div className="text-[11px] font-mono text-muted-foreground truncate">
+                                        {entry.detail}
+                                    </div>
+                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                        type="button"
+                                        title="Move earlier"
+                                        disabled={index === 0}
+                                        onClick={() => on_move(entry.id, -1)}
+                                        className="px-1.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                                    >
+                                        ↑
+                                    </button>
+                                    <button
+                                        type="button"
+                                        title="Move later"
+                                        disabled={index === entries.length - 1}
+                                        onClick={() => on_move(entry.id, 1)}
+                                        className="px-1.5 py-1 rounded text-xs font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                                    >
+                                        ↓
+                                    </button>
+                                    <button
+                                        type="button"
+                                        title="Delete shortcut"
+                                        onClick={() => on_remove(entry.id)}
+                                        className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                                    >
+                                        <TrashIcon className="size-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+            <div
+                className={
+                    "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                }
+            >
+                <Button className={"w-10 h-10"} onClick={on_close}>
+                    {<BackIcon key="back" />}
+                </Button>
+            </div>
+        </FullscreenSheet>
     )
 }
