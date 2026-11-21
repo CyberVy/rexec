@@ -5,7 +5,7 @@ import { useMergedRef } from "@/components/hooks"
 import { is_in_browser } from "@/infra/device.client"
 import { ScrollToBottomButton, ScrollToTopButton } from "@/components/composite/FixedScrollButtons"
 
-import type { ComponentPropsWithRef } from "react"
+import type { ReactNode, Ref } from "react"
 
 const IS_IN_BROWSER = typeof window !== "undefined" && is_in_browser()
 
@@ -24,8 +24,12 @@ function useEscapeKeyListener(enable_escape: boolean, on_escape?: () => void) {
     }, [enable_escape, on_escape])
 }
 
-export type FullscreenModalContainerProps = ComponentPropsWithRef<"div"> & {
-    enable_scroll_button?: boolean
+export type FullscreenModalContainerProps = {
+    children?: ReactNode
+    className?: string
+    ref?: Ref<HTMLDivElement>
+    scroll_top_icon?: ReactNode
+    scroll_bottom_icon?: ReactNode
     on_escape?: () => void
     enable_escape?: boolean
 }
@@ -33,11 +37,11 @@ export type FullscreenModalContainerProps = ComponentPropsWithRef<"div"> & {
 function FullscreenModalContainer({
     className = "",
     children,
-    enable_scroll_button = false,
+    scroll_top_icon,
+    scroll_bottom_icon,
     on_escape,
     enable_escape = true,
-    ref,
-    ...props
+    ref
 }: FullscreenModalContainerProps) {
     const container_ref = useRef<HTMLDivElement | null>(null)
     const set_container_ref = useMergedRef(container_ref, ref)
@@ -59,13 +63,20 @@ function FullscreenModalContainer({
             ]
                 .filter(Boolean)
                 .join(" ")}
-            {...props}
         >
             {children}
-            {enable_scroll_button && (
+            {scroll_top_icon && scroll_bottom_icon && (
                 <>
-                    <ScrollToTopButton className="bottom-4 right-4" element_ref={container_ref} />
-                    <ScrollToBottomButton className="bottom-4 right-17" element_ref={container_ref} />
+                    <ScrollToTopButton
+                        icon={scroll_top_icon}
+                        className="bottom-4 right-4"
+                        element_ref={container_ref}
+                    />
+                    <ScrollToBottomButton
+                        icon={scroll_bottom_icon}
+                        className="bottom-4 right-17"
+                        element_ref={container_ref}
+                    />
                 </>
             )}
         </div>
@@ -74,7 +85,10 @@ function FullscreenModalContainer({
 
 export { FullscreenModalContainer }
 
-export type FloatingModalContainerProps = ComponentPropsWithRef<"div"> & {
+export type FloatingModalContainerProps = {
+    children?: ReactNode
+    className?: string
+    ref?: Ref<HTMLDivElement>
     on_escape?: () => void
     enable_escape?: boolean
     center?: boolean
@@ -86,9 +100,7 @@ function FloatingModalContainer({
     on_escape,
     enable_escape = true,
     center = true,
-    ref,
-    onClick,
-    ...props
+    ref
 }: FloatingModalContainerProps) {
     useEscapeKeyListener(enable_escape, on_escape)
 
@@ -104,11 +116,9 @@ function FloatingModalContainer({
             ]
                 .filter(Boolean)
                 .join(" ")}
-            onClick={(e) => {
-                e.stopPropagation()
-                onClick?.(e)
+            onClick={(event) => {
+                event.stopPropagation()
             }}
-            {...props}
         >
             {children}
         </div>

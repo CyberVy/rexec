@@ -2,28 +2,31 @@
 
 import { useState } from "react"
 import { vibrate } from "@/infra/device.client"
-import type { ComponentPropsWithRef } from "react"
+import type { ReactNode, Ref } from "react"
 
-export type FilterChipsProps = Omit<ComponentPropsWithRef<"div">, "children" | "onChange"> & {
-    items: string[]
+export type ChoicePillItem = {
+    key?: string
+    value: string
+    content: ReactNode
+}
+
+export type ChoicePillsProps = {
+    items: ChoicePillItem[]
     value?: string | null
     default_value?: string | null
     on_change?: (selected: string | null) => void
-    item_class_name?: string
-    size?: "sm" | "md"
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
-function FilterChips({
+function ChoicePills({
     items,
     value: controlled_value,
     default_value = null,
     on_change,
-    item_class_name = "",
-    size = "sm",
     className = "",
-    ref,
-    ...props
-}: FilterChipsProps) {
+    ref
+}: ChoicePillsProps) {
     const [internal_value, set_internal_value] = useState<string | null>(
         controlled_value !== undefined ? controlled_value : default_value
     )
@@ -38,39 +41,33 @@ function FilterChips({
 
     const current_value = controlled_value !== undefined ? controlled_value : internal_value
 
-    const handle_click = (item: string) => {
+    const handle_click = (value: string) => {
         vibrate()
-        const next = current_value === item ? null : item
+        const next = current_value === value ? null : value
         if (controlled_value === undefined) {
             set_internal_value(next)
         }
         on_change?.(next)
     }
 
-    const size_class = size === "sm" ? "px-2.5 py-1 text-xs" : "px-3.5 py-1.5 text-sm"
-
     return (
-        <div ref={ref} className={`flex flex-wrap gap-1.5 select-none ${className}`} {...props}>
+        <div ref={ref} className={`flex flex-wrap gap-1.5 select-none ${className}`}>
             {items.map((item, index) => {
-                const is_selected = item === current_value
+                const is_selected = item.value === current_value
                 return (
                     <button
-                        key={`${item}-${index}`}
+                        key={item.key ?? `${item.value}-${index}`}
                         type="button"
                         aria-pressed={is_selected}
-                        onClick={() => handle_click(item)}
+                        onClick={() => handle_click(item.value)}
                         className={[
-                            "cursor-pointer rounded-full border font-medium transition-all duration-150 active:scale-[0.96]",
-                            size_class,
+                            "inline-flex items-center cursor-pointer rounded-full border font-medium transition-all duration-150 active:scale-[0.96]",
                             is_selected
                                 ? "border-black bg-black text-white shadow-xs dark:border-white dark:bg-white dark:text-black"
-                                : "border-black/10 bg-black/5 text-black/70 hover:bg-black/10 hover:text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white",
-                            item_class_name
-                        ]
-                            .filter(Boolean)
-                            .join(" ")}
+                                : "border-black/10 bg-black/5 text-black/70 hover:bg-black/10 hover:text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
+                        ].join(" ")}
                     >
-                        {item}
+                        {item.content}
                     </button>
                 )
             })}
@@ -78,4 +75,4 @@ function FilterChips({
     )
 }
 
-export { FilterChips }
+export { ChoicePills }

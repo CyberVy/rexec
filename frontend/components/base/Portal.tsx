@@ -3,7 +3,7 @@
 import { createPortal } from "react-dom"
 import type { ReactNode } from "react"
 
-type BodyPortalProps = {
+export type BodyPortalProps = {
     children: ReactNode
 }
 /**
@@ -17,4 +17,3 @@ function BodyPortal({ children }: BodyPortalProps) {
 }
 
 export { BodyPortal }
-export type { BodyPortalProps }

@@ -2,33 +2,37 @@
 
 import { vibrate } from "@/infra/device.client"
 
-import type { CSSProperties, ComponentPropsWithRef } from "react"
+import type { CSSProperties, ReactNode, Ref } from "react"
 
-type CheckboxProps = Omit<ComponentPropsWithRef<"label">, "onChange"> & {
-    background_color?: string
-    picker_color?: string
-    input_ref?: React.Ref<HTMLInputElement>
+const DEFAULT_TRACK_COLOR = "var(--ui-checkbox-track, #e9e9ea)"
+const DEFAULT_CHECKED_COLOR = "var(--ui-checkbox-checked, #34c759)"
+
+export type CheckboxProps = {
+    label?: ReactNode
+    input_ref?: Ref<HTMLInputElement>
     checked?: boolean
     default_checked?: boolean
     disabled?: boolean
     name?: string
     on_change?: (checked: boolean) => void
+    track_color?: string
+    checked_color?: string
+    className?: string
+    ref?: Ref<HTMLLabelElement>
 }
 
 const Checkbox = function Checkbox({
-    background_color = "#e9e9ea",
-    picker_color = "#34c759",
+    label,
     input_ref,
     checked,
     default_checked,
     disabled,
     name,
     on_change,
-    children,
+    track_color = DEFAULT_TRACK_COLOR,
+    checked_color = DEFAULT_CHECKED_COLOR,
     className,
-    style,
-    ref,
-    ...props
+    ref
 }: CheckboxProps) {
     return (
         <label
@@ -40,10 +44,8 @@ const Checkbox = function Checkbox({
             ]
                 .filter(Boolean)
                 .join(" ")}
-            style={style}
-            {...props}
         >
-            {children}
+            {label}
             <span className="relative h-7.75 w-12.75 shrink-0">
                 <input
                     type="checkbox"
@@ -62,9 +64,9 @@ const Checkbox = function Checkbox({
                     aria-hidden="true"
                     style={
                         {
-                            "--checkbox-background-color": background_color,
-                            "--checkbox-active-color": picker_color,
-                            "--checkbox-active-shadow-color": `color-mix(in srgb, ${picker_color} 35%, transparent)`
+                            "--checkbox-background-color": track_color,
+                            "--checkbox-active-color": checked_color,
+                            "--checkbox-active-shadow-color": `color-mix(in srgb, ${checked_color} 35%, transparent)`
                         } as CSSProperties
                     }
                     className={[

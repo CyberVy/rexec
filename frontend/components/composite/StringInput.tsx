@@ -1,36 +1,43 @@
 "use client"
 
 import { useState } from "react"
-import { Search } from "lucide-react"
 import { vibrate } from "@/infra/device.client"
+import type { KeyboardEvent, ReactNode, Ref } from "react"
 
-export type StringInputProps = Omit<React.ComponentPropsWithRef<"div">, "children"> & {
+export type StringInputProps = {
     value?: string
     default_value?: string
-    placeholder?: string
-    icon?: React.ReactNode
+    placeholder: string
+    clear_label: string
+    clear_icon: ReactNode
+    icon?: ReactNode
     show_clear?: boolean
-    submit_button?: boolean | React.ReactNode
+    submit_button?: ReactNode
     on_change?: (value: string) => void
     on_submit?: (value: string) => void
-    input_ref?: React.Ref<HTMLInputElement>
-    input_class_name?: string
+    auto_focus?: boolean
+    input_ref?: Ref<HTMLInputElement>
+    shape?: "field" | "pill"
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
 function StringInput({
     value: controlled_value,
     default_value = "",
-    placeholder = "",
+    placeholder,
+    clear_label,
+    clear_icon,
     icon,
     show_clear = true,
     submit_button,
     on_change,
     on_submit,
+    auto_focus = false,
     input_ref,
+    shape = "field",
     className = "",
-    input_class_name = "",
-    ref,
-    ...props
+    ref
 }: StringInputProps) {
     const [internal_value, set_internal_value] = useState(
         controlled_value !== undefined ? controlled_value : default_value
@@ -67,7 +74,7 @@ function StringInput({
         on_submit?.(current_value)
     }
 
-    const handle_key_down = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    const handle_key_down = (event: KeyboardEvent<HTMLInputElement>) => {
         if (event.nativeEvent.isComposing) return
         if (event.key === "Enter") {
             event.currentTarget.blur()
@@ -87,8 +94,13 @@ function StringInput({
         right_padding = "pr-9"
     }
 
+    const shape_class = shape === "pill" ? "rounded-full" : "rounded-xl"
+
     return (
-        <div {...props} ref={ref} className={`relative flex items-center w-full ${className}`}>
+        <div
+            ref={ref}
+            className={`relative flex items-center w-full py-2 border border-black/10 dark:border-white/10 focus-within:ring-1 focus-within:ring-black/30 dark:focus-within:ring-white/30 ${shape_class} ${className}`}
+        >
             {icon && (
                 <div className="absolute left-3.5 flex items-center pointer-events-none text-black/40 dark:text-white/40 z-10">
                     {icon}
@@ -97,11 +109,12 @@ function StringInput({
             <input
                 ref={input_ref}
                 type="text"
+                autoFocus={auto_focus}
                 placeholder={placeholder}
                 value={current_value}
-                onChange={(e) => handle_change(e.target.value)}
+                onChange={(event) => handle_change(event.target.value)}
                 onKeyDown={handle_key_down}
-                className={`w-full text-sm bg-transparent focus:outline-none transition-all duration-200 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 ${input_class_name} ${
+                className={`w-full bg-transparent focus:outline-none transition-all duration-200 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 ${
                     icon ? "pl-9" : "pl-3.5"
                 } ${right_padding}`}
             />
@@ -111,9 +124,10 @@ function StringInput({
                         <button
                             type="button"
                             onClick={handle_clear}
-                            className="flex items-center justify-center w-5 h-5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/40 dark:text-white/40 transition-colors cursor-pointer"
+                            aria-label={clear_label}
+                            className="flex items-center justify-center rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/40 dark:text-white/40 transition-colors cursor-pointer"
                         >
-                            ✕
+                            {clear_icon}
                         </button>
                     )}
                     {is_submit_visible && (
@@ -122,7 +136,7 @@ function StringInput({
                             onClick={handle_submit}
                             className="flex items-center justify-center p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-black/60 dark:text-white/60 transition-colors cursor-pointer"
                         >
-                            {typeof submit_button === "boolean" ? <Search width={24} height={24} /> : submit_button}
+                            {submit_button}
                         </button>
                     )}
                 </div>

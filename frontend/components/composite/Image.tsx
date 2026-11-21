@@ -6,8 +6,9 @@ import { ContextMenu } from "@/components/composite/ContextMenuContainer"
 
 import type { CoverImageOptions } from "@/infra"
 import type { ContextMenuProps } from "@/components/composite/ContextMenuContainer"
-import type { ComponentPropsWithRef } from "react"
+import type { ComponentPropsWithRef, SyntheticEvent } from "react"
 
+// Passthrough <img> props (className, ref, onClick...) land on the <img>; context_menu wraps it from outside.
 export type ImageProps = Omit<ComponentPropsWithRef<"img">, "children" | "src"> & {
     src?: string
     fallback_title?: string
@@ -41,11 +42,11 @@ function Image({
             : DEFAULT_BLANK_PLACEHOLDER
         : src
 
-    const handle_error = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const handle_error = (event: SyntheticEvent<HTMLImageElement>) => {
         if (src && failed_src !== src) {
             set_failed_src(src)
         }
-        onError?.(e)
+        onError?.(event)
     }
 
     const image = (

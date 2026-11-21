@@ -7,15 +7,26 @@ import { FullscreenModalContainer } from "@/components/composite/ModalContainer"
 import { VerticalMenuBar } from "@/components/base/MenuBar"
 import { AnimationContainer } from "@/components/animation/AnimationContainer"
 import { BodyPortal } from "@/components/base/Portal"
-import type { PointerEvent, ReactNode } from "react"
-import type { VerticalMenuBarProps } from "@/components/base/MenuBar"
+import type { PointerEvent, ReactNode, Ref } from "react"
+import type { VerticalMenuBarItem, VerticalMenuBarSection } from "@/components/base/MenuBar"
 
-export type ContextMenuProps = VerticalMenuBarProps & {
+export type ContextMenuProps = {
     children: ReactNode
+    sections: VerticalMenuBarSection[]
+    on_select?: (key: string, item: VerticalMenuBarItem) => void
+    header?: ReactNode
+    footer?: ReactNode
+    selected_key?: string
+    default_selected_key?: string
+    enable_vibration?: boolean
     disabled?: boolean
     long_press_ms?: number
     close_after_select?: boolean
+    close_label: string
     on_click_trigger?: (event: PointerEvent<HTMLDivElement>) => void
+    // className and ref apply to the trigger wrapper, not to the menu panel.
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
 function get_context_menu_render_point(
@@ -36,13 +47,18 @@ function ContextMenu({
     disabled = false,
     long_press_ms = 300,
     close_after_select = true,
+    close_label,
     on_click_trigger,
     className,
-    style,
     ref,
-    ...menuProps
+    sections,
+    on_select,
+    enable_vibration = true,
+    header,
+    footer,
+    selected_key,
+    default_selected_key
 }: ContextMenuProps) {
-    const { sections, on_select, enable_vibration = true, ...remainingMenuProps } = menuProps
     const backdrop_press_active_ref = useRef(false)
     const context_menu_active_ref = useRef(false)
     const menu_element_ref = useRef<HTMLDivElement | null>(null)
@@ -175,7 +191,6 @@ function ContextMenu({
             <div
                 ref={ref}
                 className={[className].filter(Boolean).join(" ")}
-                style={style}
                 onContextMenu={handle_context_menu}
                 onPointerDown={(event) => press_gesture_ref.current?.on_pointer_down(event)}
                 onPointerMove={(event) => press_gesture_ref.current?.on_pointer_move(event)}
@@ -198,29 +213,25 @@ function ContextMenu({
                             transformOrigin: `${context_menu_point[0]}px ${context_menu_point[1]}px`
                         }}
                     >
-                        <FullscreenModalContainer
-                            on_escape={close_context_menu}
-                            onContextMenu={(event) => {
-                                event.preventDefault()
-                                event.stopPropagation()
-                            }}
-                            onPointerDown={(event) => {
-                                event.stopPropagation()
-                                backdrop_press_active_ref.current = true
-                                close_context_menu()
-                            }}
-                            onTouchStart={(event) => {
-                                event.stopPropagation()
-                                backdrop_press_active_ref.current = true
-                            }}
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                if (!backdrop_press_active_ref.current) return
-                                close_context_menu()
-                            }}
-                        >
-                            <VerticalMenuBar
-                                className={"overscroll-none overflow-auto fixed w-[min(208px,calc(100vw-24px))]"}
+                        <FullscreenModalContainer on_escape={close_context_menu}>
+                            <button
+                                type="button"
+                                aria-label={close_label}
+                                className="fixed inset-0"
+                                onPointerDown={(event) => {
+                                    event.stopPropagation()
+                                    backdrop_press_active_ref.current = true
+                                    close_context_menu()
+                                }}
+                                onClick={(event) => {
+                                    event.stopPropagation()
+                                    if (!backdrop_press_active_ref.current) return
+                                    close_context_menu()
+                                }}
+                            />
+                            <div
+                                ref={menu_element_ref}
+                                className="fixed z-10 w-[min(208px,calc(100vw-24px))]"
                                 style={{
                                     left: context_menu_render_point[0],
                                     top: context_menu_render_point[1]
@@ -233,9 +244,6 @@ function ContextMenu({
                                     event.stopPropagation()
                                     context_menu_active_ref.current = true
                                 }}
-                                // In iOS PWA, an onClick event can be triggered automatically
-                                // when a new element appears on the screen where the finger touched
-                                // This makes sure the onClick event is triggered after an onPointerDown event
                                 onClickCapture={(event) => {
                                     if (!context_menu_active_ref.current) {
                                         event.stopPropagation()
@@ -245,17 +253,22 @@ function ContextMenu({
                                 onClick={(event) => {
                                     event.stopPropagation()
                                 }}
-                                ref={menu_element_ref}
-                                sections={sections || []}
-                                enable_vibration={enable_vibration}
-                                on_select={(key, item) => {
-                                    on_select?.(key, item)
-                                    if (close_after_select === false) return
-
-                                    close_context_menu()
-                                }}
-                                {...remainingMenuProps}
-                            />
+                            >
+                                <VerticalMenuBar
+                                    className="overscroll-none overflow-auto w-full"
+                                    header={header}
+                                    footer={footer}
+                                    selected_key={selected_key}
+                                    default_selected_key={default_selected_key}
+                                    sections={sections || []}
+                                    enable_vibration={enable_vibration}
+                                    on_select={(key, item) => {
+                                        on_select?.(key, item)
+                                        if (close_after_select === false) return
+                                        close_context_menu()
+                                    }}
+                                />
+                            </div>
                         </FullscreenModalContainer>
                     </AnimationContainer>
                 </BodyPortal>

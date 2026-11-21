@@ -3,7 +3,9 @@
 import { vibrate } from "@/infra/device.client"
 import { useCallback, useState } from "react"
 
-import type { CSSProperties, ComponentPropsWithRef, ReactNode } from "react"
+import type { CSSProperties, ReactNode, Ref } from "react"
+
+const DEFAULT_ACCENT_COLOR = "var(--ui-accent, #0a84ff)"
 
 type VerticalMenuBarItem = {
     // Unique key for selection and React list rendering.
@@ -37,25 +39,17 @@ type VerticalMenuBarSection = {
     items: VerticalMenuBarItem[]
 }
 
-type VerticalMenuBarProps = Omit<ComponentPropsWithRef<"div">, "children" | "on_select"> & {
-    // Sectioned menu data rendered by the component.
+type VerticalMenuBarProps = {
     sections: VerticalMenuBarSection[]
-    // Currently selected item key for controlled selection.
     selected_key?: string
-    // Initial selected item key for uncontrolled selection.
     default_selected_key?: string
-    // Called when an item is selected. Receives the item key and item data.
     on_select?: (key: string, item: VerticalMenuBarItem) => void
-    // Optional content rendered above the menu sections.
     header?: ReactNode
-    // Optional content rendered below the menu sections.
     footer?: ReactNode
-    // Reduces spacing and icon size for a denser layout.
-    compact?: boolean
-    // Accent color used by the selected state.
-    accent_color?: string
-    // Enables haptic feedback through vibrate() on selection.
     enable_vibration?: boolean
+    accent_color?: string
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
 function VerticalMenuBar({
@@ -65,13 +59,10 @@ function VerticalMenuBar({
     on_select,
     header,
     footer,
-    compact = false,
-    accent_color = "#0a84ff",
     enable_vibration = true,
+    accent_color = DEFAULT_ACCENT_COLOR,
     className = "",
-    style,
-    ref,
-    ...props
+    ref
 }: VerticalMenuBarProps) {
     const [inner_selected_key, set_inner_selected_key] = useState(default_selected_key)
     const current_selected_key = selected_key ?? inner_selected_key
@@ -101,7 +92,8 @@ function VerticalMenuBar({
                     "--vertical-menu-accent-color": accent_color,
                     "--vertical-menu-accent-soft-color": `color-mix(in srgb, ${accent_color} 18%, transparent)`,
                     "--vertical-menu-accent-border-color": `color-mix(in srgb, ${accent_color} 28%, white)`,
-                    ...style
+                    "--vertical-menu-destructive-color": "var(--ui-destructive, #ff3b30)",
+                    "--vertical-menu-destructive-hover-color": "var(--ui-destructive-hover, #ff453a)"
                 } as CSSProperties
             }
             className={[
@@ -111,9 +103,8 @@ function VerticalMenuBar({
             ]
                 .filter(Boolean)
                 .join(" ")}
-            {...props}
         >
-            {header && <div className="px-2.5 pb-1.5 pt-1 text-xs text-black/50 dark:text-white/50">{header}</div>}
+            {header && <div className="px-2.5 pb-1.5 pt-1 text-black/50 dark:text-white/50">{header}</div>}
 
             <div className="flex flex-col gap-0.5">
                 {sections.map((section, section_index) => {
@@ -130,14 +121,12 @@ function VerticalMenuBar({
                             {(section.title || section.caption) && (
                                 <div className="px-2.5 py-1">
                                     {section.title && (
-                                        <div className="text-[10px] font-semibold uppercase tracking-wider text-black/40 dark:text-white/40">
+                                        <div className="font-semibold uppercase tracking-wider text-black/40 dark:text-white/40">
                                             {section.title}
                                         </div>
                                     )}
                                     {section.caption && (
-                                        <div className="mt-0.5 text-[11px] text-black/45 dark:text-white/45">
-                                            {section.caption}
-                                        </div>
+                                        <div className="mt-0.5 text-black/45 dark:text-white/45">{section.caption}</div>
                                     )}
                                 </div>
                             )}
@@ -157,8 +146,7 @@ function VerticalMenuBar({
                                                 handle_select(item)
                                             }}
                                             className={[
-                                                "group relative flex w-full items-center rounded-lg text-left transition-colors duration-150 ease-out",
-                                                compact ? "gap-2 px-2 py-1" : "gap-2.5 px-2.5 py-1.5",
+                                                "group relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150 ease-out",
                                                 item.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
                                                 is_selected
                                                     ? "bg-(--vertical-menu-accent-soft-color) text-(--vertical-menu-accent-color) font-medium"
@@ -172,14 +160,11 @@ function VerticalMenuBar({
                                                     aria-hidden="true"
                                                     className={[
                                                         "flex shrink-0 items-center justify-center transition-colors duration-150",
-                                                        compact
-                                                            ? "h-4.5 w-4.5 text-[15px] [&>svg]:h-3.5 [&>svg]:w-3.5"
-                                                            : "h-5 w-5 text-[16px] [&>svg]:h-4 [&>svg]:w-4",
                                                         is_selected
                                                             ? "text-(--vertical-menu-accent-color)"
                                                             : "text-black/60 group-hover:text-black/90 dark:text-white/60 dark:group-hover:text-white/90",
                                                         is_destructive && !is_selected
-                                                            ? "text-[#ff3b30] group-hover:text-[#ff453a]"
+                                                            ? "text-(--vertical-menu-destructive-color) group-hover:text-(--vertical-menu-destructive-hover-color)"
                                                             : ""
                                                     ]
                                                         .filter(Boolean)
@@ -192,9 +177,11 @@ function VerticalMenuBar({
                                             <span className="min-w-0 flex-1">
                                                 <span
                                                     className={[
-                                                        "block truncate text-[13px] font-medium leading-tight",
+                                                        "block truncate font-medium",
                                                         is_selected ? "text-(--vertical-menu-accent-color)" : "",
-                                                        is_destructive && !is_selected ? "text-[#ff3b30]" : ""
+                                                        is_destructive && !is_selected
+                                                            ? "text-(--vertical-menu-destructive-color)"
+                                                            : ""
                                                     ]
                                                         .filter(Boolean)
                                                         .join(" ")}
@@ -202,7 +189,7 @@ function VerticalMenuBar({
                                                     {item.label}
                                                 </span>
                                                 {item.description && (
-                                                    <span className="mt-0.5 block truncate text-[11px] leading-tight text-black/45 dark:text-white/45">
+                                                    <span className="mt-0.5 block truncate text-black/45 dark:text-white/45">
                                                         {item.description}
                                                     </span>
                                                 )}
@@ -213,7 +200,7 @@ function VerticalMenuBar({
                                                     {item.badge && (
                                                         <span
                                                             className={[
-                                                                "rounded-md px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                                                                "rounded-md font-medium",
                                                                 is_selected
                                                                     ? "bg-(--vertical-menu-accent-color) text-white"
                                                                     : "bg-black/6 text-black/55 dark:bg-white/10 dark:text-white/65"
@@ -225,7 +212,7 @@ function VerticalMenuBar({
                                                         </span>
                                                     )}
                                                     {item.trailing && (
-                                                        <span className="text-xs text-black/35 transition-transform duration-150 group-hover:translate-x-0.5 dark:text-white/35">
+                                                        <span className="text-black/35 transition-transform duration-150 group-hover:translate-x-0.5 dark:text-white/35">
                                                             {item.trailing}
                                                         </span>
                                                     )}
@@ -241,7 +228,7 @@ function VerticalMenuBar({
             </div>
 
             {footer && (
-                <div className="px-2.5 pb-1 pt-1.5 border-t border-black/6 dark:border-white/6 text-xs text-black/50 dark:text-white/50">
+                <div className="px-2.5 pb-1 pt-1.5 border-t border-black/6 dark:border-white/6 text-black/50 dark:text-white/50">
                     {footer}
                 </div>
             )}

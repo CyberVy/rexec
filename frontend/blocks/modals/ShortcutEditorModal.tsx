@@ -2,7 +2,7 @@
 
 import { ArrowLeft as BackIcon, X as CloseIcon, Trash2 as TrashIcon } from "lucide-react"
 import type { ReactNode } from "react"
-import { AnimationContainer, BodyPortal, ButtonGroup, FullscreenModalContainer } from "@/components"
+import { AnimationContainer, BodyPortal, FullscreenModalContainer, NaiveButton } from "@/components"
 export interface ShortcutEditorModalEntry {
     id: string
     label: string
@@ -138,16 +138,15 @@ export function ShortcutEditorModal({
                     </div>
                 </FullscreenModalContainer>
 
-                <ButtonGroup
-                    className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                    items={[
-                        {
-                            content: <BackIcon key="back" />,
-                            className: "w-10 h-10",
-                            on_click: on_close
-                        }
-                    ]}
-                />
+                <div
+                    className={
+                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                    }
+                >
+                    <NaiveButton className={"w-10 h-10"} onClick={on_close}>
+                        {<BackIcon key="back" />}
+                    </NaiveButton>
+                </div>
             </AnimationContainer>
         </BodyPortal>
     )

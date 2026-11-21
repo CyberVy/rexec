@@ -2,7 +2,28 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { useMergedRef } from "@/components/hooks"
-import type { AnimationContainerProps } from "@/components/animation/types"
+import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react"
+
+export type AnimationStyle = Pick<CSSProperties, "opacity" | "transform" | "filter">
+
+// Passthrough div props (aria-*, role, onClick...) land on the root div.
+export type AnimationContainerProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
+    show?: boolean
+    children: ReactNode
+    duration?: number
+    delay?: number
+    easing?: string
+    enter_from: AnimationStyle
+    enter_to: AnimationStyle
+    exit_from?: AnimationStyle
+    exit_to?: AnimationStyle
+    on_enter_start?: () => void
+    on_enter_end?: () => void
+    on_exit_start?: () => void
+    on_exit_end?: () => void
+    unmount_on_exit?: boolean
+    animate_on_mount?: boolean
+}
 
 /**
  * Ensure the container and its children stay visually aligned before using this wrapper.

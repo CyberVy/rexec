@@ -1,18 +1,38 @@
 "use client"
 
-
-import { X as CloseIcon, ChevronDown as ChevronDownIcon, ArrowLeft as BackIcon, Play as RunIcon, Plus as PlusIcon, Trash2 as TrashIcon, RefreshCw as RefreshIcon, Keyboard as KeyboardIcon, Folder as FolderIcon, File as FileIcon, FolderUp as FolderUpIcon, MapPin as PinIcon, Copy as CopyIcon, Check as CheckIcon, Trash2 as ClearIcon } from "lucide-react"
+import {
+    X as CloseIcon,
+    ChevronDown as ChevronDownIcon,
+    ArrowLeft as BackIcon,
+    Play as RunIcon,
+    Plus as PlusIcon,
+    Trash2 as TrashIcon,
+    RefreshCw as RefreshIcon,
+    Keyboard as KeyboardIcon,
+    Folder as FolderIcon,
+    File as FileIcon,
+    FolderUp as FolderUpIcon,
+    MapPin as PinIcon,
+    Copy as CopyIcon,
+    Check as CheckIcon,
+    Trash2 as ClearIcon
+} from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Terminal } from "@xterm/xterm"
 import type { ITheme } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
 import { useController } from "@/components/hooks"
-import { FullscreenModalContainer, AnimationContainer, BodyPortal, view_switcher_controller, ButtonGroup } from "@/components"
+import {
+    FullscreenModalContainer,
+    AnimationContainer,
+    BodyPortal,
+    view_switcher_controller,
+    NaiveButton
+} from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
 import { format_entry_size } from "@/core/workspace"
-import { NaiveButton } from "@/components/base/Buttons"
 import { TerminalShortcutBar } from "../shortcuts"
 
 function format_display_path(cwd: string | null): string {
@@ -798,16 +818,15 @@ export function TerminalView() {
                         </div>
                     </FullscreenModalContainer>
 
-                    <ButtonGroup
-                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        items={[
-                            {
-                                content: <BackIcon key="back" />,
-                                className: "w-10 h-10",
-                                on_click: handle_close_sessions_modal
-                            }
-                        ]}
-                    />
+                    <div
+                        className={
+                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                        }
+                    >
+                        <NaiveButton className={"w-10 h-10"} onClick={handle_close_sessions_modal}>
+                            {<BackIcon key="back" />}
+                        </NaiveButton>
+                    </div>
                 </AnimationContainer>
             </BodyPortal>
 
@@ -999,16 +1018,15 @@ export function TerminalView() {
                         </div>
                     </FullscreenModalContainer>
 
-                    <ButtonGroup
-                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        items={[
-                            {
-                                content: <BackIcon key="back" />,
-                                className: "w-10 h-10",
-                                on_click: handle_close_workspace_modal
-                            }
-                        ]}
-                    />
+                    <div
+                        className={
+                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                        }
+                    >
+                        <NaiveButton className={"w-10 h-10"} onClick={handle_close_workspace_modal}>
+                            {<BackIcon key="back" />}
+                        </NaiveButton>
+                    </div>
                 </AnimationContainer>
             </BodyPortal>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import type { FC, ReactNode, RefObject, ComponentPropsWithRef } from "react"
+import type { FC, ReactNode, Ref, RefObject } from "react"
 import { useMergedRef } from "@/components/hooks"
 import { is_element_hidden } from "@/components/utils"
 
@@ -10,29 +10,30 @@ export type KeepLoadedMargin = {
     right?: number
 }
 
-export type LazyContainerProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
+export type LazyContainerProps = {
     children: ReactNode
     // The placeholder element should have the same dimensions as the children to avoid layout shifts (CLS).
     placeholder?: ReactNode
     threshold?: number | number[]
-    rootMargin?: string
+    root_margin?: string
     // Accepts a DOM Element, a React Ref object, or null (defaults to browser viewport)
     root?: Element | RefObject<Element | null> | null
     keep_loaded_margin?: KeepLoadedMargin
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
-const DEFAULT_PLACEHOLDER = <div style={{ minHeight: "200px" }}>Loading...</div>
+const DEFAULT_PLACEHOLDER = <div style={{ minHeight: "200px" }} />
 
 const LazyContainer: FC<LazyContainerProps> = ({
     children,
     placeholder = DEFAULT_PLACEHOLDER,
     threshold = 0,
-    rootMargin = "200px", // A larger margin is recommended for smoother scrolling
+    root_margin = "200px",
     root = null,
     keep_loaded_margin,
     className,
-    ref,
-    ...props
+    ref
 }) => {
     const threshold_key = Array.isArray(threshold) ? threshold.join(",") : String(threshold)
     const {
@@ -143,7 +144,7 @@ const LazyContainer: FC<LazyContainerProps> = ({
             },
             {
                 root: root_element,
-                rootMargin,
+                rootMargin: root_margin,
                 threshold: resolved_threshold
             }
         )
@@ -153,15 +154,10 @@ const LazyContainer: FC<LazyContainerProps> = ({
         return () => {
             observer.disconnect()
         }
-    }, [threshold_key, rootMargin, root, keep_loaded_top, keep_loaded_bottom, keep_loaded_left, keep_loaded_right])
+    }, [threshold_key, root_margin, root, keep_loaded_top, keep_loaded_bottom, keep_loaded_left, keep_loaded_right])
 
     return (
-        <div
-            {...props}
-            ref={set_element_ref}
-            className={className}
-            data-lazy-state={is_visible ? "content" : "placeholder"}
-        >
+        <div ref={set_element_ref} className={className} data-lazy-state={is_visible ? "content" : "placeholder"}>
             {is_visible ? children : placeholder}
         </div>
     )

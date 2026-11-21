@@ -1,10 +1,21 @@
 "use client"
 
-
-import { X as CloseIcon, ArrowLeft as BackIcon, Plus as PlusIcon, RefreshCw as RefreshIcon, Trash2 as TrashIcon } from "lucide-react"
+import {
+    X as CloseIcon,
+    ArrowLeft as BackIcon,
+    Plus as PlusIcon,
+    RefreshCw as RefreshIcon,
+    Trash2 as TrashIcon
+} from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { FullscreenModalContainer, AnimationContainer, BodyPortal, view_switcher_controller, ButtonGroup } from "@/components"
+import {
+    FullscreenModalContainer,
+    AnimationContainer,
+    BodyPortal,
+    view_switcher_controller,
+    NaiveButton
+} from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 export function NodesView() {
     const session = useController(session_controller, {
@@ -348,16 +359,15 @@ export function NodesView() {
                         </div>
                     </FullscreenModalContainer>
 
-                    <ButtonGroup
-                        className="fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        items={[
-                            {
-                                content: <BackIcon key="back" />,
-                                className: "w-10 h-10",
-                                on_click: handle_close_add_modal
-                            }
-                        ]}
-                    />
+                    <div
+                        className={
+                            "inline-flex items-center select-none inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                        }
+                    >
+                        <NaiveButton className={"w-10 h-10"} onClick={handle_close_add_modal}>
+                            {<BackIcon key="back" />}
+                        </NaiveButton>
+                    </div>
                 </AnimationContainer>
             </BodyPortal>
         </div>

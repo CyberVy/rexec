@@ -1,19 +1,36 @@
 "use client"
 
-import { ButtonGroup } from "@/components/base/Buttons"
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { NaiveButton } from "@/components/base/Buttons"
 import React from "react"
 import { join_classes } from "../utils"
 
-import type { ComponentPropsWithRef, RefObject } from "react"
+import type { ReactNode, Ref, RefObject } from "react"
 
-export type ScrollButtonProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
+const SCROLL_PILL_CLASS =
+    "inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
+
+type ScrollControlProps = {
     element_ref?: RefObject<HTMLDivElement | null>
     on_scroll?: () => void
     offset?: number
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
-function scroll_element({ element_ref, on_scroll, offset = 0 }: ScrollButtonProps, position: "top" | "bottom") {
+export type ScrollToTopButtonProps = ScrollControlProps & {
+    icon: ReactNode
+}
+
+export type ScrollToBottomButtonProps = ScrollControlProps & {
+    icon: ReactNode
+}
+
+export type ScrollButtonGroupProps = ScrollControlProps & {
+    up_icon: ReactNode
+    down_icon: ReactNode
+}
+
+function scroll_element({ element_ref, on_scroll, offset = 0 }: ScrollControlProps, position: "top" | "bottom") {
     if (!element_ref?.current) {
         const { documentElement } = document
         // use window.outerHeight
@@ -34,78 +51,74 @@ function scroll_element({ element_ref, on_scroll, offset = 0 }: ScrollButtonProp
 }
 
 const ScrollToTopButton = React.memo(function ScrollToTopButton({
+    icon,
     element_ref,
     on_scroll,
     offset = 1,
     className,
-    ref,
-    ...props
-}: ScrollButtonProps) {
+    ref
+}: ScrollToTopButtonProps) {
     return (
-        <div {...props} ref={ref} className={join_classes("fixed z-10 select-none text-2xl", className)}>
-            <ButtonGroup
-                className="rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
-                items={[
-                    {
-                        content: <ChevronUp width={18} height={18} />,
-                        className: "w-10 h-10",
-                        on_click: () => scroll_element({ element_ref, on_scroll, offset }, "top")
-                    }
-                ]}
-            />
+        <div ref={ref} className={join_classes("fixed z-10 select-none text-2xl", className)}>
+            <div className={SCROLL_PILL_CLASS}>
+                <NaiveButton
+                    className="w-10 h-10"
+                    onClick={() => scroll_element({ element_ref, on_scroll, offset }, "top")}
+                >
+                    {icon}
+                </NaiveButton>
+            </div>
         </div>
     )
 })
 
 const ScrollToBottomButton = React.memo(function ScrollToBottomButton({
+    icon,
     element_ref,
     on_scroll,
     offset = 1,
     className,
-    ref,
-    ...props
-}: ScrollButtonProps) {
+    ref
+}: ScrollToBottomButtonProps) {
     return (
-        <div {...props} ref={ref} className={join_classes("fixed z-10 select-none text-2xl", className)}>
-            <ButtonGroup
-                className="rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
-                items={[
-                    {
-                        content: <ChevronDown width={18} height={18} />,
-                        className: "w-10 h-10",
-                        on_click: () => scroll_element({ element_ref, on_scroll, offset }, "bottom")
-                    }
-                ]}
-            />
+        <div ref={ref} className={join_classes("fixed z-10 select-none text-2xl", className)}>
+            <div className={SCROLL_PILL_CLASS}>
+                <NaiveButton
+                    className="w-10 h-10"
+                    onClick={() => scroll_element({ element_ref, on_scroll, offset }, "bottom")}
+                >
+                    {icon}
+                </NaiveButton>
+            </div>
         </div>
     )
 })
 
 const ScrollButtonGroup = React.memo(function ScrollButtonGroup({
+    up_icon,
+    down_icon,
     element_ref,
     on_scroll,
     offset = 0,
     className,
-    ref,
-    ...props
-}: ScrollButtonProps) {
+    ref
+}: ScrollButtonGroupProps) {
     return (
-        <div {...props} ref={ref} className={join_classes("fixed z-10 select-none text-2xl", className)}>
-            <ButtonGroup
-                className="rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-xl shadow-sm p-1"
-                items={[
-                    {
-                        content: <ChevronUp width={18} height={18} />,
-                        className: "w-13 h-10",
-                        on_click: () => scroll_element({ element_ref, on_scroll, offset }, "top")
-                    },
-                    {
-                        content: <ChevronDown width={18} height={18} />,
-                        className: "w-13 h-10",
-                        on_click: () => scroll_element({ element_ref, on_scroll, offset }, "bottom")
-                    }
-                ]}
-            />
+        <div ref={ref} className={join_classes("fixed z-10 select-none text-2xl", className)}>
+            <div className={SCROLL_PILL_CLASS}>
+                <NaiveButton
+                    className="w-13 h-10"
+                    onClick={() => scroll_element({ element_ref, on_scroll, offset }, "top")}
+                >
+                    {up_icon}
+                </NaiveButton>
+                <NaiveButton
+                    className="w-13 h-10"
+                    onClick={() => scroll_element({ element_ref, on_scroll, offset }, "bottom")}
+                >
+                    {down_icon}
+                </NaiveButton>
+            </div>
         </div>
     )
 })

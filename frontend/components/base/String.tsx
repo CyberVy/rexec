@@ -1,29 +1,22 @@
 "use client"
 
-import type { ComponentPropsWithRef } from "react"
+import type { Ref } from "react"
 
-type AnimatedGlowTextProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
-    text?: string
+type AnimatedGlowTextProps = {
+    text: string
     duration?: number
     stagger?: number
-    tailwind_cls_for_string_item?: string
+    className?: string
+    ref?: Ref<HTMLDivElement>
 }
 
-function AnimatedGlowText({
-    text = "Hello World",
-    duration = 1.8,
-    stagger = 0.06,
-    tailwind_cls_for_string_item = "",
-    className = "",
-    ref,
-    ...props
-}: AnimatedGlowTextProps) {
+function AnimatedGlowText({ text, duration = 1.8, stagger = 0.06, className = "", ref }: AnimatedGlowTextProps) {
     return (
-        <div {...props} ref={ref} className={["inline", className].filter(Boolean).join(" ")}>
+        <div ref={ref} className={["inline", className].filter(Boolean).join(" ")}>
             {text.split("").map((ch, index) => (
                 <span
                     key={index}
-                    className={`animate-pulse brightness-125 ${tailwind_cls_for_string_item}`}
+                    className="animate-pulse brightness-125"
                     style={{
                         animationDelay: `${index * stagger}s`,
                         animationDuration: `${duration}s`

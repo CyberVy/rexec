@@ -1,16 +1,26 @@
-// FilterChips.tsx
-export { FilterChips } from "./composite/FilterChips"
-export type { FilterChipsProps } from "./composite/FilterChips"
+// ChoicePills.tsx
+export { ChoicePills } from "./composite/ChoicePills"
+export type { ChoicePillItem, ChoicePillsProps } from "./composite/ChoicePills"
+
+// HapticContainer.tsx
+export { HapticContainer } from "./base/HapticContainer"
+export type { HapticContainerProps } from "./base/HapticContainer"
 
 // Buttons.tsx
-export { NaiveButton, ButtonGroup } from "./base/Buttons"
-export type { NaiveButtonProps, ButtonGroupProps, ButtonGroupItem } from "./base/Buttons"
+export { NaiveButton } from "./base/Buttons"
+export type { NaiveButtonProps } from "./base/Buttons"
 
 // Checkbox.tsx
 export { Checkbox } from "./base/Checkbox"
+export type { CheckboxProps } from "./base/Checkbox"
 
 // FixedScrollButtons.tsx
 export { ScrollToTopButton, ScrollToBottomButton, ScrollButtonGroup } from "./composite/FixedScrollButtons"
+export type {
+    ScrollToTopButtonProps,
+    ScrollToBottomButtonProps,
+    ScrollButtonGroupProps
+} from "./composite/FixedScrollButtons"
 
 // Image.tsx
 export { Image } from "./composite/Image"
@@ -37,6 +47,7 @@ export { AnimatedGlowText } from "./base/String"
 
 // StringInput.tsx
 export { StringInput } from "./composite/StringInput"
+export type { StringInputProps } from "./composite/StringInput"
 
 // MenuBar.tsx
 export { VerticalMenuBar } from "./base/MenuBar"
@@ -44,9 +55,11 @@ export type { VerticalMenuBarItem, VerticalMenuBarProps, VerticalMenuBarSection 
 
 // animation/AnimationContainer.tsx
 export { AnimationContainer } from "./animation/AnimationContainer"
+export type { AnimationContainerProps, AnimationStyle } from "./animation/AnimationContainer"
 
 // Portal.tsx
 export { BodyPortal } from "./base/Portal"
+export type { BodyPortalProps } from "./base/Portal"
 
 // hooks.tsx
 export { useAutoSyncRefAndState, useOptimizedRotation, useMediaQuery, useController, useKeyedController } from "./hooks"
