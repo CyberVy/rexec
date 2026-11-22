@@ -1,6 +1,6 @@
 "use client"
 
-import { Terminal as TerminalIcon, Terminal as ExecIcon, Network as NodesIcon } from "lucide-react"
+import { Terminal, Network } from "lucide-react"
 import { useState, useEffect } from "react"
 import { TerminalView, ExecView, NodesView, LaunchAnimation } from "@/blocks"
 import { ViewSwitcher } from "@/components"
@@ -35,7 +35,7 @@ export default function App() {
                     views={[
                         {
                             id: "terminal",
-                            icon: <TerminalIcon className="size-5" />,
+                            icon: <Terminal className="size-5" />,
                             native_icon: "terminal",
                             label: "Terminal",
                             swipe_enabled: true,
@@ -44,7 +44,7 @@ export default function App() {
                         },
                         {
                             id: "exec",
-                            icon: <ExecIcon className="size-5" />,
+                            icon: <Terminal className="size-5" />,
                             native_icon: "bolt.fill",
                             label: "Exec",
                             swipe_enabled: true,
@@ -53,7 +53,7 @@ export default function App() {
                         },
                         {
                             id: "nodes",
-                            icon: <NodesIcon className="size-5" />,
+                            icon: <Network className="size-5" />,
                             native_icon: "server.rack",
                             label: "Nodes",
                             swipe_enabled: true,

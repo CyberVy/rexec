@@ -1,12 +1,6 @@
 "use client"
 
-import {
-    X as CloseIcon,
-    ArrowLeft as BackIcon,
-    Plus as PlusIcon,
-    RefreshCw as RefreshIcon,
-    Trash2 as TrashIcon
-} from "lucide-react"
+import { X, ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
 import { Badge, Button, EmptyState, FullscreenSheet, view_switcher_controller } from "@/components"
@@ -76,7 +70,7 @@ export function NodesView() {
                         title="Refresh all nodes status"
                         className="size-7 rounded-lg bg-background"
                     >
-                        <RefreshIcon className={`size-3.5 ${session.is_checking ? "animate-spin" : ""}`} />
+                        <RefreshCw className={`size-3.5 ${session.is_checking ? "animate-spin" : ""}`} />
                     </Button>
 
                     <Button
@@ -87,7 +81,7 @@ export function NodesView() {
                         className="rounded-lg font-mono"
                     >
                         <span className="inline-flex items-center gap-1">
-                            <PlusIcon className="size-3.5" />
+                            <Plus className="size-3.5" />
                             <span>Add</span>
                         </span>
                     </Button>
@@ -110,7 +104,7 @@ export function NodesView() {
                                 className="rounded-lg font-mono"
                             >
                                 <span className="inline-flex items-center gap-1.5">
-                                    <PlusIcon className="size-3.5" />
+                                    <Plus className="size-3.5" />
                                     <span>Add Node</span>
                                 </span>
                             </Button>
@@ -286,7 +280,7 @@ export function NodesView() {
                                             title="Delete node agent"
                                             className="size-7 rounded-lg border-transparent hover:border-(--ui-destructive)/20"
                                         >
-                                            <TrashIcon className="size-3.5" />
+                                            <Trash2 className="size-3.5" />
                                         </Button>
                                     </div>
                                 </div>
@@ -314,7 +308,7 @@ export function NodesView() {
                             className="rounded-lg"
                             title="Close"
                         >
-                            <CloseIcon className="size-5" />
+                            <X className="size-5" />
                         </Button>
                     </div>
 
@@ -369,7 +363,7 @@ export function NodesView() {
                     }
                 >
                     <Button className={"w-10 h-10"} onClick={handle_close_add_modal}>
-                        {<BackIcon key="back" />}
+                        {<ArrowLeft key="back" />}
                     </Button>
                 </div>
             </FullscreenSheet>

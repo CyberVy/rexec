@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus as PlusIcon } from "lucide-react"
+import { Plus } from "lucide-react"
 import { Button, HorizontalScroller } from "@/components"
 export interface ShortcutStripItem {
     id: string
@@ -60,7 +60,7 @@ export function ShortcutStrip({
                 onClick={on_manage}
                 className="shrink-0 rounded-lg"
             >
-                <PlusIcon className="size-3.5" />
+                <Plus className="size-3.5" />
             </Button>
         </div>
     )

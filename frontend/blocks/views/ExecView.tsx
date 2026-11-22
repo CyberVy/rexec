@@ -1,12 +1,6 @@
 "use client"
 
-import {
-    Play as RunIcon,
-    Square as AbortIcon,
-    Trash2 as ClearIcon,
-    Copy as CopyIcon,
-    Check as CheckIcon
-} from "lucide-react"
+import { Play, Square, Trash2, Copy, Check } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Badge, Button, EmptyState } from "@/components"
 import { useController } from "@/components/hooks"
@@ -110,7 +104,7 @@ export function ExecView() {
                             className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-xs font-mono"
                         >
                             <span className="inline-flex items-center gap-1.5">
-                                <AbortIcon className="size-3" />
+                                <Square className="size-3" />
                                 <span>Abort</span>
                             </span>
                         </Button>
@@ -122,7 +116,7 @@ export function ExecView() {
                             className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs font-mono shadow-sm"
                         >
                             <span className="inline-flex items-center gap-1.5">
-                                <RunIcon className="size-3" />
+                                <Play className="size-3" />
                                 <span>Run</span>
                             </span>
                         </Button>
@@ -193,7 +187,7 @@ export function ExecView() {
                         className="px-1.5 py-0.5 rounded font-mono text-[11px]"
                     >
                         <span className="inline-flex items-center gap-1">
-                            {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
                             <span>{copied ? "Copied" : "Copy"}</span>
                         </span>
                     </Button>
@@ -206,7 +200,7 @@ export function ExecView() {
                         className="px-1.5 py-0.5 rounded font-mono text-[11px]"
                     >
                         <span className="inline-flex items-center gap-1">
-                            <ClearIcon className="size-3" />
+                            <Trash2 className="size-3" />
                             <span>Clear</span>
                         </span>
                     </Button>

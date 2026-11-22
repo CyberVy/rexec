@@ -1,21 +1,20 @@
 "use client"
 
 import {
-    X as CloseIcon,
-    ChevronDown as ChevronDownIcon,
-    ArrowLeft as BackIcon,
-    Play as RunIcon,
-    Plus as PlusIcon,
-    Trash2 as TrashIcon,
-    RefreshCw as RefreshIcon,
-    Keyboard as KeyboardIcon,
-    Folder as FolderIcon,
-    File as FileIcon,
-    FolderUp as FolderUpIcon,
-    MapPin as PinIcon,
-    Copy as CopyIcon,
-    Check as CheckIcon,
-    Trash2 as ClearIcon
+    X,
+    ChevronDown,
+    ArrowLeft,
+    Play,
+    Plus,
+    Trash2,
+    RefreshCw,
+    Keyboard,
+    Folder,
+    File,
+    FolderUp,
+    MapPin,
+    Copy,
+    Check
 } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
 import { Terminal } from "@xterm/xterm"
@@ -410,7 +409,7 @@ export function TerminalView() {
                                 className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs"
                             >
                                 <span className="inline-flex items-center gap-1.5">
-                                    <RunIcon className="size-3" />
+                                    <Play className="size-3" />
                                     <span>Connect</span>
                                 </span>
                             </Button>
@@ -432,7 +431,7 @@ export function TerminalView() {
                                     ? `Session: ${pty_state.session_id.slice(0, 8)}`
                                     : `Sessions (${pty_state.sessions.length})`}
                             </span>
-                            <ChevronDownIcon className="size-3 shrink-0" />
+                            <ChevronDown className="size-3 shrink-0" />
                         </span>
                     </Button>
 
@@ -445,9 +444,9 @@ export function TerminalView() {
                         className="min-w-0 max-w-full px-2 py-0.5 rounded text-[11px] text-black/60 dark:text-white/60 hover:text-foreground"
                     >
                         <span className="flex w-full min-w-0 items-center gap-1.5">
-                            <FolderIcon className="size-3 shrink-0" />
+                            <Folder className="size-3 shrink-0" />
                             <span className="truncate">{format_display_path(pty_state.cwd)}</span>
-                            <ChevronDownIcon className="size-3 shrink-0" />
+                            <ChevronDown className="size-3 shrink-0" />
                         </span>
                     </Button>
                 </div>
@@ -465,7 +464,7 @@ export function TerminalView() {
                         title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
                     >
                         <span className="inline-flex items-center gap-1">
-                            <KeyboardIcon className="size-3" />
+                            <Keyboard className="size-3" />
                             <span>Keys</span>
                         </span>
                     </Button>
@@ -477,7 +476,7 @@ export function TerminalView() {
                         className="px-2 py-0.5 rounded text-[11px]"
                     >
                         <span className="inline-flex items-center gap-1">
-                            <ClearIcon className="size-3" />
+                            <Trash2 className="size-3" />
                             <span>Clear</span>
                         </span>
                     </Button>
@@ -490,7 +489,7 @@ export function TerminalView() {
                         className="px-2 py-0.5 rounded text-[11px]"
                     >
                         <span className="inline-flex items-center gap-1">
-                            {is_buffer_copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                            {is_buffer_copied ? <Check className="size-3" /> : <Copy className="size-3" />}
                             <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
                         </span>
                     </Button>
@@ -565,7 +564,7 @@ export function TerminalView() {
                                 className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs font-mono shadow-lg"
                             >
                                 <span className="inline-flex items-center gap-2">
-                                    <RunIcon className="size-3" />
+                                    <Play className="size-3" />
                                     <span>
                                         {session_state.agent_online
                                             ? "Open Terminal Session"
@@ -673,7 +672,7 @@ export function TerminalView() {
                                 title="Refresh sessions"
                                 className="rounded-lg"
                             >
-                                <RefreshIcon className={`size-4 ${pty_state.is_listing ? "animate-spin" : ""}`} />
+                                <RefreshCw className={`size-4 ${pty_state.is_listing ? "animate-spin" : ""}`} />
                             </Button>
                             <Button
                                 variant="ghost"
@@ -683,7 +682,7 @@ export function TerminalView() {
                                 className="rounded-lg"
                                 title="Close"
                             >
-                                <CloseIcon className="size-5" />
+                                <X className="size-5" />
                             </Button>
                         </div>
                     </div>
@@ -781,7 +780,7 @@ export function TerminalView() {
                                                             : "text-black/60 dark:text-white/60 hover:text-foreground"
                                                     }`}
                                                 >
-                                                    <PinIcon className="size-3" />
+                                                    <MapPin className="size-3" />
                                                 </Button>
                                                 {!is_current && (
                                                     <Button
@@ -805,7 +804,7 @@ export function TerminalView() {
                                                     title="Kill session process"
                                                     className="size-7 rounded-lg text-black/50 dark:text-white/50 hover:bg-red-500/10 hover:text-red-400"
                                                 >
-                                                    <TrashIcon className="size-3.5" />
+                                                    <Trash2 className="size-3.5" />
                                                 </Button>
                                             </div>
                                         }
@@ -835,7 +834,7 @@ export function TerminalView() {
                             className="font-mono"
                         >
                             <span className="inline-flex items-center gap-1.5">
-                                <PlusIcon className="size-3.5" />
+                                <Plus className="size-3.5" />
                                 <span>New</span>
                             </span>
                         </Button>
@@ -847,7 +846,7 @@ export function TerminalView() {
                     }
                 >
                     <Button className={"w-10 h-10"} onClick={handle_close_sessions_modal}>
-                        {<BackIcon key="back" />}
+                        {<ArrowLeft key="back" />}
                     </Button>
                 </div>
             </FullscreenSheet>
@@ -863,7 +862,7 @@ export function TerminalView() {
                     {/* Header */}
                     <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
                         <div className="flex items-center gap-2">
-                            <FolderIcon className="size-5 text-foreground shrink-0" />
+                            <Folder className="size-5 text-foreground shrink-0" />
                             <span className="font-semibold text-base font-mono">Workspace Explorer</span>
                             <Badge
                                 tone="subtle"
@@ -884,7 +883,7 @@ export function TerminalView() {
                                 title="Refresh directory"
                                 className="rounded-lg"
                             >
-                                <RefreshIcon className={`size-4 ${pty_state.is_loading_dir ? "animate-spin" : ""}`} />
+                                <RefreshCw className={`size-4 ${pty_state.is_loading_dir ? "animate-spin" : ""}`} />
                             </Button>
                             <Button
                                 variant="ghost"
@@ -894,7 +893,7 @@ export function TerminalView() {
                                 className="rounded-lg"
                                 title="Close"
                             >
-                                <CloseIcon className="size-5" />
+                                <X className="size-5" />
                             </Button>
                         </div>
                     </div>
@@ -912,7 +911,7 @@ export function TerminalView() {
                                 className="shrink-0 rounded-lg text-[11px] font-mono"
                             >
                                 <span className="inline-flex items-center gap-1">
-                                    <FolderUpIcon className="size-3.5" />
+                                    <FolderUp className="size-3.5" />
                                     <span>..</span>
                                 </span>
                             </Button>
@@ -971,9 +970,9 @@ export function TerminalView() {
                                     }
                                     leading={
                                         entry.is_directory ? (
-                                            <FolderIcon className="size-4 text-foreground" />
+                                            <Folder className="size-4 text-foreground" />
                                         ) : (
-                                            <FileIcon className="size-4 text-black/50 dark:text-white/50" />
+                                            <File className="size-4 text-black/50 dark:text-white/50" />
                                         )
                                     }
                                     title={
@@ -1047,7 +1046,7 @@ export function TerminalView() {
                     }
                 >
                     <Button className={"w-10 h-10"} onClick={handle_close_workspace_modal}>
-                        {<BackIcon key="back" />}
+                        {<ArrowLeft key="back" />}
                     </Button>
                 </div>
             </FullscreenSheet>

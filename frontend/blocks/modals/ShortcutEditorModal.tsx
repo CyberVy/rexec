@@ -1,6 +1,6 @@
 "use client"
 
-import { ArrowLeft as BackIcon, X as CloseIcon, Trash2 as TrashIcon } from "lucide-react"
+import { ArrowLeft, X, Trash2 } from "lucide-react"
 import type { ReactNode } from "react"
 import { Button, EmptyState, FullscreenSheet, ListRow, SectionHeader } from "@/components"
 export interface ShortcutEditorModalEntry {
@@ -62,7 +62,7 @@ export function ShortcutEditorModal({
                         className="rounded-lg"
                         title="Close"
                     >
-                        <CloseIcon className="size-5" />
+                        <X className="size-5" />
                     </Button>
                 </div>
 
@@ -117,7 +117,7 @@ export function ShortcutEditorModal({
                                             onClick={() => on_remove(entry.id)}
                                             className="size-7 rounded-lg"
                                         >
-                                            <TrashIcon className="size-3.5" />
+                                            <Trash2 className="size-3.5" />
                                         </Button>
                                     </>
                                 }
@@ -132,7 +132,7 @@ export function ShortcutEditorModal({
                 }
             >
                 <Button className={"w-10 h-10"} onClick={on_close}>
-                    {<BackIcon key="back" />}
+                    {<ArrowLeft key="back" />}
                 </Button>
             </div>
         </FullscreenSheet>
