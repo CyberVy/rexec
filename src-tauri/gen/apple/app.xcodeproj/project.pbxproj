@@ -20,6 +20,10 @@
 		AA2200000000000000000003 /* ExternalOpenUIDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000004 /* ExternalOpenUIDelegate.swift */; };
 		AA2200000000000000000005 /* WebViewBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000006 /* WebViewBootstrap.swift */; };
 		AA220000000000000000000D /* NativeToolbarHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA220000000000000000000E /* NativeToolbarHost.swift */; };
+		AA220000000000000000000F /* IOSBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000010 /* IOSBridge.swift */; };
+		AA2200000000000000000011 /* IOSBridgeModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000012 /* IOSBridgeModule.swift */; };
+		AA2200000000000000000013 /* WebViewRouterModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000014 /* WebViewRouterModule.swift */; };
+		AA2200000000000000000015 /* TauriProxyModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000016 /* TauriProxyModule.swift */; };
 		AA2200000000000000000007 /* FullPageScreenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA2200000000000000000008 /* FullPageScreenshot.swift */; };
 		AA2200000000000000000009 /* PopupWebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA220000000000000000000A /* PopupWebViewController.swift */; };
 		AA220000000000000000000B /* WebViewAppBoundDomains.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA220000000000000000000C /* WebViewAppBoundDomains.swift */; };
@@ -47,6 +51,10 @@
 		AA2200000000000000000004 /* ExternalOpenUIDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalOpenUIDelegate.swift; sourceTree = "<group>"; };
 		AA2200000000000000000006 /* WebViewBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewBootstrap.swift; sourceTree = "<group>"; };
 		AA220000000000000000000E /* NativeToolbarHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeToolbarHost.swift; sourceTree = "<group>"; };
+		AA2200000000000000000010 /* IOSBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSBridge.swift; sourceTree = "<group>"; };
+		AA2200000000000000000012 /* IOSBridgeModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSBridgeModule.swift; sourceTree = "<group>"; };
+		AA2200000000000000000014 /* WebViewRouterModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewRouterModule.swift; sourceTree = "<group>"; };
+		AA2200000000000000000016 /* TauriProxyModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TauriProxyModule.swift; sourceTree = "<group>"; };
 		AA2200000000000000000008 /* FullPageScreenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullPageScreenshot.swift; sourceTree = "<group>"; };
 		AA220000000000000000000A /* PopupWebViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupWebViewController.swift; sourceTree = "<group>"; };
 		AA220000000000000000000C /* WebViewAppBoundDomains.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebViewAppBoundDomains.swift; sourceTree = "<group>"; };
@@ -167,8 +175,19 @@
 			children = (
 				AA2200000000000000000004 /* ExternalOpenUIDelegate.swift */,
 				AA220000000000000000000A /* PopupWebViewController.swift */,
+				AA2200000000000000000014 /* WebViewRouterModule.swift */,
+				AA2200000000000000000016 /* TauriProxyModule.swift */,
 			);
 			path = Popup;
+			sourceTree = "<group>";
+		};
+		AA2200000000000000000069 /* Bridge */ = {
+			isa = PBXGroup;
+			children = (
+				AA2200000000000000000010 /* IOSBridge.swift */,
+				AA2200000000000000000012 /* IOSBridgeModule.swift */,
+			);
+			path = Bridge;
 			sourceTree = "<group>";
 		};
 		AA2200000000000000000068 /* Bootstrap */ = {
@@ -200,6 +219,7 @@
 			children = (
 				682535EEFE1DA20BE07B123C /* main.mm */,
 				329C38BE5E8B40354375D0D0 /* bindings */,
+				AA2200000000000000000069 /* Bridge */,
 				AA2200000000000000000068 /* Bootstrap */,
 				AA2200000000000000000066 /* WebView */,
 			);
@@ -307,6 +327,10 @@
 				AA2200000000000000000001 /* WebViewAppearance.swift in Sources */,
 				AA2200000000000000000005 /* WebViewBootstrap.swift in Sources */,
 				AA220000000000000000000D /* NativeToolbarHost.swift in Sources */,
+				AA220000000000000000000F /* IOSBridge.swift in Sources */,
+				AA2200000000000000000011 /* IOSBridgeModule.swift in Sources */,
+				AA2200000000000000000013 /* WebViewRouterModule.swift in Sources */,
+				AA2200000000000000000015 /* TauriProxyModule.swift in Sources */,
 				53CDD0ACFBE8BDF1550B2E53 /* main.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

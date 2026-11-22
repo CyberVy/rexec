@@ -4,29 +4,12 @@ import WebKit
 /// Floating UIKit chrome for the web view switcher.
 /// The web controller remains the source of truth and pushes snapshots here.
 /// Requires iOS 26+ Liquid Glass `UITabBar` pill geometry; older OS versions fall back to the web toolbar.
-func installNativeToolbar(webView: WKWebView, controller: UIViewController) {
-    guard #available(iOS 26.0, *) else { return }
+func makeNativeToolbarModule() -> (any IOSBridgeModule)? {
+    guard #available(iOS 26.0, *) else { return nil }
     if (Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool) == true {
-        return
+        return nil
     }
-
-    let host = NativeToolbarHost(webView: webView, controller: controller)
-    let content = webView.configuration.userContentController
-    content.add(host, name: "viewSwitcherToolbar")
-    content.addUserScript(
-        WKUserScript(
-            source: "window.__VIEW_SWITCHER_NATIVE_TOOLBAR__ = true;",
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
-        )
-    )
-    webView.evaluateJavaScript("window.__VIEW_SWITCHER_NATIVE_TOOLBAR__ = true;")
-    NativeToolbarRegistry.host = host
-}
-
-@available(iOS 26.0, *)
-private enum NativeToolbarRegistry {
-    static var host: NativeToolbarHost?
+    return NativeToolbarHost()
 }
 
 /// A tab bar placed above the home indicator still inherits a large bottom
@@ -52,9 +35,12 @@ private enum BottomToolbarMetrics {
 }
 
 @available(iOS 26.0, *)
-private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBarDelegate {
+private final class NativeToolbarHost: NSObject, IOSBridgeModule, UITabBarDelegate {
+    let capability: String? = "view_switcher_toolbar"
+
     private weak var webView: WKWebView?
     private weak var controller: UIViewController?
+    private weak var bridge: IOSBridge?
 
     private let bottomStack = UIStackView()
     private let tabBar = FloatingTabBar()
@@ -77,25 +63,50 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     private var tabBarWidth: NSLayoutConstraint?
     private var isApplyingSync = false
 
-    init(webView: WKWebView, controller: UIViewController) {
-        self.webView = webView
-        self.controller = controller
-        super.init()
+    func canHandle(type: String) -> Bool {
+        type == "view_switcher_toolbar.sync" || type == "view_switcher_toolbar.remove"
+    }
+
+    func didInstall(context: IOSBridgeHostContext) {
+        webView = context.webView
+        controller = context.viewController
+        bridge = context.bridge
+        installAttempts = 0
         installChrome()
     }
 
-    func userContentController(
-        _ userContentController: WKUserContentController,
-        didReceive message: WKScriptMessage
+    func didUninstall() {
+        bottomAnimator?.stopAnimation(true)
+        topAnimator?.stopAnimation(true)
+        bottomAnimator = nil
+        topAnimator = nil
+        bottomStack.removeFromSuperview()
+        topControl.removeFromSuperview()
+        bottomVisible = nil
+        topVisible = nil
+        bottomSwitcherId = nil
+        topSwitcherId = nil
+        bottomActiveId = nil
+        topActiveId = nil
+        webView = nil
+        controller = nil
+        bridge = nil
+    }
+
+    func handle(
+        type: String,
+        payload: [String: Any],
+        context: IOSBridgeMessageContext,
+        reply: IOSBridgeReply
     ) {
-        guard message.name == "viewSwitcherToolbar", let body = message.body as? [String: Any] else { return }
         if Thread.isMainThread {
-            apply(body)
+            apply(type: type, body: payload)
         } else {
             DispatchQueue.main.async { [weak self] in
-                self?.apply(body)
+                self?.apply(type: type, body: payload)
             }
         }
+        reply.resolve(nil)
     }
 
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
@@ -154,10 +165,9 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
         ])
     }
 
-    private func apply(_ body: [String: Any]) {
-        let type = body["type"] as? String ?? ""
+    private func apply(type: String, body: [String: Any]) {
         let switcherId = body["switcher_id"] as? String ?? ""
-        if type == "remove" {
+        if type == "view_switcher_toolbar.remove" {
             let animated = optionalBoolValue(body["animated"]) ?? true
             if switcherId == bottomSwitcherId {
                 bottomSwitcherId = nil
@@ -171,7 +181,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
             }
             return
         }
-        guard type == "sync" else { return }
+        guard type == "view_switcher_toolbar.sync" else { return }
 
         let layout = body["layout"] as? String ?? "bottom-floating"
         let items = body["items"] as? [[String: Any]] ?? []
@@ -339,9 +349,7 @@ private final class NativeToolbarHost: NSObject, WKScriptMessageHandler, UITabBa
     }
 
     private func emit(_ payload: [String: String]) {
-        guard let data = try? JSONSerialization.data(withJSONObject: payload),
-              let json = String(data: data, encoding: .utf8) else { return }
-        webView?.evaluateJavaScript("window.__view_switcher_native_toolbar_dispatch?.(\(json))")
+        bridge?.emit(type: "view_switcher_toolbar.select", payload: payload)
     }
 
     private func colorKey(for dict: [String: Any]?) -> String? {
