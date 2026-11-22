@@ -1,6 +1,5 @@
 "use client"
 
-
 import { Terminal as TerminalIcon, Terminal as ExecIcon, Network as NodesIcon } from "lucide-react"
 import { useState, useEffect } from "react"
 import { TerminalView, ExecView, NodesView, LaunchAnimation } from "@/blocks"

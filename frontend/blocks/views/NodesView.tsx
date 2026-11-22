@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { FullscreenSheet, view_switcher_controller, Button } from "@/components"
+import { Badge, Button, EmptyState, FullscreenSheet, view_switcher_controller } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 export function NodesView() {
     const session = useController(session_controller, {
@@ -61,50 +61,61 @@ export function NodesView() {
             <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
                 <div className="flex items-center gap-2.5">
                     <span className="font-semibold text-sm tracking-tight text-foreground">Node Agents</span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/10 text-muted-foreground">
+                    <Badge tone="subtle" shape="pill" mono className="border border-(--ui-border) px-2 text-[11px]">
                         {online_count} / {total_count} Online
-                    </span>
+                    </Badge>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button
-                        type="button"
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        shape="none"
                         onClick={() => session_controller.refresh_all_agents()}
                         disabled={session.is_checking || session.agent_ids.length === 0}
                         title="Refresh all nodes status"
-                        className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 bg-background hover:bg-black/5 dark:hover:bg-white/10 text-foreground transition cursor-pointer disabled:opacity-40"
+                        className="size-7 rounded-lg bg-background"
                     >
                         <RefreshIcon className={`size-3.5 ${session.is_checking ? "animate-spin" : ""}`} />
-                    </button>
+                    </Button>
 
-                    <button
-                        type="button"
+                    <Button
+                        variant="primary"
+                        size="xs"
+                        shape="none"
                         onClick={handle_open_add_modal}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-foreground text-background font-medium text-xs font-mono transition cursor-pointer hover:opacity-90"
+                        className="rounded-lg font-mono"
                     >
-                        <PlusIcon className="size-3.5" />
-                        <span>Add</span>
-                    </button>
+                        <span className="inline-flex items-center gap-1">
+                            <PlusIcon className="size-3.5" />
+                            <span>Add</span>
+                        </span>
+                    </Button>
                 </div>
             </div>
 
             {/* Nodes Grid */}
             <div className="flex-1 min-h-0">
                 {session.agent_ids.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-48 border border-dashed border-black/10 dark:border-white/10 rounded-xl text-center p-6 gap-2.5">
-                        <span className="text-sm font-medium text-foreground">No Node Agents configured</span>
-                        <span className="text-xs font-mono text-muted-foreground max-w-sm">
-                            Add a node agent to connect to a remote server or execution hub.
-                        </span>
-                        <button
-                            type="button"
-                            onClick={handle_open_add_modal}
-                            className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground text-background font-medium text-xs font-mono transition cursor-pointer hover:opacity-90"
-                        >
-                            <PlusIcon className="size-3.5" />
-                            <span>Add Node</span>
-                        </button>
-                    </div>
+                    <EmptyState
+                        title="No Node Agents configured"
+                        description="Add a node agent to connect to a remote server or execution hub."
+                        className="min-h-48 rounded-xl border border-dashed border-(--ui-border) font-mono"
+                        action={
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                shape="none"
+                                onClick={handle_open_add_modal}
+                                className="rounded-lg font-mono"
+                            >
+                                <span className="inline-flex items-center gap-1.5">
+                                    <PlusIcon className="size-3.5" />
+                                    <span>Add Node</span>
+                                </span>
+                            </Button>
+                        }
+                    />
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 content-start">
                         {session.agent_ids.map((agent_id) => {
@@ -136,14 +147,22 @@ export function NodesView() {
                                                 {agent.name}
                                             </span>
                                             {is_active && (
-                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-foreground/30 bg-foreground/10 text-foreground shrink-0 font-bold">
+                                                <Badge
+                                                    tone="custom"
+                                                    mono
+                                                    className="border border-foreground/30 bg-foreground/10 font-bold text-foreground"
+                                                >
                                                     ACTIVE
-                                                </span>
+                                                </Badge>
                                             )}
                                             {agent.node_id && (
-                                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/10 text-muted-foreground truncate hidden sm:inline">
+                                                <Badge
+                                                    tone="subtle"
+                                                    mono
+                                                    className="hidden max-w-32 truncate border border-(--ui-border) sm:inline-flex"
+                                                >
                                                     {agent.node_id}
-                                                </span>
+                                                </Badge>
                                             )}
                                         </div>
 
@@ -188,13 +207,13 @@ export function NodesView() {
                                                 </span>
                                             </div>
                                             {agent.token && (
-                                                <button
-                                                    type="button"
+                                                <Button
+                                                    variant="unstyled"
                                                     onClick={() => toggle_show_token(agent_id)}
-                                                    className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer shrink-0"
+                                                    className="text-[10px] text-black/50 dark:text-white/50 hover:text-foreground underline shrink-0"
                                                 >
                                                     {is_revealed ? "hide" : "show"}
-                                                </button>
+                                                </Button>
                                             )}
                                         </div>
                                     </div>
@@ -204,13 +223,15 @@ export function NodesView() {
                                             {(["pty", "exec", "file", "forward"] as const).map((channel) => {
                                                 const active = agent.channels![channel]
                                                 return (
-                                                    <span
+                                                    <Badge
                                                         key={channel}
-                                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${
+                                                        tone={active ? "subtle" : "custom"}
+                                                        mono
+                                                        className={
                                                             active
-                                                                ? "border-black/15 dark:border-white/15 bg-black/5 dark:bg-white/10 text-foreground"
-                                                                : "border-black/10 dark:border-white/10 text-muted-foreground opacity-50"
-                                                        }`}
+                                                                ? "gap-1 border border-black/15 dark:border-white/15 text-foreground"
+                                                                : "gap-1 border border-(--ui-border) text-black/50 dark:text-white/50 opacity-50"
+                                                        }
                                                     >
                                                         <span
                                                             className={`size-1.5 rounded-full ${
@@ -218,7 +239,7 @@ export function NodesView() {
                                                             }`}
                                                         />
                                                         {channel}
-                                                    </span>
+                                                    </Badge>
                                                 )
                                             })}
                                         </div>
@@ -228,39 +249,45 @@ export function NodesView() {
                                     <div className="flex items-center justify-between gap-2 pt-0.5">
                                         <div className="flex items-center gap-1.5">
                                             {!is_active ? (
-                                                <button
-                                                    type="button"
+                                                <Button
+                                                    variant="outline"
+                                                    size="xs"
+                                                    shape="none"
                                                     onClick={() => session_controller.select_agent(agent_id)}
-                                                    className="px-2.5 py-1 rounded-lg border border-black/15 dark:border-white/15 bg-background hover:bg-black/5 dark:hover:bg-white/10 text-xs font-mono text-foreground transition cursor-pointer"
+                                                    className="rounded-lg bg-background font-mono"
                                                 >
                                                     Activate
-                                                </button>
+                                                </Button>
                                             ) : (
                                                 <span className="text-xs font-mono text-muted-foreground italic pl-1">
                                                     Current active target
                                                 </span>
                                             )}
 
-                                            <button
-                                                type="button"
+                                            <Button
+                                                variant="ghost"
+                                                size="xs"
+                                                shape="none"
                                                 onClick={() => {
                                                     if (agent.is_checking) return
                                                     session_controller.refresh_agent_status(agent_id)
                                                 }}
-                                                className="px-2 py-1 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
+                                                className="rounded-lg border border-(--ui-border) font-mono"
                                             >
                                                 Check
-                                            </button>
+                                            </Button>
                                         </div>
 
-                                        <button
-                                            type="button"
+                                        <Button
+                                            variant="destructive"
+                                            size="icon"
+                                            shape="none"
                                             onClick={() => session_controller.remove_agent(agent_id)}
                                             title="Delete node agent"
-                                            className="p-1 rounded-lg border border-transparent hover:border-black/10 dark:hover:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-red-700 dark:text-red-500 hover:text-foreground transition cursor-pointer"
+                                            className="size-7 rounded-lg border-transparent hover:border-(--ui-destructive)/20"
                                         >
                                             <TrashIcon className="size-3.5" />
-                                        </button>
+                                        </Button>
                                     </div>
                                 </div>
                             )
@@ -279,14 +306,16 @@ export function NodesView() {
                 <div className="w-full max-w-xl mx-auto flex flex-col gap-5 py-2">
                     <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
                         <span className="font-semibold text-base font-mono text-foreground">Add Node Agent</span>
-                        <button
-                            type="button"
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            shape="none"
                             onClick={handle_close_add_modal}
-                            className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer"
+                            className="rounded-lg"
                             title="Close"
                         >
                             <CloseIcon className="size-5" />
-                        </button>
+                        </Button>
                     </div>
 
                     <form onSubmit={handle_add_node} className="flex flex-col gap-4">
@@ -325,19 +354,12 @@ export function NodesView() {
                         </div>
 
                         <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
-                            <button
-                                type="button"
-                                onClick={handle_close_add_modal}
-                                className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
-                            >
+                            <Button variant="outline" size="md" onClick={handle_close_add_modal} className="font-mono">
                                 Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="px-5 py-2 rounded-xl bg-foreground text-background font-medium text-xs font-mono transition cursor-pointer hover:opacity-90"
-                            >
+                            </Button>
+                            <Button type="submit" variant="primary" size="md" className="px-5 font-mono">
                                 Save & Connect
-                            </button>
+                            </Button>
                         </div>
                     </form>
                 </div>

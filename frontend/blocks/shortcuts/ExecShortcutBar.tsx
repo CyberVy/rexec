@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { view_switcher_controller } from "@/components"
+import { Button, view_switcher_controller } from "@/components"
 import { exec_shortcut_controller } from "@/core/controllers/exec_shortcut_controller"
 import { SHORTCUT_INPUT_CLASS, ShortcutEditorField, ShortcutEditorModal } from "../modals"
 import { ShortcutStrip } from "./ShortcutStrip"
@@ -119,21 +119,19 @@ export function ExecShortcutBar({ disabled = false, on_run }: ExecShortcutBarPro
                     </ShortcutEditorField>
                     <div className="flex items-center justify-end gap-3">
                         {editing_id && (
-                            <button
-                                type="button"
-                                onClick={reset_form}
-                                className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
-                            >
+                            <Button variant="outline" size="md" onClick={reset_form} className="font-mono">
                                 Cancel
-                            </button>
+                            </Button>
                         )}
-                        <button
+                        <Button
                             type="submit"
+                            variant="primary"
+                            size="md"
                             disabled={!form.command.trim()}
-                            className="px-4 py-2 rounded-xl bg-foreground text-background text-xs font-mono disabled:opacity-40 cursor-pointer"
+                            className="font-mono"
                         >
                             {editing_id ? "Save" : "Add"}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </ShortcutEditorModal>

@@ -1,8 +1,14 @@
 "use client"
 
-
-import { Play as RunIcon, Square as AbortIcon, Trash2 as ClearIcon, Copy as CopyIcon, Check as CheckIcon } from "lucide-react"
+import {
+    Play as RunIcon,
+    Square as AbortIcon,
+    Trash2 as ClearIcon,
+    Copy as CopyIcon,
+    Check as CheckIcon
+} from "lucide-react"
 import { useState, useRef, useCallback } from "react"
+import { Badge, Button, EmptyState } from "@/components"
 import { useController } from "@/components/hooks"
 import { exec_controller } from "@/core/controllers/exec_controller"
 import { ExecShortcutBar } from "../shortcuts"
@@ -98,24 +104,28 @@ export function ExecView() {
                     />
 
                     {exec_state.is_running ? (
-                        <button
-                            type="button"
+                        <Button
+                            variant="unstyled"
                             onClick={() => exec_controller.abort()}
-                            className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-xs font-mono transition flex items-center gap-1.5"
+                            className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-xs font-mono"
                         >
-                            <AbortIcon className="size-3" />
-                            Abort
-                        </button>
+                            <span className="inline-flex items-center gap-1.5">
+                                <AbortIcon className="size-3" />
+                                <span>Abort</span>
+                            </span>
+                        </Button>
                     ) : (
-                        <button
-                            type="button"
+                        <Button
+                            variant="unstyled"
                             onClick={() => handle_run()}
                             disabled={!cmd_input.trim()}
-                            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs font-mono transition flex items-center gap-1.5 shadow-sm"
+                            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs font-mono shadow-sm"
                         >
-                            <RunIcon className="size-3" />
-                            Run
-                        </button>
+                            <span className="inline-flex items-center gap-1.5">
+                                <RunIcon className="size-3" />
+                                <span>Run</span>
+                            </span>
+                        </Button>
                     )}
                 </div>
 
@@ -157,41 +167,49 @@ export function ExecView() {
                         </span>
                     )}
                     {exec_state.exit_code !== null && (
-                        <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                        <Badge
+                            tone="custom"
+                            mono
+                            className={
                                 exec_state.exit_code === 0
-                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                    : "bg-red-500/10 text-red-500 border border-red-500/20"
-                            }`}
+                                    ? "border border-emerald-500/20 bg-emerald-500/10 font-semibold text-emerald-500"
+                                    : "border border-red-500/20 bg-red-500/10 font-semibold text-red-500"
+                            }
                         >
                             Exit: {exec_state.exit_code}
-                        </span>
+                        </Badge>
                     )}
                     {exec_state.duration_ms !== null && (
                         <span className="text-[10px] text-muted-foreground">({exec_state.duration_ms}ms)</span>
                     )}
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="ghost"
+                        shape="none"
                         onClick={handle_copy_output}
                         disabled={exec_state.chunks.length === 0}
-                        className="text-[11px] font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 transition flex items-center gap-1"
+                        className="px-1.5 py-0.5 rounded font-mono text-[11px]"
                     >
-                        {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
-                        {copied ? "Copied" : "Copy"}
-                    </button>
+                        <span className="inline-flex items-center gap-1">
+                            {copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                            <span>{copied ? "Copied" : "Copy"}</span>
+                        </span>
+                    </Button>
 
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        shape="none"
                         onClick={() => exec_controller.clear_output()}
                         disabled={exec_state.chunks.length === 0 && !exec_state.error}
-                        className="text-[11px] font-mono text-muted-foreground hover:text-foreground disabled:opacity-30 transition flex items-center gap-1"
+                        className="px-1.5 py-0.5 rounded font-mono text-[11px]"
                     >
-                        <ClearIcon className="size-3" />
-                        Clear
-                    </button>
+                        <span className="inline-flex items-center gap-1">
+                            <ClearIcon className="size-3" />
+                            <span>Clear</span>
+                        </span>
+                    </Button>
                 </div>
             </div>
 
@@ -202,9 +220,10 @@ export function ExecView() {
                 className="flex-1 min-h-0 overflow-auto rounded-xl p-3 bg-white dark:bg-black text-foreground font-mono text-xs leading-relaxed select-text border border-black/10 dark:border-white/10 shadow-inner"
             >
                 {exec_state.chunks.length === 0 && !exec_state.error && !exec_state.is_running && (
-                    <div className="text-foreground/50 py-8 text-center">
-                        Execute a command to stream remote stdout / stderr in real time.
-                    </div>
+                    <EmptyState
+                        title="Execute a command to stream remote stdout / stderr in real time."
+                        className="h-full font-mono"
+                    />
                 )}
 
                 {exec_state.chunks.map((chunk, index) => (

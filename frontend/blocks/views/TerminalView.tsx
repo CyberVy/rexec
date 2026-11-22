@@ -23,7 +23,16 @@ import type { ITheme } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
 import { useController } from "@/components/hooks"
-import { FullscreenSheet, view_switcher_controller, Button } from "@/components"
+import {
+    Badge,
+    Button,
+    EmptyState,
+    FullscreenSheet,
+    HorizontalScroller,
+    ListRow,
+    SectionHeader,
+    view_switcher_controller
+} from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { session_controller } from "@/core/controllers/session_controller"
 import { format_entry_size } from "@/core/workspace"
@@ -145,6 +154,7 @@ export function TerminalView() {
         events: ["change", "ready", "exit"]
     })
     const is_connected = pty_state.status === "connected"
+    const detached_sessions = pty_state.sessions.filter((s) => s.status === "detached")
 
     const session_state = useController(session_controller, {
         events: ["change", "status_change"]
@@ -352,22 +362,6 @@ export function TerminalView() {
         }
     }
 
-    const handle_accessory_scroll_ref = useCallback((scroll_container: HTMLDivElement | null) => {
-        if (!scroll_container) return
-
-        const stop_touch_propagation = (e: TouchEvent) => {
-            e.stopPropagation()
-        }
-
-        scroll_container.addEventListener("touchstart", stop_touch_propagation, { passive: true })
-        scroll_container.addEventListener("touchmove", stop_touch_propagation, { passive: true })
-
-        return () => {
-            scroll_container.removeEventListener("touchstart", stop_touch_propagation)
-            scroll_container.removeEventListener("touchmove", stop_touch_propagation)
-        }
-    }, [])
-
     return (
         <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-2 pb-24 min-h-0">
             {/* Terminal Top Control Bar */}
@@ -401,88 +395,105 @@ export function TerminalView() {
 
                     <div className="flex items-center shrink-0">
                         {pty_state.status === "connected" || pty_state.status === "connecting" ? (
-                            <button
-                                type="button"
+                            <Button
+                                variant="unstyled"
                                 onClick={handle_disconnect}
-                                className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 text-white font-medium text-xs transition cursor-pointer"
+                                className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 text-white font-medium text-xs"
                             >
                                 Disconnect
-                            </button>
+                            </Button>
                         ) : (
-                            <button
-                                type="button"
+                            <Button
+                                variant="unstyled"
                                 onClick={handle_connect}
                                 disabled={!session_state.agent_online}
-                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs transition flex items-center gap-1.5 cursor-pointer"
+                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs"
                             >
-                                <RunIcon className="size-3" /> Connect
-                            </button>
+                                <span className="inline-flex items-center gap-1.5">
+                                    <RunIcon className="size-3" />
+                                    <span>Connect</span>
+                                </span>
+                            </Button>
                         )}
                     </div>
                 </div>
 
                 {/* Row 2: Session & Workspace */}
                 <div className="flex items-center gap-2 min-w-0">
-                    <button
-                        type="button"
+                    <Button
+                        variant="outline"
+                        shape="none"
                         onClick={handle_open_sessions_modal}
-                        className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] truncate shrink-0"
+                        className="px-2 py-0.5 rounded text-[11px] shrink-0 text-black/60 dark:text-white/60 hover:text-foreground"
                     >
-                        <span className="truncate">
-                            {pty_state.session_id
-                                ? `Session: ${pty_state.session_id.slice(0, 8)}`
-                                : `Sessions (${pty_state.sessions.length})`}
+                        <span className="inline-flex items-center gap-1.5">
+                            <span className="truncate">
+                                {pty_state.session_id
+                                    ? `Session: ${pty_state.session_id.slice(0, 8)}`
+                                    : `Sessions (${pty_state.sessions.length})`}
+                            </span>
+                            <ChevronDownIcon className="size-3 shrink-0" />
                         </span>
-                        <ChevronDownIcon className="size-3 shrink-0" />
-                    </button>
+                    </Button>
 
-                    <button
-                        type="button"
+                    <Button
+                        variant="outline"
+                        shape="none"
                         onClick={handle_open_workspace_modal}
                         disabled={!session_state.agent_online && !pty_state.cwd}
                         title={pty_state.cwd ? `Current workspace: ${pty_state.cwd}` : "Browse workspace folder"}
-                        className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-40 text-muted-foreground hover:text-foreground transition cursor-pointer text-[11px] min-w-0"
+                        className="min-w-0 max-w-full px-2 py-0.5 rounded text-[11px] text-black/60 dark:text-white/60 hover:text-foreground"
                     >
-                        <FolderIcon className="size-3 shrink-0" />
-                        <span className="truncate">{format_display_path(pty_state.cwd)}</span>
-                        <ChevronDownIcon className="size-3 shrink-0" />
-                    </button>
+                        <span className="flex w-full min-w-0 items-center gap-1.5">
+                            <FolderIcon className="size-3 shrink-0" />
+                            <span className="truncate">{format_display_path(pty_state.cwd)}</span>
+                            <ChevronDownIcon className="size-3 shrink-0" />
+                        </span>
+                    </Button>
                 </div>
 
                 {/* Row 3: Action Controls */}
                 <div className="flex items-center gap-1.5 pt-1 border-t border-black/5 dark:border-white/5">
-                    <button
-                        type="button"
+                    <Button
+                        variant="unstyled"
                         onClick={() => set_is_accessory_bar_open((prev) => !prev)}
-                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] transition cursor-pointer ${
+                        className={`px-2 py-0.5 rounded text-[11px] ${
                             is_accessory_bar_open
                                 ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
-                                : "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                                : "text-black/60 dark:text-white/60 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
                         }`}
                         title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
                     >
-                        <KeyboardIcon className="size-3" />
-                        <span>Keys</span>
-                    </button>
+                        <span className="inline-flex items-center gap-1">
+                            <KeyboardIcon className="size-3" />
+                            <span>Keys</span>
+                        </span>
+                    </Button>
 
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        shape="none"
                         onClick={handle_clear}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                        className="px-2 py-0.5 rounded text-[11px]"
                     >
-                        <ClearIcon className="size-3" />
-                        Clear
-                    </button>
+                        <span className="inline-flex items-center gap-1">
+                            <ClearIcon className="size-3" />
+                            <span>Clear</span>
+                        </span>
+                    </Button>
 
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
+                        shape="none"
                         onClick={handle_copy_buffer}
                         title="Copy terminal content"
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                        className="px-2 py-0.5 rounded text-[11px]"
                     >
-                        {is_buffer_copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
-                        <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
-                    </button>
+                        <span className="inline-flex items-center gap-1">
+                            {is_buffer_copied ? <CheckIcon className="size-3" /> : <CopyIcon className="size-3" />}
+                            <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
+                        </span>
+                    </Button>
                 </div>
             </div>
 
@@ -496,62 +507,72 @@ export function TerminalView() {
                             Interactive Remote Terminal (PTY)
                         </div>
 
-                        {pty_state.sessions.filter((s) => s.status === "detached").length > 0 ? (
+                        {detached_sessions.length > 0 ? (
                             <div className="flex flex-col items-center gap-2.5 max-w-sm w-full">
-                                <div className="text-xs text-foreground/50 font-mono">Available Detached Sessions:</div>
+                                <SectionHeader
+                                    title="Detached Sessions"
+                                    count={detached_sessions.length}
+                                    className="w-full font-mono"
+                                />
                                 <div className="w-full space-y-2">
-                                    {pty_state.sessions
-                                        .filter((s) => s.status === "detached")
-                                        .slice(0, 3)
-                                        .map((s) => (
-                                            <div
-                                                key={s.session_id}
-                                                className="p-2.5 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 flex items-center justify-between gap-2 font-mono text-xs"
-                                            >
-                                                <div className="flex items-center gap-2 truncate">
-                                                    <span className="size-2 rounded-full bg-amber-400 shrink-0" />
-                                                    <span className="text-foreground font-medium truncate">
-                                                        {s.command || "shell"}
-                                                    </span>
-                                                    <span className="text-foreground/50 text-[11px]">
+                                    {detached_sessions.slice(0, 3).map((s) => (
+                                        <ListRow
+                                            key={s.session_id}
+                                            size="sm"
+                                            variant="filled"
+                                            leading={<span className="size-2 rounded-full bg-amber-400" />}
+                                            title={
+                                                <span className="inline-flex max-w-full items-center gap-2 font-mono text-xs">
+                                                    <span className="truncate font-medium">{s.command || "shell"}</span>
+                                                    <span className="shrink-0 text-[11px] font-normal text-foreground/50">
                                                         ({s.session_id.slice(0, 6)})
                                                     </span>
-                                                </div>
-                                                <button
-                                                    type="button"
+                                                </span>
+                                            }
+                                            trailing={
+                                                <Button
+                                                    variant="unstyled"
                                                     onClick={() =>
                                                         void pty_controller.connect({ session_id: s.session_id })
                                                     }
-                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0 cursor-pointer transition"
+                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0"
                                                 >
                                                     Resume
-                                                </button>
-                                            </div>
-                                        ))}
+                                                </Button>
+                                            }
+                                            className="border border-(--ui-border)"
+                                        />
+                                    ))}
                                 </div>
                                 <div className="flex items-center gap-2 mt-1">
-                                    <button
-                                        type="button"
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        shape="none"
                                         onClick={handle_connect}
                                         disabled={!session_state.agent_online}
-                                        className="px-3.5 py-1.5 rounded-lg border border-black/20 dark:border-white/20 hover:bg-black/10 dark:hover:bg-white/10 text-foreground font-medium text-xs font-mono transition cursor-pointer"
+                                        className="rounded-lg font-mono"
                                     >
                                         New Shell Session
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         ) : (
-                            <button
-                                type="button"
+                            <Button
+                                variant="unstyled"
                                 onClick={handle_connect}
                                 disabled={!session_state.agent_online}
-                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-medium text-xs font-mono transition shadow-lg flex items-center gap-2 cursor-pointer"
+                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs font-mono shadow-lg"
                             >
-                                <RunIcon className="size-3" />
-                                {session_state.agent_online
-                                    ? "Open Terminal Session"
-                                    : "Waiting for Agent to Connect..."}
-                            </button>
+                                <span className="inline-flex items-center gap-2">
+                                    <RunIcon className="size-3" />
+                                    <span>
+                                        {session_state.agent_online
+                                            ? "Open Terminal Session"
+                                            : "Waiting for Agent to Connect..."}
+                                    </span>
+                                </span>
+                            </Button>
                         )}
                     </div>
                 )}
@@ -601,14 +622,12 @@ export function TerminalView() {
 
             {/* Accessory Virtual Keys Bar */}
             {is_accessory_bar_open && (
-                <div
-                    ref={handle_accessory_scroll_ref}
-                    className="shrink-0 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
-                >
+                <HorizontalScroller className="shrink-0 items-center gap-1.5 py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono">
                     {ACCESSORY_KEYS.map((key) => (
                         <Button
                             key={key.label}
                             type="button"
+                            variant="unstyled"
                             title={key.title}
                             disabled={!is_connected}
                             onPointerDown={(e) => e.preventDefault()}
@@ -621,7 +640,7 @@ export function TerminalView() {
                             {key.label}
                         </Button>
                     ))}
-                </div>
+                </HorizontalScroller>
             )}
 
             {/* Sessions Management Fullscreen Modal */}
@@ -635,37 +654,47 @@ export function TerminalView() {
                     <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
                         <div className="flex items-center gap-2.5">
                             <span className="font-semibold text-base font-mono">Terminal Sessions</span>
-                            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-muted-foreground">
+                            <Badge
+                                tone="subtle"
+                                shape="pill"
+                                mono
+                                className="border border-(--ui-border) px-2 text-[11px]"
+                            >
                                 {pty_state.sessions.length} Available
-                            </span>
+                            </Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button
-                                type="button"
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                shape="none"
                                 onClick={() => void pty_controller.refresh_sessions()}
                                 disabled={pty_state.is_listing}
                                 title="Refresh sessions"
-                                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                className="rounded-lg"
                             >
                                 <RefreshIcon className={`size-4 ${pty_state.is_listing ? "animate-spin" : ""}`} />
-                            </button>
-                            <button
-                                type="button"
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                shape="none"
                                 onClick={handle_close_sessions_modal}
-                                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                className="rounded-lg"
                                 title="Close"
                             >
                                 <CloseIcon className="size-5" />
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
                     {/* List */}
                     <div className="space-y-2.5 font-mono text-xs">
                         {pty_state.sessions.length === 0 ? (
-                            <div className="py-16 text-center text-muted-foreground text-xs font-mono border border-dashed border-black/10 dark:border-white/10 rounded-xl">
-                                No active or detached sessions on remote agent.
-                            </div>
+                            <EmptyState
+                                title="No active or detached sessions on remote agent."
+                                className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                            />
                         ) : (
                             pty_state.sessions.map((s) => {
                                 const is_current =
@@ -675,39 +704,40 @@ export function TerminalView() {
                                     Math.ceil((s.remaining_ttl_ms ?? s.orphan_ttl_ms) / 60000)
                                 )
                                 return (
-                                    <div
+                                    <ListRow
                                         key={s.session_id}
-                                        className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition ${
-                                            is_current
-                                                ? "border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10"
-                                                : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5"
-                                        }`}
-                                    >
-                                        <div className="flex flex-col gap-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <span
-                                                    className={`size-2 rounded-full shrink-0 ${
-                                                        s.status === "attached" ? "bg-emerald-500" : "bg-amber-400"
-                                                    }`}
-                                                />
-                                                <span className="font-bold text-foreground truncate">
-                                                    {s.command || "shell"}
-                                                </span>
-                                                <span className="text-[11px] text-muted-foreground">
+                                        size="md"
+                                        variant={is_current ? "plain" : "filled"}
+                                        leading={
+                                            <span
+                                                className={`size-2 rounded-full ${
+                                                    s.status === "attached" ? "bg-emerald-500" : "bg-amber-400"
+                                                }`}
+                                            />
+                                        }
+                                        title={
+                                            <span className="inline-flex max-w-full items-center gap-2 font-mono text-xs">
+                                                <span className="truncate font-bold">{s.command || "shell"}</span>
+                                                <span className="shrink-0 text-[11px] font-normal text-black/50 dark:text-white/50">
                                                     ({s.session_id.slice(0, 8)})
                                                 </span>
                                                 {is_current && (
-                                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+                                                    <Badge tone="custom" className="bg-emerald-500/20 text-emerald-400">
                                                         Active
-                                                    </span>
+                                                    </Badge>
                                                 )}
                                                 {s.persistent && (
-                                                    <span className="text-[10px] px-1.5 py-0.2 rounded border border-black/15 dark:border-white/15 bg-black/5 dark:bg-white/10 text-foreground/80 font-medium">
+                                                    <Badge
+                                                        tone="subtle"
+                                                        className="border border-black/15 dark:border-white/15"
+                                                    >
                                                         Persistent
-                                                    </span>
+                                                    </Badge>
                                                 )}
-                                            </div>
-                                            <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                                            </span>
+                                        }
+                                        subtitle={
+                                            <span className="inline-flex items-center gap-2 font-mono text-[11px]">
                                                 <span className="capitalize">{s.status}</span>
                                                 {s.persistent ? (
                                                     <>
@@ -726,53 +756,65 @@ export function TerminalView() {
                                                         <span>{Math.round(s.buffered_bytes / 1024)} KB buffered</span>
                                                     </>
                                                 )}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    void pty_controller.set_session_persistent(
-                                                        s.session_id,
-                                                        !s.persistent
-                                                    )
-                                                }
-                                                title={
-                                                    s.persistent
-                                                        ? "Disable persistence (restore 10m orphan TTL)"
-                                                        : "Enable persistence (keep alive indefinitely)"
-                                                }
-                                                className={`px-2.5 py-1.5 rounded-lg border text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
-                                                    s.persistent
-                                                        ? "border-black/30 dark:border-white/30 bg-black/10 dark:bg-white/15 text-foreground font-medium"
-                                                        : "border-black/10 dark:border-white/10 text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5"
-                                                }`}
-                                            >
-                                                <PinIcon className="size-3" />
-                                            </button>
-                                            {!is_current && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        void pty_controller.switch_session(s.session_id)
-                                                        handle_close_sessions_modal()
-                                                    }}
-                                                    className="px-3 py-1.5 rounded-lg bg-foreground text-background font-medium text-xs transition hover:opacity-90 cursor-pointer"
+                                            </span>
+                                        }
+                                        trailing={
+                                            <div className="flex items-center gap-1.5">
+                                                <Button
+                                                    variant={s.persistent ? "secondary" : "outline"}
+                                                    size="icon"
+                                                    shape="none"
+                                                    onClick={() =>
+                                                        void pty_controller.set_session_persistent(
+                                                            s.session_id,
+                                                            !s.persistent
+                                                        )
+                                                    }
+                                                    title={
+                                                        s.persistent
+                                                            ? "Disable persistence (restore 10m orphan TTL)"
+                                                            : "Enable persistence (keep alive indefinitely)"
+                                                    }
+                                                    className={`size-7 rounded-lg font-mono ${
+                                                        s.persistent
+                                                            ? "border-black/30 dark:border-white/30 bg-black/10 dark:bg-white/15 font-medium"
+                                                            : "text-black/60 dark:text-white/60 hover:text-foreground"
+                                                    }`}
                                                 >
-                                                    Attach
-                                                </button>
-                                            )}
-                                            <button
-                                                type="button"
-                                                onClick={() => void pty_controller.kill_session(s.session_id)}
-                                                title="Kill session process"
-                                                className="p-1.5 rounded-lg border border-black/10 dark:border-white/10 hover:bg-red-500/10 hover:text-red-400 text-muted-foreground transition cursor-pointer"
-                                            >
-                                                <TrashIcon className="size-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
+                                                    <PinIcon className="size-3" />
+                                                </Button>
+                                                {!is_current && (
+                                                    <Button
+                                                        variant="primary"
+                                                        size="xs"
+                                                        shape="none"
+                                                        onClick={() => {
+                                                            void pty_controller.switch_session(s.session_id)
+                                                            handle_close_sessions_modal()
+                                                        }}
+                                                        className="rounded-lg font-mono"
+                                                    >
+                                                        Attach
+                                                    </Button>
+                                                )}
+                                                <Button
+                                                    variant="outline"
+                                                    size="icon"
+                                                    shape="none"
+                                                    onClick={() => void pty_controller.kill_session(s.session_id)}
+                                                    title="Kill session process"
+                                                    className="size-7 rounded-lg text-black/50 dark:text-white/50 hover:bg-red-500/10 hover:text-red-400"
+                                                >
+                                                    <TrashIcon className="size-3.5" />
+                                                </Button>
+                                            </div>
+                                        }
+                                        className={
+                                            is_current
+                                                ? "border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 dark:bg-emerald-500/10"
+                                                : "border border-(--ui-border)"
+                                        }
+                                    />
                                 )
                             })
                         )}
@@ -783,17 +825,20 @@ export function TerminalView() {
                         <span className="text-[11px] text-muted-foreground font-mono">
                             Detached sessions keep running in background.
                         </span>
-                        <button
-                            type="button"
+                        <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => {
                                 void pty_controller.new_session()
                                 handle_close_sessions_modal()
                             }}
-                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-foreground text-background font-medium text-xs font-mono transition hover:opacity-90 cursor-pointer"
+                            className="font-mono"
                         >
-                            <PlusIcon className="size-3.5" />
-                            <span>New</span>
-                        </button>
+                            <span className="inline-flex items-center gap-1.5">
+                                <PlusIcon className="size-3.5" />
+                                <span>New</span>
+                            </span>
+                        </Button>
                     </div>
                 </div>
                 <div
@@ -820,44 +865,57 @@ export function TerminalView() {
                         <div className="flex items-center gap-2">
                             <FolderIcon className="size-5 text-foreground shrink-0" />
                             <span className="font-semibold text-base font-mono">Workspace Explorer</span>
-                            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-muted-foreground">
+                            <Badge
+                                tone="subtle"
+                                shape="pill"
+                                mono
+                                className="border border-(--ui-border) px-2 text-[11px]"
+                            >
                                 {pty_state.dir_entries.length} Items
-                            </span>
+                            </Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button
-                                type="button"
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                shape="none"
                                 onClick={() => void pty_controller.load_directory()}
                                 disabled={pty_state.is_loading_dir}
                                 title="Refresh directory"
-                                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                className="rounded-lg"
                             >
                                 <RefreshIcon className={`size-4 ${pty_state.is_loading_dir ? "animate-spin" : ""}`} />
-                            </button>
-                            <button
-                                type="button"
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                shape="none"
                                 onClick={handle_close_workspace_modal}
-                                className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+                                className="rounded-lg"
                                 title="Close"
                             >
                                 <CloseIcon className="size-5" />
-                            </button>
+                            </Button>
                         </div>
                     </div>
 
                     {/* Current Path Bar */}
                     <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 font-mono text-xs">
                         <div className="flex items-center gap-2 min-w-0">
-                            <button
-                                type="button"
+                            <Button
+                                variant="outline"
+                                size="xs"
+                                shape="none"
                                 onClick={() => void pty_controller.navigate_parent_directory()}
                                 disabled={pty_state.is_loading_dir || !pty_state.dir_path || pty_state.dir_path === "/"}
                                 title="Parent directory (..)"
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-black/10 dark:border-white/10 hover:bg-black/10 dark:hover:bg-white/15 disabled:opacity-40 text-foreground transition cursor-pointer shrink-0 text-[11px]"
+                                className="shrink-0 rounded-lg text-[11px] font-mono"
                             >
-                                <FolderUpIcon className="size-3.5" />
-                                <span>..</span>
-                            </button>
+                                <span className="inline-flex items-center gap-1">
+                                    <FolderUpIcon className="size-3.5" />
+                                    <span>..</span>
+                                </span>
+                            </Button>
                             <span
                                 className="truncate text-foreground font-medium select-text"
                                 title={pty_state.dir_path ?? pty_state.cwd ?? "/"}
@@ -869,96 +927,99 @@ export function TerminalView() {
                         {pty_state.status === "connected" &&
                             pty_state.dir_path &&
                             pty_state.dir_path !== pty_state.cwd && (
-                                <button
-                                    type="button"
+                                <Button
+                                    variant="primary"
+                                    size="xs"
+                                    shape="none"
                                     onClick={() => {
                                         if (pty_state.dir_path) {
                                             pty_controller.cd_to_directory(pty_state.dir_path)
                                             handle_close_workspace_modal()
                                         }
                                     }}
-                                    className="px-3 py-1 rounded-lg bg-foreground text-background font-medium text-xs hover:opacity-90 transition cursor-pointer shrink-0"
+                                    className="shrink-0 rounded-lg font-mono"
                                 >
                                     cd Here
-                                </button>
+                                </Button>
                             )}
                     </div>
 
                     {/* Directory Entries List */}
                     <div className="space-y-1.5 font-mono text-xs">
                         {pty_state.dir_error ? (
-                            <div className="py-8 px-4 text-center text-muted-foreground text-xs font-mono border border-black/10 dark:border-white/10 rounded-xl">
-                                {pty_state.dir_error}
-                            </div>
+                            <EmptyState
+                                title={pty_state.dir_error}
+                                className="rounded-xl border border-(--ui-border) font-mono"
+                            />
                         ) : pty_state.is_loading_dir && pty_state.dir_entries.length === 0 ? (
-                            <div className="py-12 text-center text-muted-foreground text-xs font-mono">
-                                Loading directory contents...
-                            </div>
+                            <EmptyState title="Loading directory contents..." glow className="font-mono" />
                         ) : pty_state.dir_entries.length === 0 ? (
-                            <div className="py-12 text-center text-muted-foreground text-xs font-mono border border-dashed border-black/10 dark:border-white/10 rounded-xl">
-                                Directory is empty.
-                            </div>
+                            <EmptyState
+                                title="Directory is empty."
+                                className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                            />
                         ) : (
                             pty_state.dir_entries.map((entry) => (
-                                <div
+                                <ListRow
                                     key={entry.path}
-                                    onClick={() => {
-                                        if (entry.is_directory) {
-                                            void pty_controller.load_directory(entry.path)
-                                        }
-                                    }}
-                                    className={`px-3.5 py-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 flex items-center justify-between gap-3 transition ${
+                                    size="sm"
+                                    variant={entry.is_directory ? "filled" : "plain"}
+                                    on_click={
                                         entry.is_directory
-                                            ? "hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer"
-                                            : ""
-                                    }`}
-                                >
-                                    <div className="flex items-center gap-2.5 min-w-0">
-                                        {entry.is_directory ? (
-                                            <FolderIcon className="size-4 text-foreground shrink-0" />
+                                            ? () => void pty_controller.load_directory(entry.path)
+                                            : undefined
+                                    }
+                                    leading={
+                                        entry.is_directory ? (
+                                            <FolderIcon className="size-4 text-foreground" />
                                         ) : (
-                                            <FileIcon className="size-4 text-muted-foreground shrink-0" />
-                                        )}
-                                        <div className="flex flex-col min-w-0">
-                                            <span
-                                                className={`truncate ${
-                                                    entry.is_directory
-                                                        ? "font-semibold text-foreground"
-                                                        : "text-foreground/90"
-                                                }`}
-                                            >
-                                                {entry.name}
-                                                {entry.is_directory ? "/" : ""}
-                                            </span>
-                                            <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                                                <span>{entry.permissions}</span>
-                                                <span>•</span>
-                                                <span>{entry.mtime_label}</span>
-                                                {!entry.is_directory && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span>{format_entry_size(entry.size)}</span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {entry.is_directory && pty_state.status === "connected" && (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                pty_controller.cd_to_directory(entry.path)
-                                                handle_close_workspace_modal()
-                                            }}
-                                            title={`cd into ${entry.name}`}
-                                            className="px-2.5 py-1 rounded-lg border border-black/15 dark:border-white/15 hover:bg-foreground hover:text-background text-foreground font-medium text-xs transition shrink-0 cursor-pointer"
+                                            <FileIcon className="size-4 text-black/50 dark:text-white/50" />
+                                        )
+                                    }
+                                    title={
+                                        <span
+                                            className={
+                                                entry.is_directory
+                                                    ? "font-mono text-xs font-semibold"
+                                                    : "font-mono text-xs font-normal text-foreground/90"
+                                            }
                                         >
-                                            cd
-                                        </button>
-                                    )}
-                                </div>
+                                            {entry.name}
+                                            {entry.is_directory ? "/" : ""}
+                                        </span>
+                                    }
+                                    subtitle={
+                                        <span className="inline-flex items-center gap-2 font-mono text-[10px]">
+                                            <span>{entry.permissions}</span>
+                                            <span>•</span>
+                                            <span>{entry.mtime_label}</span>
+                                            {!entry.is_directory && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>{format_entry_size(entry.size)}</span>
+                                                </>
+                                            )}
+                                        </span>
+                                    }
+                                    trailing={
+                                        entry.is_directory && pty_state.status === "connected" ? (
+                                            <Button
+                                                variant="outline"
+                                                size="xs"
+                                                shape="none"
+                                                onClick={() => {
+                                                    pty_controller.cd_to_directory(entry.path)
+                                                    handle_close_workspace_modal()
+                                                }}
+                                                title={`cd into ${entry.name}`}
+                                                className="shrink-0 rounded-lg font-mono hover:bg-foreground hover:text-background"
+                                            >
+                                                cd
+                                            </Button>
+                                        ) : undefined
+                                    }
+                                    className="border border-(--ui-border) bg-black/5 dark:bg-white/5"
+                                />
                             ))
                         )}
                     </div>
@@ -969,13 +1030,14 @@ export function TerminalView() {
                             Terminal CWD: {pty_state.cwd ?? "Not connected"}
                         </span>
                         {pty_state.cwd && pty_state.dir_path && pty_state.dir_path !== pty_state.cwd && (
-                            <button
-                                type="button"
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => void pty_controller.load_directory(pty_state.cwd ?? undefined)}
-                                className="px-3 py-1.5 rounded-xl border border-black/15 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 text-foreground font-medium text-xs font-mono transition shrink-0 cursor-pointer"
+                                className="shrink-0 font-mono"
                             >
                                 Reset to Terminal CWD
-                            </button>
+                            </Button>
                         )}
                     </div>
                 </div>

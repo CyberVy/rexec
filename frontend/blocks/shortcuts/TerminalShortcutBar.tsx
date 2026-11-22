@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { view_switcher_controller } from "@/components"
+import { Button, view_switcher_controller } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { pty_shortcut_controller, type PtyShortcutKind } from "@/core/controllers/pty_shortcut_controller"
 import { SHORTCUT_INPUT_CLASS, ShortcutEditorField, ShortcutEditorModal } from "../modals"
@@ -125,18 +125,18 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                             {(["command", "key"] as const).map((kind) => {
                                 const is_selected = form.kind === kind
                                 return (
-                                    <button
+                                    <Button
                                         key={kind}
-                                        type="button"
+                                        variant="unstyled"
                                         onClick={() => set_form((prev) => ({ ...prev, kind }))}
-                                        className={`px-3 py-1.5 text-xs font-mono cursor-pointer ${
+                                        className={`px-3 py-1.5 text-xs font-mono ${
                                             is_selected
                                                 ? "bg-foreground text-background"
-                                                : "text-muted-foreground hover:text-foreground"
+                                                : "text-black/60 dark:text-white/60 hover:text-foreground"
                                         }`}
                                     >
                                         {kind === "command" ? "Command" : "Keys"}
-                                    </button>
+                                    </Button>
                                 )
                             })}
                         </div>
@@ -161,21 +161,19 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                     </p>
                     <div className="flex items-center justify-end gap-3">
                         {editing_id && (
-                            <button
-                                type="button"
-                                onClick={reset_form}
-                                className="px-4 py-2 rounded-xl border border-black/10 dark:border-white/10 text-xs font-mono text-muted-foreground hover:text-foreground transition cursor-pointer"
-                            >
+                            <Button variant="outline" size="md" onClick={reset_form} className="font-mono">
                                 Cancel
-                            </button>
+                            </Button>
                         )}
-                        <button
+                        <Button
                             type="submit"
+                            variant="primary"
+                            size="md"
                             disabled={form.kind === "key" ? form.payload.length === 0 : !form.payload.trim()}
-                            className="px-4 py-2 rounded-xl bg-foreground text-background text-xs font-mono disabled:opacity-40 cursor-pointer"
+                            className="font-mono"
                         >
                             {editing_id ? "Save" : "Add"}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             </ShortcutEditorModal>
