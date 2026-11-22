@@ -30,8 +30,8 @@ private final class WeakScriptMessageHandlerWithReply: NSObject, WKScriptMessage
 
 final class IOSBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let handlerName = "iosIpcBridge"
-    static let hostScriptPrefix = "// @rexec-ios-"
-    private static let bridgeScriptMarker = "// @rexec-ios-bridge-script"
+    static let hostScriptPrefix = "// @ios-"
+    private static let bridgeScriptMarker = "// @ios-bridge-script"
 
     private weak var webView: WKWebView?
     private weak var viewController: UIViewController?
@@ -120,7 +120,7 @@ final class IOSBridge: NSObject, WKScriptMessageHandlerWithReply {
             return
         }
 
-        let js = "window.__REXEC_IOS_IPC__?.dispatch(\(json))"
+        let js = "window.__IOS_IPC__?.dispatch(\(json))"
         runOnMain { [weak self] in
             self?.webView?.evaluateJavaScript(js, completionHandler: nil)
         }
@@ -141,10 +141,10 @@ final class IOSBridge: NSObject, WKScriptMessageHandlerWithReply {
         }
 
         let script = """
-        if (!window.__REXEC_IOS_IPC__?.invoke) {
+        if (!window.__IOS_IPC__?.invoke) {
             throw new Error("iOS IPC runtime not ready");
         }
-        return await window.__REXEC_IOS_IPC__.invoke(type, payload);
+        return await window.__IOS_IPC__.invoke(type, payload);
         """
 
         runOnMain { [weak self] in
@@ -234,8 +234,8 @@ final class IOSBridge: NSObject, WKScriptMessageHandlerWithReply {
 
         let source = """
         \(IOSBridge.bridgeScriptMarker)
-        window.__REXEC_IOS_IPC_CAPS__ = \(capsJson);
-        window.__REXEC_IOS_IPC__?.sync_capabilities?.();
+        window.__IOS_IPC_CAPS__ = \(capsJson);
+        window.__IOS_IPC__?.sync_capabilities?.();
         """
 
         let script = WKUserScript(source: source, injectionTime: .atDocumentStart, forMainFrameOnly: true)

@@ -3,8 +3,8 @@ import { create_logger } from "./logger"
 const logger = create_logger("IosIPC")
 
 const IOS_IPC_HANDLER_NAME = "iosIpcBridge"
-const IOS_IPC_RUNTIME_KEY = "__REXEC_IOS_IPC__"
-const IOS_IPC_CAPS_KEY = "__REXEC_IOS_IPC_CAPS__"
+const IOS_IPC_RUNTIME_KEY = "__IOS_IPC__"
+const IOS_IPC_CAPS_KEY = "__IOS_IPC_CAPS__"
 
 export type IosIPCErrorCode =
     | "UNAVAILABLE"
