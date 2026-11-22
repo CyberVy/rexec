@@ -2,12 +2,7 @@ import { create_logger } from "./logger"
 
 const logger = create_logger("IosIPC")
 
-const IOS_IPC_HANDLER_NAME = "iosIpcBridge"
 const IOS_IPC_RUNTIME_KEY = "__IOS_IPC__"
-// Native registers a `iosCap_<name>` message handler per available module before navigation.
-// Handler presence is visible at document creation in every frame, so it has no injection-order dependency.
-const IOS_CAPABILITY_HANDLER_PREFIX = "iosCap_"
-const IOS_KNOWN_CAPABILITIES = ["webview_router", "tauri_proxy", "view_switcher_toolbar"] as const
 
 export type IosIPCErrorCode =
     | "UNAVAILABLE"
@@ -149,18 +144,21 @@ export function init_ios_ipc_runtime(): void {
     get_or_create_runtime()
 }
 
-export function is_ios_ipc_available(): boolean {
-    if (typeof window === "undefined") return false
-    return typeof window.webkit?.messageHandlers?.[IOS_IPC_HANDLER_NAME]?.postMessage === "function"
+function get_bridge_handler() {
+    if (typeof window === "undefined") return undefined
+    const handler = window.webkit?.messageHandlers?.iosIpcBridge
+    return typeof handler?.postMessage === "function" ? handler : undefined
 }
 
+export function is_ios_ipc_available(): boolean {
+    return get_bridge_handler() !== undefined
+}
+
+// Native registers a `iosCap_<name>` message handler per available module before navigation.
+// Handler presence is visible at document creation in every frame, so it has no injection-order dependency.
 export function has_ios_capability(capability: string): boolean {
     if (!is_ios_ipc_available()) return false
-    return window.webkit?.messageHandlers?.[IOS_CAPABILITY_HANDLER_PREFIX + capability] !== undefined
-}
-
-export function get_ios_capabilities(): ReadonlySet<string> {
-    return new Set(IOS_KNOWN_CAPABILITIES.filter((capability) => has_ios_capability(capability)))
+    return window.webkit?.messageHandlers?.["iosCap_" + capability] !== undefined
 }
 
 export async function ios_ipc_call<Result = unknown, Payload = Record<string, unknown>>({
@@ -168,8 +166,8 @@ export async function ios_ipc_call<Result = unknown, Payload = Record<string, un
     payload = {} as Payload,
     delay
 }: IosIPCRequestParams<Payload>): Promise<Result> {
-    const handler = typeof window !== "undefined" ? window.webkit?.messageHandlers?.[IOS_IPC_HANDLER_NAME] : undefined
-    if (!handler || typeof handler.postMessage !== "function") {
+    const handler = get_bridge_handler()
+    if (!handler) {
         throw new IosIPCError("UNAVAILABLE", `iOS IPC bridge is not available for type: ${type}`)
     }
 

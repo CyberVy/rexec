@@ -73,7 +73,6 @@ export {
     init_ios_ipc_runtime,
     is_ios_ipc_available,
     has_ios_capability,
-    get_ios_capabilities,
     ios_ipc_call,
     handle_ios_ipc
 } from "./ios_ipc.client"
