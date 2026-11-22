@@ -1,3 +1,4 @@
+import { has_ios_capability, ios_ipc_call } from "./ios_ipc.client"
 import { create_logger } from "./logger"
 
 const logger = create_logger("WebIPC")
@@ -10,11 +11,15 @@ export class WebviewWindowProxy {
     }
 
     postMessage(message: any, targetOrigin: string = "*") {
-        const any_window = window as any
-        if (typeof window !== "undefined" && any_window.webkit?.messageHandlers?.tauriPopupBridge) {
-            any_window.webkit.messageHandlers.tauriPopupBridge.postMessage({
-                target_label: this.label,
-                message: message
+        if (typeof window !== "undefined" && has_ios_capability("webview_router")) {
+            ios_ipc_call({
+                type: "webview_router.post_message",
+                payload: {
+                    target_label: this.label,
+                    message: message
+                }
+            }).catch((err) => {
+                logger.warn("Failed to route postMessage via iOS IPC", { label: this.label, error: err })
             })
         } else if (typeof window !== "undefined" && window.__TAURI__?.core?.invoke) {
             window.__TAURI__.core
@@ -31,7 +36,14 @@ export class WebviewWindowProxy {
     }
 
     close() {
-        if (typeof window !== "undefined" && window.__TAURI__?.core?.invoke) {
+        if (typeof window !== "undefined" && has_ios_capability("webview_router")) {
+            ios_ipc_call({
+                type: "webview_router.close",
+                payload: { label: this.label }
+            }).catch((err) => {
+                logger.error("Failed to close webview via iOS IPC", { label: this.label, error: err })
+            })
+        } else if (typeof window !== "undefined" && window.__TAURI__?.core?.invoke) {
             window.__TAURI__.core.invoke("destroy_child_webview", { label: this.label }).catch((err) => {
                 logger.error("Failed to destroy child webview", { label: this.label, error: err })
             })

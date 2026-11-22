@@ -1,16 +1,21 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useRef } from "react"
+import { handle_ios_ipc, has_ios_capability, ios_ipc_call } from "@/infra"
 import type { ResolvedToolbarColor, ToolbarLayout, View } from "./types"
 
-interface NativeToolbarItem {
+const TOOLBAR_CAPABILITY = "view_switcher_toolbar"
+const TOOLBAR_SYNC_TYPE = "view_switcher_toolbar.sync"
+const TOOLBAR_REMOVE_TYPE = "view_switcher_toolbar.remove"
+const TOOLBAR_SELECT_TYPE = "view_switcher_toolbar.select"
+
+type NativeToolbarItem = {
     id: string
     label: string
     icon: string
 }
 
-interface NativeToolbarSync {
-    type: "sync"
+type NativeToolbarSyncPayload = {
     switcher_id: string
     layout: ToolbarLayout
     visible: boolean
@@ -21,52 +26,12 @@ interface NativeToolbarSync {
     items: NativeToolbarItem[]
 }
 
-interface NativeToolbarRemove {
-    type: "remove"
-    switcher_id: string
-    animated: boolean
-}
-
-interface NativeToolbarSelect {
-    type: "select"
-    switcher_id: string
-    view_id: string
-}
-
-type NativeToolbarWindow = Window & {
-    __VIEW_SWITCHER_NATIVE_TOOLBAR__?: boolean
-    __view_switcher_native_toolbar_dispatch?: (message: NativeToolbarSelect) => void
-    webkit?: {
-        messageHandlers?: {
-            viewSwitcherToolbar?: { postMessage: (body: NativeToolbarSync | NativeToolbarRemove) => void }
-        }
-    }
-}
-
-const select_handlers = new Map<string, (view_id: string) => void>()
-
-function native_window(): NativeToolbarWindow | null {
-    if (typeof window === "undefined") return null
-    return window as NativeToolbarWindow
-}
-
 export function is_native_toolbar_active(): boolean {
-    return native_window()?.__VIEW_SWITCHER_NATIVE_TOOLBAR__ === true
+    return has_ios_capability(TOOLBAR_CAPABILITY)
 }
 
-function ensure_dispatch(): void {
-    const host = native_window()
-    if (!host || host.__view_switcher_native_toolbar_dispatch) return
-    host.__view_switcher_native_toolbar_dispatch = (message) => {
-        if (!message || typeof message !== "object") return
-        if (message.type === "select") {
-            select_handlers.get(message.switcher_id)?.(message.view_id)
-        }
-    }
-}
-
-function post_toolbar_message(message: NativeToolbarSync | NativeToolbarRemove): void {
-    native_window()?.webkit?.messageHandlers?.viewSwitcherToolbar?.postMessage(message)
+function post_toolbar_ipc(type: string, payload: Record<string, unknown>): void {
+    ios_ipc_call({ type, payload }).catch(() => {})
 }
 
 export function useNativeToolbar<T extends string>({
@@ -94,7 +59,7 @@ export function useNativeToolbar<T extends string>({
 }): void {
     const on_select_ref = useRef(on_select)
     const snapshot_ref = useRef("")
-    const latest_sync_ref = useRef<NativeToolbarSync | null>(null)
+    const latest_sync_ref = useRef<NativeToolbarSyncPayload | null>(null)
     const was_enabled_ref = useRef(false)
     const latest_host_transitioning_ref = useRef(host_transitioning)
     const prev_host_transitioning_ref = useRef(host_transitioning)
@@ -109,20 +74,25 @@ export function useNativeToolbar<T extends string>({
 
     useEffect(() => {
         if (!enabled) return
-        ensure_dispatch()
-        select_handlers.set(switcher_id, (view_id) => {
-            const accepted = on_select_ref.current(view_id as T)
-            if (accepted === false && latest_sync_ref.current) {
-                post_toolbar_message(latest_sync_ref.current)
+        const unsubscribe = handle_ios_ipc({
+            type: TOOLBAR_SELECT_TYPE,
+            handler: (payload) => {
+                if (payload.switcher_id !== switcher_id) return
+                const view_id = typeof payload.view_id === "string" ? payload.view_id : ""
+                if (!view_id) return
+
+                const accepted = on_select_ref.current(view_id as T)
+                if (accepted === false && latest_sync_ref.current) {
+                    post_toolbar_ipc(TOOLBAR_SYNC_TYPE, latest_sync_ref.current)
+                }
             }
         })
         return () => {
-            select_handlers.delete(switcher_id)
+            unsubscribe()
             snapshot_ref.current = ""
             latest_sync_ref.current = null
             was_enabled_ref.current = false
-            post_toolbar_message({
-                type: "remove",
+            post_toolbar_ipc(TOOLBAR_REMOVE_TYPE, {
                 switcher_id,
                 animated: latest_host_transitioning_ref.current
             })
@@ -139,8 +109,7 @@ export function useNativeToolbar<T extends string>({
             label: view.label ?? "",
             icon: view.native_icon ?? ""
         }))
-        const message: NativeToolbarSync = {
-            type: "sync",
+        const payload: NativeToolbarSyncPayload = {
             switcher_id,
             layout,
             visible,
@@ -150,7 +119,7 @@ export function useNativeToolbar<T extends string>({
             active_color,
             items
         }
-        latest_sync_ref.current = message
+        latest_sync_ref.current = payload
         const state_snapshot = JSON.stringify({
             switcher_id,
             layout,
@@ -162,7 +131,7 @@ export function useNativeToolbar<T extends string>({
         })
         if (snapshot_ref.current === state_snapshot) return
         snapshot_ref.current = state_snapshot
-        post_toolbar_message(message)
+        post_toolbar_ipc(TOOLBAR_SYNC_TYPE, payload)
     }, [enabled, host_transitioning, switcher_id, layout, views, active_id, active_color, visible, interactive])
 
     useEffect(() => {

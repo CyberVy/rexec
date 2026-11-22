@@ -67,6 +67,18 @@ export type { SaveFileResult } from "./file.client"
 export { create_child_webview, destroy_child_webview, set_window_layout } from "./webview.client"
 export type { LayoutItem } from "./webview.client"
 
+// ios_ipc.client.ts
+export {
+    IosIPCError,
+    init_ios_ipc_runtime,
+    is_ios_ipc_available,
+    has_ios_capability,
+    get_ios_capabilities,
+    ios_ipc_call,
+    handle_ios_ipc
+} from "./ios_ipc.client"
+export type { IosIPCErrorCode, IosIPCRequestParams, IosIPCHandler, IosIPCHandleParams } from "./ios_ipc.client"
+
 // base_controller.ts
 export { BaseController, BaseKeyedController } from "./base_controller"
 
