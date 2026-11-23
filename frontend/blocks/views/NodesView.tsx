@@ -3,7 +3,7 @@
 import { X, ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { Badge, Button, EmptyState, FullscreenSheet, view_switcher_controller } from "@/components"
+import { Badge, Button, EmptyState, FullscreenSheet, Portal, view_switcher_controller } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 export function NodesView() {
     const session = useController(session_controller, {
@@ -357,15 +357,17 @@ export function NodesView() {
                         </div>
                     </form>
                 </div>
-                <div
-                    className={
-                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                    }
-                >
-                    <Button className={"w-10 h-10"} onClick={handle_close_add_modal}>
-                        {<ArrowLeft key="back" />}
-                    </Button>
-                </div>
+                <Portal>
+                    <div
+                        className={
+                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                        }
+                    >
+                        <Button className={"w-10 h-10"} onClick={handle_close_add_modal}>
+                            {<ArrowLeft key="back" />}
+                        </Button>
+                    </div>
+                </Portal>
             </FullscreenSheet>
         </div>
     )

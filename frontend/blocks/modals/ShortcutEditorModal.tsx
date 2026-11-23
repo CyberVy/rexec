@@ -2,7 +2,7 @@
 
 import { ArrowLeft, X, Trash2 } from "lucide-react"
 import type { ReactNode } from "react"
-import { Button, EmptyState, FullscreenSheet, ListRow, SectionHeader } from "@/components"
+import { Button, EmptyState, FullscreenSheet, ListRow, Portal, SectionHeader } from "@/components"
 export interface ShortcutEditorModalEntry {
     id: string
     label: string
@@ -126,15 +126,17 @@ export function ShortcutEditorModal({
                     })}
                 </div>
             </div>
-            <div
-                className={
-                    "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                }
-            >
-                <Button className={"w-10 h-10"} onClick={on_close}>
-                    {<ArrowLeft key="back" />}
-                </Button>
-            </div>
+            <Portal>
+                <div
+                    className={
+                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                    }
+                >
+                    <Button className={"w-10 h-10"} onClick={on_close}>
+                        {<ArrowLeft key="back" />}
+                    </Button>
+                </div>
+            </Portal>
         </FullscreenSheet>
     )
 }

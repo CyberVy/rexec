@@ -29,6 +29,7 @@ import {
     FullscreenSheet,
     HorizontalScroller,
     ListRow,
+    Portal,
     SectionHeader,
     view_switcher_controller
 } from "@/components"
@@ -840,15 +841,17 @@ export function TerminalView() {
                         </Button>
                     </div>
                 </div>
-                <div
-                    className={
-                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                    }
-                >
-                    <Button className={"w-10 h-10"} onClick={handle_close_sessions_modal}>
-                        {<ArrowLeft key="back" />}
-                    </Button>
-                </div>
+                <Portal>
+                    <div
+                        className={
+                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                        }
+                    >
+                        <Button className={"w-10 h-10"} onClick={handle_close_sessions_modal}>
+                            {<ArrowLeft key="back" />}
+                        </Button>
+                    </div>
+                </Portal>
             </FullscreenSheet>
 
             {/* Workspace Folder Explorer Fullscreen Modal */}
@@ -1040,15 +1043,17 @@ export function TerminalView() {
                         )}
                     </div>
                 </div>
-                <div
-                    className={
-                        "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-1 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                    }
-                >
-                    <Button className={"w-10 h-10"} onClick={handle_close_workspace_modal}>
-                        {<ArrowLeft key="back" />}
-                    </Button>
-                </div>
+                <Portal>
+                    <div
+                        className={
+                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
+                        }
+                    >
+                        <Button className={"w-10 h-10"} onClick={handle_close_workspace_modal}>
+                            {<ArrowLeft key="back" />}
+                        </Button>
+                    </div>
+                </Portal>
             </FullscreenSheet>
         </div>
     )
