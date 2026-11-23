@@ -1,6 +1,6 @@
 "use client"
 
-import { Terminal, Network } from "lucide-react"
+import { Terminal, Zap, Network } from "lucide-react"
 import { useState, useEffect } from "react"
 import { TerminalView, ExecView, NodesView, LaunchAnimation } from "@/blocks"
 import { ViewSwitcher } from "@/components"
@@ -44,7 +44,7 @@ export default function App() {
                         },
                         {
                             id: "exec",
-                            icon: <Terminal className="size-5" />,
+                            icon: <Zap className="size-5" />,
                             native_icon: "bolt.fill",
                             label: "Exec",
                             swipe_enabled: true,
