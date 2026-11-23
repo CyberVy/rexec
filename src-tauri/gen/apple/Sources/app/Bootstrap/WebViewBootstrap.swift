@@ -24,6 +24,8 @@ public func on_webview_created(_ webviewPtr: UnsafeRawPointer?, _ controllerPtr:
 
     applyNoFlickerStyle(to: webview, in: controller)
 
+    installStatusBarAutoHide(controller: controller)
+
     installFullPageScreenshot(webView: webview, controller: controller)
 
     let bridge = IOSBridge(webView: webview, controller: controller)
