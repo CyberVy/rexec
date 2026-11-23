@@ -11,15 +11,22 @@ func applyNoFlickerStyle(to webview: WKWebView, in controller: UIViewController)
     webview.scrollView.backgroundColor = bg
 }
 
-// tao's TaoUIViewController overrides prefersStatusBarHidden with a stored value (default NO),
-// which disables UIKit's iPhone landscape auto-hide. Point it back at UIViewController's own
-// implementation, using only public selectors.
+// Background:
+// tao-0.37.2's TaoUIViewController overrides prefersStatusBarHidden with a stored ivar
+// (default NO), which disables UIKit's automatic iPhone landscape status bar hiding.
+//
+// Forward-compatibility:
+// Only restore UIViewController's default getter when running on TaoUIViewController with an
+// overridden implementation, so future tao upgrades become a safe no-op.
 func installStatusBarAutoHide(controller: UIViewController) {
     guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+    let controllerClass: AnyClass = type(of: controller)
+    guard NSStringFromClass(controllerClass) == "TaoUIViewController" else { return }
     let sel = #selector(getter: UIViewController.prefersStatusBarHidden)
-    guard let original = class_getInstanceMethod(UIViewController.self, sel) else { return }
-    _ = class_replaceMethod(
-        type(of: controller), sel, method_getImplementation(original), method_getTypeEncoding(original)
-    )
+    guard let baseMethod = class_getInstanceMethod(UIViewController.self, sel),
+          let currentMethod = class_getInstanceMethod(controllerClass, sel) else { return }
+    let baseImp = method_getImplementation(baseMethod)
+    guard method_getImplementation(currentMethod) != baseImp else { return }
+    _ = class_replaceMethod(controllerClass, sel, baseImp, method_getTypeEncoding(baseMethod))
     controller.setNeedsStatusBarAppearanceUpdate()
 }

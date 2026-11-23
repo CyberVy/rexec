@@ -41,6 +41,9 @@ targets:
       properties:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations: {}
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
