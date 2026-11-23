@@ -372,8 +372,8 @@
 					"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)",
 					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xsolutiontech.rexec;
-				PRODUCT_NAME = Rexec;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.workers.edgetool.rexec;
+				PRODUCT_NAME = "Rexec";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64  x86_64";
@@ -423,8 +423,8 @@
 					"$(TOOLCHAIN_DIR)/usr/lib/swift-5.0/$(PLATFORM_NAME)",
 				);
 				ONLY_ACTIVE_ARCH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = com.xsolutiontech.rexec;
-				PRODUCT_NAME = Rexec;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.workers.edgetool.rexec;
+				PRODUCT_NAME = "Rexec";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALID_ARCHS = "arm64  x86_64";

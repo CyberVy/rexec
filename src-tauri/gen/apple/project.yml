@@ -1,6 +1,6 @@
 name: app
 options:
-  bundleIdPrefix: com.xsolutiontech.rexec
+  bundleIdPrefix: dev.workers.edgetool.rexec
   deploymentTarget:
     iOS: 15.0
 fileGroups: [../../src]
@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: Rexec
-      PRODUCT_BUNDLE_IDENTIFIER: com.xsolutiontech.rexec
+      PRODUCT_BUNDLE_IDENTIFIER: dev.workers.edgetool.rexec
 targetTemplates:
   app:
     type: application
