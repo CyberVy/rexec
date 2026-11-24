@@ -4,21 +4,11 @@ import type {
     ActionResult,
     DebugUiCommand,
     DebugUiRuntime,
-    DragOptions,
-    FillOptions,
-    FindOptions,
-    HoverOptions,
     LogEntry,
-    LongPressOptions,
-    PressOptions,
-    ScrollOptions,
-    SelectOptions,
-    SnapOptions,
-    SwipeOptions,
-    TapOptions,
     TargetInput
 } from "../shared/protocol"
 import { install_listener_registry } from "./listener_registry"
+import { start_layout_sampler } from "./layout_sampler"
 import { perform_press } from "./actions/keyboard"
 import { perform_select } from "./actions/native_control"
 import { perform_fill } from "./actions/text_input"
@@ -133,7 +123,8 @@ function init_debug_bridge(): void {
     const run_with_meta = async <T>(
         fn: () =>
             | Promise<{ ok: true; data: T } | { ok: false; error: ActionError }>
-            | ({ ok: true; data: T } | { ok: false; error: ActionError })
+            | ({ ok: true; data: T } | { ok: false; error: ActionError }),
+        watch: (TargetInput | string)[] = []
     ): Promise<ActionResult<T>> => {
         const started_at = performance.now()
         const captured_logs: LogEntry[] = []
@@ -142,8 +133,11 @@ function init_debug_bridge(): void {
         }
         active_log_sinks.add(sink)
 
+        const layout_sampler = watch.length > 0 ? start_layout_sampler(watch) : null
+
         try {
-            const outcome = await fn()
+            const outcome = layout_sampler && !layout_sampler.ok ? layout_sampler : await fn()
+            const layout_trace = layout_sampler?.ok ? layout_sampler.sampler.stop() : undefined
             const meta: ActionMeta = {
                 url: window.location.href,
                 title: document.title,
@@ -156,7 +150,8 @@ function init_debug_bridge(): void {
                     y: Math.round(window.scrollY)
                 },
                 logs: captured_logs,
-                duration_ms: Math.round(performance.now() - started_at)
+                duration_ms: Math.round(performance.now() - started_at),
+                ...(layout_trace ? { layout_trace } : {})
             }
             if (outcome.ok) {
                 return { ok: true, data: outcome.data, meta }
@@ -164,64 +159,42 @@ function init_debug_bridge(): void {
             return { ok: false, error: outcome.error, meta }
         } finally {
             active_log_sinks.delete(sink)
+            if (layout_sampler?.ok) layout_sampler.sampler.stop()
         }
     }
 
     const runtime: DebugUiRuntime = {
-        snap: (options?: SnapOptions) => run_with_meta(() => build_snapshot(options)),
-        find: (target: TargetInput | string, options?: FindOptions) =>
-            run_with_meta(() => find_targets(target, options)),
-        inspect: (target: TargetInput | string) => run_with_meta(() => inspect_target(target)),
-        tap: (target: TargetInput | string, options?: TapOptions) =>
-            run_with_meta(() => perform_tap_or_click(target, "tap", options)),
-        click: (target: TargetInput | string, options?: TapOptions) =>
-            run_with_meta(() => perform_tap_or_click(target, "click", options)),
-        long_press: (target: TargetInput | string, options?: LongPressOptions) =>
-            run_with_meta(() => perform_long_press(target, options)),
-        fill: (target: TargetInput | string, options: FillOptions) =>
-            run_with_meta(() => perform_fill(target, options)),
-        press: (target: TargetInput | string | undefined, options: PressOptions) =>
-            run_with_meta(() => perform_press(target, options)),
-        select: (target: TargetInput | string, options: SelectOptions) =>
-            run_with_meta(() => perform_select(target, options)),
-        hover: (target: TargetInput | string, options?: HoverOptions) =>
-            run_with_meta(() => perform_hover(target, options)),
-        swipe: (target: TargetInput | string | undefined, options: SwipeOptions) =>
-            run_with_meta(() => perform_swipe(target, options)),
-        drag: (target: TargetInput | string, options: DragOptions) =>
-            run_with_meta(() => perform_drag(target, options)),
-        scroll: (target: TargetInput | string | undefined, options: ScrollOptions) =>
-            run_with_meta(() => perform_scroll(target, options)),
-        exec: (command: DebugUiCommand): Promise<ActionResult<unknown>> => {
-            switch (command.action) {
-                case "snap":
-                    return runtime.snap(command.options)
-                case "find":
-                    return runtime.find(command.target, command.options)
-                case "inspect":
-                    return runtime.inspect(command.target)
-                case "tap":
-                    return runtime.tap(command.target, command.options)
-                case "click":
-                    return runtime.click(command.target, command.options)
-                case "long_press":
-                    return runtime.long_press(command.target, command.options)
-                case "fill":
-                    return runtime.fill(command.target, command.options)
-                case "press":
-                    return runtime.press(command.target, command.options)
-                case "select":
-                    return runtime.select(command.target, command.options)
-                case "hover":
-                    return runtime.hover(command.target, command.options)
-                case "swipe":
-                    return runtime.swipe(command.target, command.options)
-                case "drag":
-                    return runtime.drag(command.target, command.options)
-                case "scroll":
-                    return runtime.scroll(command.target, command.options)
-            }
-        }
+        exec: (command: DebugUiCommand) =>
+            run_with_meta<unknown>(() => {
+                switch (command.action) {
+                    case "snap":
+                        return build_snapshot(command.options)
+                    case "find":
+                        return find_targets(command.target, command.options)
+                    case "inspect":
+                        return inspect_target(command.target)
+                    case "tap":
+                        return perform_tap_or_click(command.target, "tap", command.options)
+                    case "click":
+                        return perform_tap_or_click(command.target, "click", command.options)
+                    case "long_press":
+                        return perform_long_press(command.target, command.options)
+                    case "fill":
+                        return perform_fill(command.target, command.options)
+                    case "press":
+                        return perform_press(command.target, command.options)
+                    case "select":
+                        return perform_select(command.target, command.options)
+                    case "hover":
+                        return perform_hover(command.target, command.options)
+                    case "swipe":
+                        return perform_swipe(command.target, command.options)
+                    case "drag":
+                        return perform_drag(command.target, command.options)
+                    case "scroll":
+                        return perform_scroll(command.target, command.options)
+                }
+            }, command.watch)
     }
 
     window.__debug_ui__ = runtime

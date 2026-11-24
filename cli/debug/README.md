@@ -17,7 +17,8 @@ Communication runs purely on standard web protocols (Server-Sent Events & HTTP P
     - `eval.ts`: Synchronous JS evaluation CLI (`npm run debug:eval`).
     - `ui.ts`: Framework-agnostic UI inspection and interaction CLI (`npm run debug:ui`).
 - **`cli/debug/browser/`** (Browser Runtime):
-    - `index.ts`: Bridge initialization (console/error capture, SSE command loop, `window.__debug_ui__` wiring).
+    - `index.ts`: Bridge initialization (console/error capture, SSE command loop, `window.__debug_ui__.exec` wiring).
+    - `layout_sampler.ts`: Per-frame layout sampling of `--watch` targets while an action runs.
     - `listener_registry.ts`: Passive DOM `addEventListener`/`removeEventListener` listener tracking.
     - `dom/`: Framework-agnostic DOM/ARIA classification, occlusion/hit testing, locator resolution (`locator.ts`), and snapshot summaries (`snapshot.ts`).
     - `actions/`: Non-pointer form and input actions (`text_input.ts`, `keyboard.ts`, `native_control.ts`).
@@ -65,6 +66,21 @@ npm run debug:ui -- scroll down 80%
 npm run debug:ui -- scroll "scrollable#1" right 240
 npm run debug:ui -- scroll --to "Footer" --align center
 ```
+
+#### Layout Tracing (`--watch`)
+
+Any interaction command (everything except `snap`, `find`, and `inspect`) accepts a repeatable `--watch <target>` flag (max 8 targets). The targets are resolved once before the action starts; the browser then samples each element's `getBoundingClientRect` on every rendered frame until the action finishes.
+
+```bash
+npm run debug:ui -- swipe left --watch "swipeable#1" --watch "Player"
+```
+
+The raw time series is written to `.debug/frontend/traces/<timestamp>-<action>.json`; stdout and `--json` only report the file path and summary statistics.
+
+- `t` is milliseconds since sampling started (before target resolution and `scroll_into_view`), so samples before the gesture begins are expected.
+- `input_span_ms` marks the first and last synthetic pointer, touch, or wheel event on the same clock.
+- Each sample holds one rect per watched target (sub-pixel `x`, `y`, `w`, `h`), or `null` once that element leaves the document.
+- Requires a visible page: if `document.hidden` is true, `--watch` fails immediately with `UNSUPPORTED` because `requestAnimationFrame` is paused. If the page is hidden mid-action, sampling stops producing frames and the trace ends with the final sample taken at stop.
 
 ### Arbitrary JS Evaluation (`npm run debug:eval`)
 

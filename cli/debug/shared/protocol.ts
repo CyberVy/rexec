@@ -86,6 +86,21 @@ export interface ActionError {
     obscured_by?: string
 }
 
+/** One rendered-frame reading of every watched element; `null` means the element left the document. */
+export interface LayoutSample {
+    /** Milliseconds since the sampler started. */
+    t: number
+    rects: (RectBox | null)[]
+}
+
+export interface LayoutTrace {
+    targets: { role: string; name: string; locator: string }[]
+    duration_ms: number
+    /** First and last synthetic input event seen during sampling, on the same clock as `samples[].t`. */
+    input_span_ms: { start: number; end: number } | null
+    samples: LayoutSample[]
+}
+
 export interface ActionMeta {
     url: string
     title: string
@@ -93,6 +108,7 @@ export interface ActionMeta {
     scroll: Point2D
     logs: LogEntry[]
     duration_ms: number
+    layout_trace?: LayoutTrace
 }
 
 export interface ActionResult<T> {
@@ -443,7 +459,7 @@ export interface ScrollResult {
     to_target?: TargetElementSummary
 }
 
-export type DebugUiCommand =
+type DebugUiAction =
     | { action: "snap"; options?: SnapOptions }
     | { action: "find"; target: TargetInput | string; options?: FindOptions }
     | { action: "inspect"; target: TargetInput | string }
@@ -458,20 +474,10 @@ export type DebugUiCommand =
     | { action: "drag"; target: TargetInput | string; options: DragOptions }
     | { action: "scroll"; target?: TargetInput | string; options: ScrollOptions }
 
+/** `watch` samples the layout of these elements on every rendered frame while the action runs. */
+export type DebugUiCommand = DebugUiAction & { watch?: (TargetInput | string)[] }
+
 export interface DebugUiRuntime {
-    snap: (options?: SnapOptions) => Promise<ActionResult<SnapResult>>
-    find: (target: TargetInput | string, options?: FindOptions) => Promise<ActionResult<FindResult>>
-    inspect: (target: TargetInput | string) => Promise<ActionResult<InspectResult>>
-    tap: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
-    click: (target: TargetInput | string, options?: TapOptions) => Promise<ActionResult<TapResult>>
-    long_press: (target: TargetInput | string, options?: LongPressOptions) => Promise<ActionResult<LongPressResult>>
-    fill: (target: TargetInput | string, options: FillOptions) => Promise<ActionResult<FillResult>>
-    press: (target: TargetInput | string | undefined, options: PressOptions) => Promise<ActionResult<PressResult>>
-    select: (target: TargetInput | string, options: SelectOptions) => Promise<ActionResult<SelectResult>>
-    hover: (target: TargetInput | string, options?: HoverOptions) => Promise<ActionResult<HoverResult>>
-    swipe: (target: TargetInput | string | undefined, options: SwipeOptions) => Promise<ActionResult<GestureResult>>
-    drag: (target: TargetInput | string, options: DragOptions) => Promise<ActionResult<GestureResult>>
-    scroll: (target: TargetInput | string | undefined, options: ScrollOptions) => Promise<ActionResult<ScrollResult>>
     exec: (command: DebugUiCommand) => Promise<ActionResult<unknown>>
 }
 

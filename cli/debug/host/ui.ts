@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import path from "node:path"
 import {
     apply_target_modifiers,
     parse_gesture_direction,
@@ -21,6 +23,7 @@ import {
     type HoverOptions,
     type HoverResult,
     type InspectResult,
+    type LayoutTrace,
     type LogEntry,
     type LongPressOptions,
     type LongPressResult,
@@ -42,12 +45,14 @@ import {
     type TargetInput,
     type TargetModifiers
 } from "../shared/protocol"
-import { evaluate_in_browser, read_debug_port } from "./bridge_client"
+import { DEBUG_DATA_DIRECTORY, evaluate_in_browser, read_debug_port } from "./bridge_client"
 
 interface ParsedCliArgs {
     command: string
     positionals: string[]
     flags: Map<string, string | boolean>
+    /** Repeatable `--watch` targets, in command-line order. */
+    watch: string[]
 }
 
 const VALUE_FLAGS = new Set([
@@ -73,7 +78,8 @@ const VALUE_FLAGS = new Set([
     "index",
     "key",
     "from",
-    "hold"
+    "hold",
+    "watch"
 ])
 
 const VALID_SPEEDS = new Set<GestureSpeed>(["fast", "normal", "slow"])
@@ -83,6 +89,14 @@ function parse_cli_args(argv: string[]): ParsedCliArgs {
     const command = argv[0] || "help"
     const positionals: string[] = []
     const flags = new Map<string, string | boolean>()
+    const watch: string[] = []
+    const set_flag = (key: string, value: string) => {
+        if (key === "watch") {
+            watch.push(value)
+        } else {
+            flags.set(key, value)
+        }
+    }
 
     for (let i = 1; i < argv.length; i += 1) {
         const arg = argv[i]
@@ -108,7 +122,7 @@ function parse_cli_args(argv: string[]): ParsedCliArgs {
         if (eq_idx > 2) {
             const key = arg.slice(2, eq_idx)
             const value = arg.slice(eq_idx + 1)
-            flags.set(key, value)
+            set_flag(key, value)
             continue
         }
 
@@ -118,14 +132,14 @@ function parse_cli_args(argv: string[]): ParsedCliArgs {
             if (next === undefined) {
                 throw new Error(`Flag --${key} requires a value`)
             }
-            flags.set(key, next)
+            set_flag(key, next)
             i += 1
         } else {
             flags.set(key, true)
         }
     }
 
-    return { command, positionals, flags }
+    return { command, positionals, flags, watch }
 }
 
 function get_string_flag(flags: Map<string, string | boolean>, name: string): string | undefined {
@@ -1048,6 +1062,10 @@ function print_help(): void {
   npm run debug:ui -- drag <from> (--to <target> | --by <dx,dy>) [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms>] [--curve linear|ease-in|ease-out|ease-in-out] [--hold-start <ms>] [--hold-end <ms>] [--pointer mouse|touch] [--dry-run] [--json]
   npm run debug:ui -- scroll [<target>] (<left|right|up|down> [distance] | top | bottom | --to <top|bottom|left|right|target> | --by <dx,dy>) [--align start|center|end|nearest] [--speed fast|normal|slow | --duration <ms> | --velocity <px/ms> | --instant] [--curve linear|ease-in|ease-out|ease-in-out] [--wheel] [--no-scroll] [--dry-run] [--json]
 
+Interaction commands (not snap/find/inspect) also accept a repeatable --watch <target> (max 8): samples the
+layout of each watched element on every rendered frame while the action runs and writes the raw time series
+to .debug/frontend/traces/. Requires a visible page: if the page is hidden (rAF paused), the command fails immediately.
+
 Target syntax examples:
   "Player"                       Exact or unambiguous substring text match
   ="Play"                        Force exact match
@@ -1081,7 +1099,38 @@ Gesture & input examples:
   npm run debug:ui -- scroll down 80% --speed fast
   npm run debug:ui -- scroll "scrollable#1" right 240
   npm run debug:ui -- scroll bottom --instant
-  npm run debug:ui -- scroll --to "Footer" --align center`)
+  npm run debug:ui -- scroll --to "Footer" --align center
+  npm run debug:ui -- swipe left --watch "swipeable#1" --watch "Player"`)
+}
+
+interface LayoutTraceReport {
+    file: string
+    targets: number
+    samples: number
+    duration_ms: number
+    input_span_ms: LayoutTrace["input_span_ms"]
+}
+
+/** Full traces are too large for stdout, so they are persisted beside the other debug runtime data. */
+function save_layout_trace(trace: LayoutTrace, action: string): LayoutTraceReport {
+    const trace_directory = path.join(DEBUG_DATA_DIRECTORY, "traces")
+    fs.mkdirSync(trace_directory, { recursive: true })
+    const file = path.join(trace_directory, `${new Date().toISOString().replace(/[:.]/g, "-")}-${action}.json`)
+    fs.writeFileSync(file, JSON.stringify(trace), "utf8")
+    return {
+        file: path.relative(process.cwd(), file),
+        targets: trace.targets.length,
+        samples: trace.samples.length,
+        duration_ms: trace.duration_ms,
+        input_span_ms: trace.input_span_ms
+    }
+}
+
+function print_layout_trace_report(report: LayoutTraceReport): void {
+    const input = report.input_span_ms ? `${report.input_span_ms.start}-${report.input_span_ms.end}ms` : "none"
+    console.log(
+        `Layout trace: ${report.targets} targets, ${report.samples} samples, ${report.duration_ms}ms, input=${input} -> ${report.file}`
+    )
 }
 
 async function run_command_in_browser(command: DebugUiCommand): Promise<ActionResult<unknown>> {
@@ -1097,7 +1146,7 @@ async function run_command_in_browser(command: DebugUiCommand): Promise<ActionRe
 }
 
 async function main(): Promise<void> {
-    const { command, positionals, flags } = parse_cli_args(process.argv.slice(2))
+    const { command, positionals, flags, watch } = parse_cli_args(process.argv.slice(2))
     if (command === "help" || get_boolean_flag(flags, "help")) {
         print_help()
         return
@@ -1207,14 +1256,28 @@ async function main(): Promise<void> {
         throw new Error(`Unknown command "${command}". Run with "help" to see usage.`)
     }
 
+    if (watch.length > 0) {
+        if (rpc_command.action === "snap" || rpc_command.action === "find" || rpc_command.action === "inspect") {
+            throw new Error(`--watch has no effect on read-only command "${command}".`)
+        }
+        if (get_boolean_flag(flags, "dry-run")) {
+            throw new Error("--watch has no effect with --dry-run: no action runs, so there is nothing to trace.")
+        }
+        rpc_command = { ...rpc_command, watch }
+    }
+
     const result = await run_command_in_browser(rpc_command)
+    const { layout_trace, ...meta } = result.meta
+    const trace_report = layout_trace ? save_layout_trace(layout_trace, rpc_command.action) : undefined
     if (as_json) {
-        console.log(JSON.stringify(result, null, 2))
+        const reported_meta = { ...meta, ...(trace_report ? { layout_trace: trace_report } : {}) }
+        console.log(JSON.stringify({ ...result, meta: reported_meta }, null, 2))
         process.exit(result.ok ? 0 : 1)
     }
 
     if (!result.ok) {
         print_error_result(result)
+        if (trace_report) print_layout_trace_report(trace_report)
         process.exit(1)
     }
 
@@ -1255,6 +1318,7 @@ async function main(): Promise<void> {
             print_scroll_result(result as ActionResult<ScrollResult>)
             break
     }
+    if (trace_report) print_layout_trace_report(trace_report)
 }
 
 main().catch((err) => {
