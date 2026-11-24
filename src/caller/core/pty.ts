@@ -256,7 +256,6 @@ export class PtyMuxClient {
         const client = new WsClient({
             url: build_ws_url(this.hub_url, HUB_ROUTES.WS_PTY.path, this.token),
             reconnect: false,
-            reset_on_close: true,
             connect_timeout_ms: 10000,
             ping_interval_ms: PTY_PING_INTERVAL_MS,
             idle_timeout_ms: PTY_IDLE_TIMEOUT_MS,

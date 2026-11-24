@@ -150,7 +150,6 @@ export class ForwardMuxClient {
 
         const client = new WsClient({
             url: build_ws_url(this.hub_url, HUB_ROUTES.WS_FORWARD.path, this.token),
-            reset_on_close: true,
             connect_timeout_ms: timeout_ms,
             ping_interval_ms: FORWARD_PING_INTERVAL_MS,
             idle_timeout_ms: FORWARD_IDLE_TIMEOUT_MS,
