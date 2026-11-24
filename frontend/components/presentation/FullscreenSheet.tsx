@@ -30,7 +30,7 @@ export type FullscreenSheetProps = {
 }
 
 /**
- * Full-viewport scrollable sheet presentation with portal hosting, enter/exit transitions,
+ * Full-viewport sheet presentation with portal hosting, enter/exit transitions,
  * Escape dismissal, and iOS standalone/browser viewport height handling.
  */
 function FullscreenSheet({
@@ -69,7 +69,7 @@ function FullscreenSheet({
                     role="dialog"
                     aria-modal="true"
                     className={join_classes(
-                        "w-full h-screen overflow-auto no-scrollbar overscroll-none",
+                        "relative w-full h-screen overflow-hidden overscroll-none",
                         // Keep 100vh as baseline in iOS containers without browser chrome (e.g. standalone/PWA).
                         IS_IN_BROWSER && "supports-[height:100dvh]:h-dvh",
                         "bg-(--ui-surface-fullscreen) text-foreground backdrop-blur-2xl pt-[env(safe-area-inset-top)]",

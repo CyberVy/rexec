@@ -29,7 +29,6 @@ import {
     FullscreenSheet,
     HorizontalScroller,
     ListRow,
-    Portal,
     SectionHeader,
     view_switcher_controller
 } from "@/components"
@@ -648,10 +647,10 @@ export function TerminalView() {
                 open={is_sessions_modal_open}
                 on_close={handle_close_sessions_modal}
                 duration={250}
-                className="bg-background/95 pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
+                className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
             >
-                <div className="w-full max-w-2xl mx-auto flex flex-col gap-4 py-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+                <div className="flex flex-col w-full h-full">
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
                         <div className="flex items-center gap-2.5">
                             <span className="font-semibold text-base font-mono">Terminal Sessions</span>
                             <Badge
@@ -689,169 +688,172 @@ export function TerminalView() {
                     </div>
 
                     {/* List */}
-                    <div className="space-y-2.5 font-mono text-xs">
-                        {pty_state.sessions.length === 0 ? (
-                            <EmptyState
-                                title="No active or detached sessions on remote agent."
-                                className="rounded-xl border border-dashed border-(--ui-border) font-mono"
-                            />
-                        ) : (
-                            pty_state.sessions.map((s) => {
-                                const is_current =
-                                    s.session_id === pty_state.session_id && pty_state.status === "connected"
-                                const time_left_min = Math.max(
-                                    0,
-                                    Math.ceil((s.remaining_ttl_ms ?? s.orphan_ttl_ms) / 60000)
-                                )
-                                return (
-                                    <ListRow
-                                        key={s.session_id}
-                                        size="md"
-                                        variant={is_current ? "plain" : "filled"}
-                                        leading={
-                                            <span
-                                                className={`size-2 rounded-full ${
-                                                    s.status === "attached" ? "bg-emerald-500" : "bg-amber-400"
-                                                }`}
-                                            />
-                                        }
-                                        title={
-                                            <span className="inline-flex max-w-full items-center gap-2 font-mono text-xs">
-                                                <span className="truncate font-bold">{s.command || "shell"}</span>
-                                                <span className="shrink-0 text-[11px] font-normal text-black/50 dark:text-white/50">
-                                                    ({s.session_id.slice(0, 8)})
-                                                </span>
-                                                {is_current && (
-                                                    <Badge tone="custom" className="bg-emerald-500/20 text-emerald-400">
-                                                        Active
-                                                    </Badge>
-                                                )}
-                                                {s.persistent && (
-                                                    <Badge
-                                                        tone="subtle"
-                                                        className="border border-black/15 dark:border-white/15"
-                                                    >
-                                                        Persistent
-                                                    </Badge>
-                                                )}
-                                            </span>
-                                        }
-                                        subtitle={
-                                            <span className="inline-flex items-center gap-2 font-mono text-[11px]">
-                                                <span className="capitalize">{s.status}</span>
-                                                {s.persistent ? (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span>No TTL</span>
-                                                    </>
-                                                ) : s.status === "detached" ? (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span>~{time_left_min}m TTL left</span>
-                                                    </>
-                                                ) : null}
-                                                {s.buffered_bytes > 0 && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span>{Math.round(s.buffered_bytes / 1024)} KB buffered</span>
-                                                    </>
-                                                )}
-                                            </span>
-                                        }
-                                        trailing={
-                                            <div className="flex items-center gap-1.5">
-                                                <Button
-                                                    variant={s.persistent ? "secondary" : "outline"}
-                                                    size="icon"
-                                                    shape="none"
-                                                    onClick={() =>
-                                                        void pty_controller.set_session_persistent(
-                                                            s.session_id,
-                                                            !s.persistent
-                                                        )
-                                                    }
-                                                    title={
-                                                        s.persistent
-                                                            ? "Disable persistence (restore 10m orphan TTL)"
-                                                            : "Enable persistence (keep alive indefinitely)"
-                                                    }
-                                                    className={`size-7 rounded-lg font-mono ${
-                                                        s.persistent
-                                                            ? "border-black/30 dark:border-white/30 bg-black/10 dark:bg-white/15 font-medium"
-                                                            : "text-black/60 dark:text-white/60 hover:text-foreground"
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-none no-scrollbar">
+                        <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-4 space-y-2.5 font-mono text-xs">
+                            {pty_state.sessions.length === 0 ? (
+                                <EmptyState
+                                    title="No active or detached sessions on remote agent."
+                                    className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                                />
+                            ) : (
+                                pty_state.sessions.map((s) => {
+                                    const is_current =
+                                        s.session_id === pty_state.session_id && pty_state.status === "connected"
+                                    const time_left_min = Math.max(
+                                        0,
+                                        Math.ceil((s.remaining_ttl_ms ?? s.orphan_ttl_ms) / 60000)
+                                    )
+                                    return (
+                                        <ListRow
+                                            key={s.session_id}
+                                            size="md"
+                                            variant={is_current ? "plain" : "filled"}
+                                            leading={
+                                                <span
+                                                    className={`size-2 rounded-full ${
+                                                        s.status === "attached" ? "bg-emerald-500" : "bg-amber-400"
                                                     }`}
-                                                >
-                                                    <MapPin className="size-3" />
-                                                </Button>
-                                                {!is_current && (
+                                                />
+                                            }
+                                            title={
+                                                <span className="inline-flex max-w-full items-center gap-2 font-mono text-xs">
+                                                    <span className="truncate font-bold">{s.command || "shell"}</span>
+                                                    <span className="shrink-0 text-[11px] font-normal text-black/50 dark:text-white/50">
+                                                        ({s.session_id.slice(0, 8)})
+                                                    </span>
+                                                    {is_current && (
+                                                        <Badge
+                                                            tone="custom"
+                                                            className="bg-emerald-500/20 text-emerald-400"
+                                                        >
+                                                            Active
+                                                        </Badge>
+                                                    )}
+                                                    {s.persistent && (
+                                                        <Badge
+                                                            tone="subtle"
+                                                            className="border border-black/15 dark:border-white/15"
+                                                        >
+                                                            Persistent
+                                                        </Badge>
+                                                    )}
+                                                </span>
+                                            }
+                                            subtitle={
+                                                <span className="inline-flex items-center gap-2 font-mono text-[11px]">
+                                                    <span className="capitalize">{s.status}</span>
+                                                    {s.persistent ? (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>No TTL</span>
+                                                        </>
+                                                    ) : s.status === "detached" ? (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>~{time_left_min}m TTL left</span>
+                                                        </>
+                                                    ) : null}
+                                                    {s.buffered_bytes > 0 && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span>
+                                                                {Math.round(s.buffered_bytes / 1024)} KB buffered
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </span>
+                                            }
+                                            trailing={
+                                                <div className="flex items-center gap-1.5">
                                                     <Button
-                                                        variant="primary"
-                                                        size="xs"
+                                                        variant={s.persistent ? "secondary" : "outline"}
+                                                        size="icon"
                                                         shape="none"
-                                                        onClick={() => {
-                                                            void pty_controller.switch_session(s.session_id)
-                                                            handle_close_sessions_modal()
-                                                        }}
-                                                        className="rounded-lg font-mono"
+                                                        onClick={() =>
+                                                            void pty_controller.set_session_persistent(
+                                                                s.session_id,
+                                                                !s.persistent
+                                                            )
+                                                        }
+                                                        title={
+                                                            s.persistent
+                                                                ? "Disable persistence (restore 10m orphan TTL)"
+                                                                : "Enable persistence (keep alive indefinitely)"
+                                                        }
+                                                        className={`size-7 rounded-lg font-mono ${
+                                                            s.persistent
+                                                                ? "border-black/30 dark:border-white/30 bg-black/10 dark:bg-white/15 font-medium"
+                                                                : "text-black/60 dark:text-white/60 hover:text-foreground"
+                                                        }`}
                                                     >
-                                                        Attach
+                                                        <MapPin className="size-3" />
                                                     </Button>
-                                                )}
-                                                <Button
-                                                    variant="outline"
-                                                    size="icon"
-                                                    shape="none"
-                                                    onClick={() => void pty_controller.kill_session(s.session_id)}
-                                                    title="Kill session process"
-                                                    className="size-7 rounded-lg text-black/50 dark:text-white/50 hover:bg-red-500/10 hover:text-red-400"
-                                                >
-                                                    <Trash2 className="size-3.5" />
-                                                </Button>
-                                            </div>
-                                        }
-                                        className={
-                                            is_current
-                                                ? "border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 dark:bg-emerald-500/10"
-                                                : "border border-(--ui-border)"
-                                        }
-                                    />
-                                )
-                            })
-                        )}
+                                                    {!is_current && (
+                                                        <Button
+                                                            variant="primary"
+                                                            size="xs"
+                                                            shape="none"
+                                                            onClick={() => {
+                                                                void pty_controller.switch_session(s.session_id)
+                                                                handle_close_sessions_modal()
+                                                            }}
+                                                            className="rounded-lg font-mono"
+                                                        >
+                                                            Attach
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        variant="outline"
+                                                        size="icon"
+                                                        shape="none"
+                                                        onClick={() => void pty_controller.kill_session(s.session_id)}
+                                                        title="Kill session process"
+                                                        className="size-7 rounded-lg text-black/50 dark:text-white/50 hover:bg-red-500/10 hover:text-red-400"
+                                                    >
+                                                        <Trash2 className="size-3.5" />
+                                                    </Button>
+                                                </div>
+                                            }
+                                            className={
+                                                is_current
+                                                    ? "border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 dark:bg-emerald-500/10"
+                                                    : "border border-(--ui-border)"
+                                            }
+                                        />
+                                    )
+                                })
+                            )}
+                        </div>
                     </div>
 
                     {/* Footer Action */}
-                    <div className="pt-3 border-t border-black/10 dark:border-white/10 flex items-center justify-between">
-                        <span className="text-[11px] text-muted-foreground font-mono">
-                            Detached sessions keep running in background.
-                        </span>
-                        <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => {
-                                void pty_controller.new_session()
-                                handle_close_sessions_modal()
-                            }}
-                            className="font-mono"
-                        >
-                            <span className="inline-flex items-center gap-1.5">
-                                <Plus className="size-3.5" />
-                                <span>New</span>
-                            </span>
-                        </Button>
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 text-[11px] text-muted-foreground font-mono shrink-0">
+                        Detached sessions keep running in background.
+                    </div>
+
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 my-2 shrink-0 select-none">
+                        <div />
+                        <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                            <Button
+                                className="px-4 h-8 font-mono text-xs font-medium"
+                                onClick={() => {
+                                    void pty_controller.new_session()
+                                    handle_close_sessions_modal()
+                                }}
+                            >
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Plus className="size-3.5" />
+                                    <span>New</span>
+                                </span>
+                            </Button>
+                        </div>
+                        <div className="justify-self-end inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                            <Button className="w-14 h-8" onClick={handle_close_sessions_modal}>
+                                <ArrowLeft key="back" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
-                <Portal>
-                    <div
-                        className={
-                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        }
-                    >
-                        <Button className={"w-10 h-10"} onClick={handle_close_sessions_modal}>
-                            {<ArrowLeft key="back" />}
-                        </Button>
-                    </div>
-                </Portal>
             </FullscreenSheet>
 
             {/* Workspace Folder Explorer Fullscreen Modal */}
@@ -859,11 +861,11 @@ export function TerminalView() {
                 open={is_workspace_modal_open}
                 on_close={handle_close_workspace_modal}
                 duration={250}
-                className="bg-background/95 pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
+                className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
             >
-                <div className="w-full max-w-2xl mx-auto flex flex-col gap-4 py-4">
+                <div className="flex flex-col w-full h-full">
                     {/* Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
                         <div className="flex items-center gap-2">
                             <Folder className="size-5 text-foreground shrink-0" />
                             <span className="font-semibold text-base font-mono">Workspace Explorer</span>
@@ -902,158 +904,162 @@ export function TerminalView() {
                     </div>
 
                     {/* Current Path Bar */}
-                    <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 font-mono text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                            <Button
-                                variant="outline"
-                                size="xs"
-                                shape="none"
-                                onClick={() => void pty_controller.navigate_parent_directory()}
-                                disabled={pty_state.is_loading_dir || !pty_state.dir_path || pty_state.dir_path === "/"}
-                                title="Parent directory (..)"
-                                className="shrink-0 rounded-lg text-[11px] font-mono"
-                            >
-                                <span className="inline-flex items-center gap-1">
-                                    <FolderUp className="size-3.5" />
-                                    <span>..</span>
-                                </span>
-                            </Button>
-                            <span
-                                className="truncate text-foreground font-medium select-text"
-                                title={pty_state.dir_path ?? pty_state.cwd ?? "/"}
-                            >
-                                {pty_state.dir_path ?? pty_state.cwd ?? "/"}
-                            </span>
-                        </div>
-
-                        {pty_state.status === "connected" &&
-                            pty_state.dir_path &&
-                            pty_state.dir_path !== pty_state.cwd && (
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-3 pb-2 shrink-0">
+                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 font-mono text-xs">
+                            <div className="flex items-center gap-2 min-w-0">
                                 <Button
-                                    variant="primary"
+                                    variant="outline"
                                     size="xs"
                                     shape="none"
-                                    onClick={() => {
-                                        if (pty_state.dir_path) {
-                                            pty_controller.cd_to_directory(pty_state.dir_path)
-                                            handle_close_workspace_modal()
-                                        }
-                                    }}
-                                    className="shrink-0 rounded-lg font-mono"
+                                    onClick={() => void pty_controller.navigate_parent_directory()}
+                                    disabled={
+                                        pty_state.is_loading_dir || !pty_state.dir_path || pty_state.dir_path === "/"
+                                    }
+                                    title="Parent directory (..)"
+                                    className="shrink-0 rounded-lg text-[11px] font-mono"
                                 >
-                                    cd Here
+                                    <span className="inline-flex items-center gap-1">
+                                        <FolderUp className="size-3.5" />
+                                        <span>..</span>
+                                    </span>
                                 </Button>
-                            )}
+                                <span
+                                    className="truncate text-foreground font-medium select-text"
+                                    title={pty_state.dir_path ?? pty_state.cwd ?? "/"}
+                                >
+                                    {pty_state.dir_path ?? pty_state.cwd ?? "/"}
+                                </span>
+                            </div>
+
+                            {pty_state.status === "connected" &&
+                                pty_state.dir_path &&
+                                pty_state.dir_path !== pty_state.cwd && (
+                                    <Button
+                                        variant="primary"
+                                        size="xs"
+                                        shape="none"
+                                        onClick={() => {
+                                            if (pty_state.dir_path) {
+                                                pty_controller.cd_to_directory(pty_state.dir_path)
+                                                handle_close_workspace_modal()
+                                            }
+                                        }}
+                                        className="shrink-0 rounded-lg font-mono"
+                                    >
+                                        cd Here
+                                    </Button>
+                                )}
+                        </div>
                     </div>
 
                     {/* Directory Entries List */}
-                    <div className="space-y-1.5 font-mono text-xs">
-                        {pty_state.dir_error ? (
-                            <EmptyState
-                                title={pty_state.dir_error}
-                                className="rounded-xl border border-(--ui-border) font-mono"
-                            />
-                        ) : pty_state.is_loading_dir && pty_state.dir_entries.length === 0 ? (
-                            <EmptyState title="Loading directory contents..." glow className="font-mono" />
-                        ) : pty_state.dir_entries.length === 0 ? (
-                            <EmptyState
-                                title="Directory is empty."
-                                className="rounded-xl border border-dashed border-(--ui-border) font-mono"
-                            />
-                        ) : (
-                            pty_state.dir_entries.map((entry) => (
-                                <ListRow
-                                    key={entry.path}
-                                    size="sm"
-                                    variant={entry.is_directory ? "filled" : "plain"}
-                                    on_click={
-                                        entry.is_directory
-                                            ? () => void pty_controller.load_directory(entry.path)
-                                            : undefined
-                                    }
-                                    leading={
-                                        entry.is_directory ? (
-                                            <Folder className="size-4 text-foreground" />
-                                        ) : (
-                                            <File className="size-4 text-black/50 dark:text-white/50" />
-                                        )
-                                    }
-                                    title={
-                                        <span
-                                            className={
-                                                entry.is_directory
-                                                    ? "font-mono text-xs font-semibold"
-                                                    : "font-mono text-xs font-normal text-foreground/90"
-                                            }
-                                        >
-                                            {entry.name}
-                                            {entry.is_directory ? "/" : ""}
-                                        </span>
-                                    }
-                                    subtitle={
-                                        <span className="inline-flex items-center gap-2 font-mono text-[10px]">
-                                            <span>{entry.permissions}</span>
-                                            <span>•</span>
-                                            <span>{entry.mtime_label}</span>
-                                            {!entry.is_directory && (
-                                                <>
-                                                    <span>•</span>
-                                                    <span>{format_entry_size(entry.size)}</span>
-                                                </>
-                                            )}
-                                        </span>
-                                    }
-                                    trailing={
-                                        entry.is_directory && pty_state.status === "connected" ? (
-                                            <Button
-                                                variant="outline"
-                                                size="xs"
-                                                shape="none"
-                                                onClick={() => {
-                                                    pty_controller.cd_to_directory(entry.path)
-                                                    handle_close_workspace_modal()
-                                                }}
-                                                title={`cd into ${entry.name}`}
-                                                className="shrink-0 rounded-lg font-mono hover:bg-foreground hover:text-background"
-                                            >
-                                                cd
-                                            </Button>
-                                        ) : undefined
-                                    }
-                                    className="border border-(--ui-border) bg-black/5 dark:bg-white/5"
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-none no-scrollbar">
+                        <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 py-2 space-y-1.5 font-mono text-xs">
+                            {pty_state.dir_error ? (
+                                <EmptyState
+                                    title={pty_state.dir_error}
+                                    className="rounded-xl border border-(--ui-border) font-mono"
                                 />
-                            ))
-                        )}
+                            ) : pty_state.is_loading_dir && pty_state.dir_entries.length === 0 ? (
+                                <EmptyState title="Loading directory contents..." glow className="font-mono" />
+                            ) : pty_state.dir_entries.length === 0 ? (
+                                <EmptyState
+                                    title="Directory is empty."
+                                    className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                                />
+                            ) : (
+                                pty_state.dir_entries.map((entry) => (
+                                    <ListRow
+                                        key={entry.path}
+                                        size="sm"
+                                        variant={entry.is_directory ? "filled" : "plain"}
+                                        on_click={
+                                            entry.is_directory
+                                                ? () => void pty_controller.load_directory(entry.path)
+                                                : undefined
+                                        }
+                                        leading={
+                                            entry.is_directory ? (
+                                                <Folder className="size-4 text-foreground" />
+                                            ) : (
+                                                <File className="size-4 text-black/50 dark:text-white/50" />
+                                            )
+                                        }
+                                        title={
+                                            <span
+                                                className={
+                                                    entry.is_directory
+                                                        ? "font-mono text-xs font-semibold"
+                                                        : "font-mono text-xs font-normal text-foreground/90"
+                                                }
+                                            >
+                                                {entry.name}
+                                                {entry.is_directory ? "/" : ""}
+                                            </span>
+                                        }
+                                        subtitle={
+                                            <span className="inline-flex items-center gap-2 font-mono text-[10px]">
+                                                <span>{entry.permissions}</span>
+                                                <span>•</span>
+                                                <span>{entry.mtime_label}</span>
+                                                {!entry.is_directory && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <span>{format_entry_size(entry.size)}</span>
+                                                    </>
+                                                )}
+                                            </span>
+                                        }
+                                        trailing={
+                                            entry.is_directory && pty_state.status === "connected" ? (
+                                                <Button
+                                                    variant="outline"
+                                                    size="xs"
+                                                    shape="none"
+                                                    onClick={() => {
+                                                        pty_controller.cd_to_directory(entry.path)
+                                                        handle_close_workspace_modal()
+                                                    }}
+                                                    title={`cd into ${entry.name}`}
+                                                    className="shrink-0 rounded-lg font-mono hover:bg-foreground hover:text-background"
+                                                >
+                                                    cd
+                                                </Button>
+                                            ) : undefined
+                                        }
+                                        className="border border-(--ui-border) bg-black/5 dark:bg-white/5"
+                                    />
+                                ))
+                            )}
+                        </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="pt-3 border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-muted-foreground font-mono truncate">
-                            Terminal CWD: {pty_state.cwd ?? "Not connected"}
-                        </span>
-                        {pty_state.cwd && pty_state.dir_path && pty_state.dir_path !== pty_state.cwd && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void pty_controller.load_directory(pty_state.cwd ?? undefined)}
-                                className="shrink-0 font-mono"
-                            >
-                                Reset to Terminal CWD
-                            </Button>
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 text-[11px] text-muted-foreground font-mono truncate shrink-0">
+                        Terminal CWD: {pty_state.cwd ?? "Not connected"}
+                    </div>
+
+                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 my-2 shrink-0 select-none">
+                        <div />
+                        {pty_state.cwd && pty_state.dir_path && pty_state.dir_path !== pty_state.cwd ? (
+                            <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                                <Button
+                                    className="px-4 h-8 font-mono text-xs font-medium"
+                                    onClick={() => void pty_controller.load_directory(pty_state.cwd ?? undefined)}
+                                >
+                                    Reset to Terminal CWD
+                                </Button>
+                            </div>
+                        ) : (
+                            <div />
                         )}
+                        <div className="justify-self-end inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                            <Button className="w-14 h-8" onClick={handle_close_workspace_modal}>
+                                <ArrowLeft key="back" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
-                <Portal>
-                    <div
-                        className={
-                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        }
-                    >
-                        <Button className={"w-10 h-10"} onClick={handle_close_workspace_modal}>
-                            {<ArrowLeft key="back" />}
-                        </Button>
-                    </div>
-                </Portal>
             </FullscreenSheet>
         </div>
     )

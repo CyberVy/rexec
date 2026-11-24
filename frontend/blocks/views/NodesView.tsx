@@ -3,7 +3,7 @@
 import { X, ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { Badge, Button, EmptyState, FullscreenSheet, Portal, view_switcher_controller } from "@/components"
+import { Badge, Button, EmptyState, FullscreenSheet, view_switcher_controller } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 export function NodesView() {
     const session = useController(session_controller, {
@@ -295,10 +295,10 @@ export function NodesView() {
                 open={is_add_modal_open}
                 on_close={handle_close_add_modal}
                 duration={250}
-                className="bg-background/95 pt-[max(env(safe-area-inset-top),16px)] pb-[max(env(safe-area-inset-bottom),24px)] px-4 sm:px-6"
+                className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
             >
-                <div className="w-full max-w-xl mx-auto flex flex-col gap-5 py-2">
-                    <div className="flex items-center justify-between pb-3 border-b border-black/10 dark:border-white/10">
+                <div className="flex flex-col w-full h-full">
+                    <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
                         <span className="font-semibold text-base font-mono text-foreground">Add Node Agent</span>
                         <Button
                             variant="ghost"
@@ -312,62 +312,69 @@ export function NodesView() {
                         </Button>
                     </div>
 
-                    <form onSubmit={handle_add_node} className="flex flex-col gap-4">
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-mono text-muted-foreground">Name (optional)</label>
-                            <input
-                                type="text"
-                                value={new_name}
-                                onChange={(e) => set_new_name(e.target.value)}
-                                placeholder="e.g. Colab GPU, AWS Node"
-                                className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
-                            />
-                        </div>
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-none no-scrollbar">
+                        <form
+                            onSubmit={handle_add_node}
+                            className="w-full max-w-xl mx-auto px-2 sm:px-4 py-4 flex flex-col gap-4"
+                        >
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-mono text-muted-foreground">Name (optional)</label>
+                                <input
+                                    type="text"
+                                    value={new_name}
+                                    onChange={(e) => set_new_name(e.target.value)}
+                                    placeholder="e.g. Colab GPU, AWS Node"
+                                    className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                                />
+                            </div>
 
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-mono text-muted-foreground">Hub URL</label>
-                            <input
-                                type="text"
-                                required
-                                value={new_hub}
-                                onChange={(e) => set_new_hub(e.target.value)}
-                                placeholder="e.g. https://hub.example.com"
-                                className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
-                            />
-                        </div>
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-mono text-muted-foreground">Hub URL</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={new_hub}
+                                    onChange={(e) => set_new_hub(e.target.value)}
+                                    placeholder="e.g. https://hub.example.com"
+                                    className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                                />
+                            </div>
 
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-mono text-muted-foreground">Session Token</label>
-                            <input
-                                type="text"
-                                value={new_token}
-                                onChange={(e) => set_new_token(e.target.value)}
-                                placeholder="Session token (optional)"
-                                className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
-                            />
-                        </div>
+                            <div className="flex flex-col gap-1.5">
+                                <label className="text-xs font-mono text-muted-foreground">Session Token</label>
+                                <input
+                                    type="text"
+                                    value={new_token}
+                                    onChange={(e) => set_new_token(e.target.value)}
+                                    placeholder="Session token (optional)"
+                                    className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                                />
+                            </div>
 
-                        <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
-                            <Button variant="outline" size="md" onClick={handle_close_add_modal} className="font-mono">
-                                Cancel
-                            </Button>
-                            <Button type="submit" variant="primary" size="md" className="px-5 font-mono">
-                                Save & Connect
-                            </Button>
-                        </div>
-                    </form>
-                </div>
-                <Portal>
-                    <div
-                        className={
-                            "inline-flex items-center select-none fixed text-2xl bottom-17 right-4 z-51 rounded-full border border-black/10 dark:border-white/10 bg-white/40 dark:bg-black/40 backdrop-blur-xl shadow-sm p-1"
-                        }
-                    >
-                        <Button className={"w-10 h-10"} onClick={handle_close_add_modal}>
-                            {<ArrowLeft key="back" />}
-                        </Button>
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
+                                <Button
+                                    variant="outline"
+                                    size="md"
+                                    onClick={handle_close_add_modal}
+                                    className="font-mono"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button type="submit" variant="primary" size="md" className="px-5 font-mono">
+                                    Save & Connect
+                                </Button>
+                            </div>
+                        </form>
                     </div>
-                </Portal>
+
+                    <div className="flex justify-end px-2 my-2 shrink-0 select-none">
+                        <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                            <Button className="w-14 h-8" onClick={handle_close_add_modal}>
+                                <ArrowLeft key="back" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </FullscreenSheet>
         </div>
     )
