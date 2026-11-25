@@ -29,6 +29,7 @@ export type ActionSheetProps = {
     actions: ActionSheetAction[]
     cancel_label?: ReactNode
     close_label?: string
+    unmount_on_exit?: boolean
     z_index?: number
     className?: string
     ref?: Ref<HTMLDivElement>
@@ -51,6 +52,7 @@ function ActionSheet({
     actions,
     cancel_label,
     close_label,
+    unmount_on_exit,
     z_index,
     className,
     ref
@@ -69,6 +71,7 @@ function ActionSheet({
             open={open}
             on_close={on_close}
             close_label={close_label}
+            unmount_on_exit={unmount_on_exit}
             z_index={z_index}
             center={false}
             duration={250}

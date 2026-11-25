@@ -21,6 +21,7 @@ export type TransitionProps = Omit<ComponentPropsWithRef<"div">, "children"> & {
     on_enter_end?: () => void
     on_exit_start?: () => void
     on_exit_end?: () => void
+    mount_on_init?: boolean
     unmount_on_exit?: boolean
     animate_on_mount?: boolean
 }
@@ -48,6 +49,7 @@ function Transition({
     on_enter_end,
     on_exit_start,
     on_exit_end,
+    mount_on_init = true,
     unmount_on_exit = false,
     animate_on_mount = true,
     ref,
@@ -62,7 +64,7 @@ function Transition({
         if (show) {
             return animate_on_mount ? "entering" : "visible"
         }
-        return unmount_on_exit ? "unmount" : "hidden"
+        return mount_on_init && !unmount_on_exit ? "hidden" : "unmount"
     })
 
     const [prev_show, set_prev_show] = useState(show)
@@ -72,7 +74,7 @@ function Transition({
         set_render_mode(show ? "entering" : unmount_on_exit ? "exiting_to_unmount" : "exiting_to_hidden")
     } else if (!show && unmount_on_exit && render_mode === "hidden") {
         set_render_mode("unmount")
-    } else if (!show && !unmount_on_exit && render_mode === "unmount") {
+    } else if (!show && mount_on_init && !unmount_on_exit && render_mode === "unmount") {
         set_render_mode("hidden")
     }
 

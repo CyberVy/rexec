@@ -17,6 +17,7 @@ export type ModalProps = {
     close_label?: string
     close_on_backdrop?: boolean
     enable_escape?: boolean
+    unmount_on_exit?: boolean
     center?: boolean
     z_index?: number
     duration?: number
@@ -42,6 +43,7 @@ function Modal({
     close_label = "Close",
     close_on_backdrop = true,
     enable_escape = true,
+    unmount_on_exit = true,
     center = true,
     z_index = 50,
     duration = 220,
@@ -91,7 +93,8 @@ function Modal({
                 exit_to={exit_to}
                 duration={duration}
                 easing={easing}
-                unmount_on_exit={true}
+                mount_on_init={false}
+                unmount_on_exit={unmount_on_exit}
                 style={{ zIndex: z_index + 1 }}
                 role="dialog"
                 aria-modal="true"

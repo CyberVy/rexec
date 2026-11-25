@@ -31,6 +31,7 @@ export type AlertProps = {
     text_field?: AlertTextField
     actions: AlertAction[]
     close_label?: string
+    unmount_on_exit?: boolean
     z_index?: number
 }
 
@@ -39,7 +40,17 @@ export type AlertProps = {
  * Every action closes the alert after it runs, and the primary action also runs on Enter.
  * The text field resets to its initial value each time the alert opens.
  */
-function Alert({ open, on_close, title, message, text_field, actions, close_label, z_index }: AlertProps) {
+function Alert({
+    open,
+    on_close,
+    title,
+    message,
+    text_field,
+    actions,
+    close_label,
+    unmount_on_exit,
+    z_index
+}: AlertProps) {
     const initial_value = text_field?.initial_value ?? ""
     const [text, set_text] = useState(initial_value)
     const [prev_open, set_prev_open] = useState(open)
@@ -70,6 +81,7 @@ function Alert({ open, on_close, title, message, text_field, actions, close_labe
             open={open}
             on_close={on_close}
             close_label={close_label}
+            unmount_on_exit={unmount_on_exit}
             z_index={z_index}
             duration={250}
             easing="ease-in-out"

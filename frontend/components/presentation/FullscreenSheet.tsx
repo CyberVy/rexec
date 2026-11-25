@@ -17,6 +17,7 @@ export type FullscreenSheetProps = {
     open: boolean
     on_close?: () => void
     enable_escape?: boolean
+    unmount_on_exit?: boolean
     z_index?: number
     duration?: number
     easing?: string
@@ -37,6 +38,7 @@ function FullscreenSheet({
     open,
     on_close,
     enable_escape = true,
+    unmount_on_exit = true,
     z_index = 50,
     duration = 300,
     easing = "ease-in-out",
@@ -60,7 +62,8 @@ function FullscreenSheet({
                 exit_to={exit_to}
                 duration={duration}
                 easing={easing}
-                unmount_on_exit={true}
+                mount_on_init={false}
+                unmount_on_exit={unmount_on_exit}
                 style={{ zIndex: z_index }}
                 className="fixed inset-0"
             >

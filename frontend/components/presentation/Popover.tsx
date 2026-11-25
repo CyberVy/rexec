@@ -16,6 +16,7 @@ export type PopoverProps = {
     on_close?: () => void
     enable_escape?: boolean
     close_on_outside_click?: boolean
+    unmount_on_exit?: boolean
     duration?: number
     easing?: string
     enter_from?: TransitionStyle
@@ -38,6 +39,7 @@ function Popover({
     on_close,
     enable_escape = true,
     close_on_outside_click = true,
+    unmount_on_exit = true,
     duration = 250,
     easing = "ease-in-out",
     enter_from = DEFAULT_ENTER_FROM,
@@ -86,7 +88,8 @@ function Popover({
                 exit_to={exit_to}
                 duration={duration}
                 easing={easing}
-                unmount_on_exit={true}
+                mount_on_init={false}
+                unmount_on_exit={unmount_on_exit}
                 className={join_classes("absolute z-50", panel_class_name)}
             >
                 {children}

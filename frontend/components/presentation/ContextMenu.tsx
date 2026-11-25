@@ -23,6 +23,7 @@ export type ContextMenuProps = {
     long_press_ms?: number
     close_after_select?: boolean
     close_label?: string
+    unmount_on_exit?: boolean
     on_click_trigger?: (event: PointerEvent<HTMLDivElement>) => void
     // className and ref apply to the trigger wrapper, not to the menu panel.
     className?: string
@@ -48,6 +49,7 @@ function ContextMenu({
     long_press_ms = 300,
     close_after_select = true,
     close_label = "Close",
+    unmount_on_exit = true,
     on_click_trigger,
     className,
     ref,
@@ -197,7 +199,8 @@ function ContextMenu({
                         enter_from={context_menu_enter_from}
                         enter_to={context_menu_enter_to}
                         show={show_context_menu}
-                        unmount_on_exit={true}
+                        mount_on_init={false}
+                        unmount_on_exit={unmount_on_exit}
                         className="fixed inset-0 z-100 select-none"
                         style={{
                             transformOrigin: `${context_menu_point[0]}px ${context_menu_point[1]}px`
