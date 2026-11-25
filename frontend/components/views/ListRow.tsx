@@ -1,6 +1,7 @@
 "use client"
 
 import { join_classes } from "../utils"
+import { Text } from "./Text"
 
 import type { ReactNode, Ref } from "react"
 
@@ -81,11 +82,19 @@ function ListRow({
                 </div>
             )}
             <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-black/90 transition-colors group-hover:text-black dark:text-white/90 dark:group-hover:text-white">
+                <Text
+                    as="div"
+                    variant="body"
+                    weight="medium"
+                    truncate
+                    className="transition-colors group-hover:text-black dark:group-hover:text-white"
+                >
                     {title}
-                </div>
+                </Text>
                 {subtitle != null && (
-                    <div className="mt-0.5 truncate text-xs text-black/50 dark:text-white/50">{subtitle}</div>
+                    <Text as="div" variant="caption" tone="secondary" truncate className="mt-0.5">
+                        {subtitle}
+                    </Text>
                 )}
             </div>
         </>

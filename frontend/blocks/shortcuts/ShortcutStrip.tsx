@@ -1,7 +1,7 @@
 "use client"
 
 import { Plus } from "lucide-react"
-import { Button, HorizontalScroller } from "@/components"
+import { Button, HorizontalScroller, Text } from "@/components"
 export interface ShortcutStripItem {
     id: string
     label: string
@@ -39,15 +39,21 @@ export function ShortcutStrip({
                         className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 text-foreground font-medium shrink-0 disabled:opacity-40 disabled:pointer-events-none"
                     >
                         <span className="inline-flex items-center gap-1.5">
-                            <span>{item.label}</span>
+                            <Text variant="caption" weight="medium" tone="inherit" mono>
+                                {item.label}
+                            </Text>
                             {item.note && (
-                                <span className="text-[10px] text-black/50 dark:text-white/50">{item.note}</span>
+                                <Text variant="footnote" tone="secondary" mono className="text-[10px]">
+                                    {item.note}
+                                </Text>
                             )}
                         </span>
                     </Button>
                 ))}
                 {items.length === 0 && (
-                    <span className="px-1 text-[11px] text-black/50 dark:text-white/50 shrink-0">No shortcuts</span>
+                    <Text variant="footnote" tone="secondary" mono className="px-1 shrink-0">
+                        No shortcuts
+                    </Text>
                 )}
             </HorizontalScroller>
             <Button

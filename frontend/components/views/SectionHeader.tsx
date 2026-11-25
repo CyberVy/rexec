@@ -1,6 +1,7 @@
 "use client"
 
 import { join_classes } from "../utils"
+import { Text } from "./Text"
 
 import type { ReactNode, Ref } from "react"
 
@@ -17,23 +18,30 @@ export type SectionHeaderProps = {
 function SectionHeader({ title, count, action_label, on_action, className, ref }: SectionHeaderProps) {
     const title_content = (
         <>
-            <h3
+            <Text
+                as="h3"
+                variant="caption"
+                weight="semibold"
+                tone="secondary"
                 className={join_classes(
-                    "text-xs font-semibold uppercase tracking-wider text-black/60 dark:text-white/60 transition-colors",
+                    "uppercase tracking-wider transition-colors",
                     on_action && "group-hover:text-black dark:group-hover:text-white"
                 )}
             >
                 {title}
-            </h3>
+            </Text>
             {count !== undefined && (
-                <span
+                <Text
+                    variant="caption"
+                    tone="secondary"
+                    mono
                     className={join_classes(
-                        "text-xs font-mono text-black/50 dark:text-white/50 transition-colors",
+                        "transition-colors",
                         on_action && "group-hover:text-black/70 dark:group-hover:text-white/70"
                     )}
                 >
                     ({count})
-                </span>
+                </Text>
             )}
         </>
     )
@@ -55,9 +63,11 @@ function SectionHeader({ title, count, action_label, on_action, className, ref }
                 <button
                     type="button"
                     onClick={on_action}
-                    className="text-[11px] text-black/50 dark:text-white/50 hover:text-black dark:hover:text-white transition-colors cursor-pointer px-2 py-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5 font-medium"
+                    className="text-(--ui-secondary-label) hover:text-black dark:hover:text-white transition-colors cursor-pointer px-2 py-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5"
                 >
-                    {action_label}
+                    <Text variant="footnote" weight="medium" tone="inherit">
+                        {action_label}
+                    </Text>
                 </button>
             )}
         </div>

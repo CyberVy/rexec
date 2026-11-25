@@ -1,6 +1,8 @@
 // Views
 export { Image } from "./views/Image"
 export type { ImageProps } from "./views/Image"
+export { Text } from "./views/Text"
+export type { TextAlign, TextElement, TextProps, TextTone, TextVariant, TextWeight } from "./views/Text"
 export { AnimatedGlowText } from "./views/AnimatedGlowText"
 export type { AnimatedGlowTextProps } from "./views/AnimatedGlowText"
 export { Badge } from "./views/Badge"

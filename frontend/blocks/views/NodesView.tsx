@@ -3,7 +3,7 @@
 import { X, ArrowLeft, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { Badge, Button, EmptyState, FullscreenSheet, view_switcher_controller } from "@/components"
+import { Badge, Button, EmptyState, FullscreenSheet, Text, view_switcher_controller } from "@/components"
 import { session_controller } from "@/core/controllers/session_controller"
 export function NodesView() {
     const session = useController(session_controller, {
@@ -54,7 +54,9 @@ export function NodesView() {
             {/* Header / Summary Bar */}
             <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
                 <div className="flex items-center gap-2.5">
-                    <span className="font-semibold text-sm tracking-tight text-foreground">Node Agents</span>
+                    <Text variant="body" weight="semibold" className="tracking-tight">
+                        Node Agents
+                    </Text>
                     <Badge tone="subtle" shape="pill" mono className="border border-(--ui-border) px-2 text-[11px]">
                         {online_count} / {total_count} Online
                     </Badge>
@@ -82,7 +84,9 @@ export function NodesView() {
                     >
                         <span className="inline-flex items-center gap-1">
                             <Plus className="size-3.5" />
-                            <span>Add</span>
+                            <Text variant="caption" weight="medium" tone="inherit" mono>
+                                Add
+                            </Text>
                         </span>
                     </Button>
                 </div>
@@ -105,7 +109,9 @@ export function NodesView() {
                             >
                                 <span className="inline-flex items-center gap-1.5">
                                     <Plus className="size-3.5" />
-                                    <span>Add Node</span>
+                                    <Text variant="caption" weight="medium" tone="inherit" mono>
+                                        Add Node
+                                    </Text>
                                 </span>
                             </Button>
                         }
@@ -137,9 +143,9 @@ export function NodesView() {
                                                         : "bg-foreground/20"
                                                 }`}
                                             />
-                                            <span className="font-semibold text-sm text-foreground truncate">
+                                            <Text variant="body" weight="semibold" truncate>
                                                 {agent.name}
-                                            </span>
+                                            </Text>
                                             {is_active && (
                                                 <Badge
                                                     tone="custom"
@@ -162,11 +168,11 @@ export function NodesView() {
 
                                         <div className="flex items-center gap-2 shrink-0">
                                             {agent.is_online && agent.latency_ms !== null && (
-                                                <span className="text-[11px] font-mono text-muted-foreground">
+                                                <Text variant="footnote" tone="secondary" mono>
                                                     {agent.latency_ms}ms
-                                                </span>
+                                                </Text>
                                             )}
-                                            <span className="text-xs font-mono text-muted-foreground">
+                                            <Text variant="caption" tone="secondary" mono>
                                                 {agent.is_online
                                                     ? "Online"
                                                     : agent.channels &&
@@ -176,29 +182,33 @@ export function NodesView() {
                                                             agent.channels.forward)
                                                       ? "Partial"
                                                       : "Offline"}
-                                            </span>
+                                            </Text>
                                         </div>
                                     </div>
 
                                     {/* Card Details: Hub URL & Token */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono bg-background/50 p-2.5 rounded-lg border border-black/5 dark:border-white/5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-background/50 p-2.5 rounded-lg border border-black/5 dark:border-white/5">
                                         <div className="min-w-0 flex items-center gap-1.5">
-                                            <span className="text-muted-foreground shrink-0">Hub:</span>
-                                            <span className="text-foreground truncate" title={agent.hub_url}>
+                                            <Text variant="caption" tone="secondary" mono className="shrink-0">
+                                                Hub:
+                                            </Text>
+                                            <Text variant="caption" mono truncate title={agent.hub_url}>
                                                 {agent.hub_url || "(none)"}
-                                            </span>
+                                            </Text>
                                         </div>
 
                                         <div className="min-w-0 flex items-center justify-between gap-1">
                                             <div className="min-w-0 flex items-center gap-1.5">
-                                                <span className="text-muted-foreground shrink-0">Token:</span>
-                                                <span className="text-foreground truncate">
+                                                <Text variant="caption" tone="secondary" mono className="shrink-0">
+                                                    Token:
+                                                </Text>
+                                                <Text variant="caption" mono truncate>
                                                     {is_revealed
                                                         ? agent.token
                                                         : agent.token
                                                           ? `${agent.token.slice(0, 4)}••••••••`
                                                           : "(none)"}
-                                                </span>
+                                                </Text>
                                             </div>
                                             {agent.token && (
                                                 <Button
@@ -253,9 +263,9 @@ export function NodesView() {
                                                     Activate
                                                 </Button>
                                             ) : (
-                                                <span className="text-xs font-mono text-muted-foreground italic pl-1">
+                                                <Text variant="caption" tone="secondary" mono className="italic pl-1">
                                                     Current active target
-                                                </span>
+                                                </Text>
                                             )}
 
                                             <Button
@@ -299,7 +309,9 @@ export function NodesView() {
             >
                 <div className="flex flex-col w-full h-full">
                     <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
-                        <span className="font-semibold text-base font-mono text-foreground">Add Node Agent</span>
+                        <Text variant="headline" mono>
+                            Add Node Agent
+                        </Text>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -318,7 +330,9 @@ export function NodesView() {
                             className="w-full max-w-xl mx-auto px-2 sm:px-4 py-4 flex flex-col gap-4"
                         >
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-mono text-muted-foreground">Name (optional)</label>
+                                <Text as="label" variant="caption" tone="secondary" mono>
+                                    Name (optional)
+                                </Text>
                                 <input
                                     type="text"
                                     value={new_name}
@@ -329,7 +343,9 @@ export function NodesView() {
                             </div>
 
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-mono text-muted-foreground">Hub URL</label>
+                                <Text as="label" variant="caption" tone="secondary" mono>
+                                    Hub URL
+                                </Text>
                                 <input
                                     type="text"
                                     required
@@ -341,7 +357,9 @@ export function NodesView() {
                             </div>
 
                             <div className="flex flex-col gap-1.5">
-                                <label className="text-xs font-mono text-muted-foreground">Session Token</label>
+                                <Text as="label" variant="caption" tone="secondary" mono>
+                                    Session Token
+                                </Text>
                                 <input
                                     type="text"
                                     value={new_token}

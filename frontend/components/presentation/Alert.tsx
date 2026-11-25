@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "../controls/Button"
 import { TextField } from "../controls/TextField"
+import { Text } from "../views/Text"
 import { Modal } from "./Modal"
 
 import type { ReactNode } from "react"
@@ -80,9 +81,15 @@ function Alert({ open, on_close, title, message, text_field, actions, close_labe
             className="w-[85vw] max-w-sm p-4 select-none"
         >
             <div className="flex flex-col gap-4">
-                <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">{title}</h3>
+                <Text as="h3" variant="headline" className="flex items-center gap-2">
+                    {title}
+                </Text>
 
-                {message && <div className="whitespace-pre-wrap text-sm text-foreground/70">{message}</div>}
+                {message && (
+                    <Text as="div" variant="body" tone="secondary" className="whitespace-pre-wrap">
+                        {message}
+                    </Text>
+                )}
 
                 {text_field && (
                     <TextField

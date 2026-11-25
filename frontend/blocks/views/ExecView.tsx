@@ -2,7 +2,7 @@
 
 import { Play, Square, Trash2, Copy, Check } from "lucide-react"
 import { useState, useRef, useCallback } from "react"
-import { Badge, Button, EmptyState } from "@/components"
+import { Badge, Button, EmptyState, Text } from "@/components"
 import { useController } from "@/components/hooks"
 import { exec_controller } from "@/core/controllers/exec_controller"
 import { ExecShortcutBar } from "../shortcuts"
@@ -80,7 +80,9 @@ export function ExecView() {
             {/* Command Input Bar */}
             <div className="flex flex-col gap-2 p-3 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
                 <div className="flex items-center gap-2">
-                    <span className="text-emerald-500 font-mono text-sm font-bold pl-1">{">"}</span>
+                    <Text variant="body" weight="bold" tone="inherit" mono className="text-emerald-500 pl-1">
+                        {">"}
+                    </Text>
                     <input
                         type="text"
                         value={cmd_input}
@@ -105,7 +107,9 @@ export function ExecView() {
                         >
                             <span className="inline-flex items-center gap-1.5">
                                 <Square className="size-3" />
-                                <span>Abort</span>
+                                <Text variant="caption" weight="medium" tone="inherit" mono>
+                                    Abort
+                                </Text>
                             </span>
                         </Button>
                     ) : (
@@ -117,14 +121,18 @@ export function ExecView() {
                         >
                             <span className="inline-flex items-center gap-1.5">
                                 <Play className="size-3" />
-                                <span>Run</span>
+                                <Text variant="caption" weight="medium" tone="inherit" mono>
+                                    Run
+                                </Text>
                             </span>
                         </Button>
                     )}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs">
-                    <span className="text-[11px] font-mono text-muted-foreground">cwd:</span>
+                    <Text variant="footnote" tone="secondary" mono>
+                        cwd:
+                    </Text>
                     <input
                         type="text"
                         value={cwd_input}
@@ -155,10 +163,10 @@ export function ExecView() {
             <div className="flex items-center justify-between text-xs px-1 shrink-0">
                 <div className="flex items-center gap-2 font-mono">
                     {exec_state.is_running && (
-                        <span className="text-amber-500 text-[11px] flex items-center gap-1">
+                        <Text variant="footnote" tone="inherit" mono className="text-amber-500 flex items-center gap-1">
                             <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
                             Streaming...
-                        </span>
+                        </Text>
                     )}
                     {exec_state.exit_code !== null && (
                         <Badge
@@ -174,7 +182,9 @@ export function ExecView() {
                         </Badge>
                     )}
                     {exec_state.duration_ms !== null && (
-                        <span className="text-[10px] text-muted-foreground">({exec_state.duration_ms}ms)</span>
+                        <Text variant="footnote" tone="secondary" mono className="text-[10px]">
+                            ({exec_state.duration_ms}ms)
+                        </Text>
                     )}
                 </div>
 
@@ -188,7 +198,9 @@ export function ExecView() {
                     >
                         <span className="inline-flex items-center gap-1">
                             {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-                            <span>{copied ? "Copied" : "Copy"}</span>
+                            <Text variant="footnote" tone="inherit" mono>
+                                {copied ? "Copied" : "Copy"}
+                            </Text>
                         </span>
                     </Button>
 
@@ -201,7 +213,9 @@ export function ExecView() {
                     >
                         <span className="inline-flex items-center gap-1">
                             <Trash2 className="size-3" />
-                            <span>Clear</span>
+                            <Text variant="footnote" tone="inherit" mono>
+                                Clear
+                            </Text>
                         </span>
                     </Button>
                 </div>
@@ -221,22 +235,31 @@ export function ExecView() {
                 )}
 
                 {exec_state.chunks.map((chunk, index) => (
-                    <span
+                    <Text
                         key={index}
+                        variant="caption"
+                        tone={chunk.stream === "stderr" ? "inherit" : "primary"}
+                        mono
                         className={
                             chunk.stream === "stderr"
                                 ? "text-amber-700 dark:text-amber-400 whitespace-pre-wrap"
-                                : "text-foreground whitespace-pre-wrap"
+                                : "whitespace-pre-wrap"
                         }
                     >
                         {chunk.data}
-                    </span>
+                    </Text>
                 ))}
 
                 {exec_state.error && (
-                    <div className="mt-2 text-red-700 dark:text-red-400 p-2 rounded bg-red-500/10 dark:bg-red-950/40 border border-red-500/30 dark:border-red-900/50">
+                    <Text
+                        as="div"
+                        variant="caption"
+                        tone="inherit"
+                        mono
+                        className="mt-2 text-red-700 dark:text-red-400 p-2 rounded bg-red-500/10 dark:bg-red-950/40 border border-red-500/30 dark:border-red-900/50"
+                    >
                         Error: {exec_state.error}
-                    </div>
+                    </Text>
                 )}
             </div>
         </div>

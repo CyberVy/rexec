@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react"
 import { HapticContainer } from "../feedback/HapticContainer"
 import { join_classes } from "../utils"
+import { Text } from "../views/Text"
 
 import type { CSSProperties, ReactNode, Ref } from "react"
 
@@ -99,8 +100,20 @@ function Menu({
                     >
                         {(section.title || section.caption) && (
                             <div className="flex flex-col gap-0.5 px-2.5 py-1">
-                                {section.title}
-                                {section.caption}
+                                {typeof section.title === "string" ? (
+                                    <Text variant="overline" tone="tertiary" truncate>
+                                        {section.title}
+                                    </Text>
+                                ) : (
+                                    section.title
+                                )}
+                                {typeof section.caption === "string" ? (
+                                    <Text variant="footnote" tone="secondary">
+                                        {section.caption}
+                                    </Text>
+                                ) : (
+                                    section.caption
+                                )}
                             </div>
                         )}
 
@@ -129,8 +142,20 @@ function Menu({
                                         )}
 
                                         <span className="flex min-w-0 flex-1 flex-col">
-                                            {item.label}
-                                            {item.description}
+                                            {typeof item.label === "string" ? (
+                                                <Text variant="callout" tone="inherit" truncate>
+                                                    {item.label}
+                                                </Text>
+                                            ) : (
+                                                item.label
+                                            )}
+                                            {typeof item.description === "string" ? (
+                                                <Text variant="footnote" tone="secondary" truncate>
+                                                    {item.description}
+                                                </Text>
+                                            ) : (
+                                                item.description
+                                            )}
                                         </span>
 
                                         {(item.badge || item.trailing) && (

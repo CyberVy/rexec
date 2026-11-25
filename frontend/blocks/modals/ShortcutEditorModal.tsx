@@ -2,7 +2,7 @@
 
 import { ArrowLeft, X, Trash2 } from "lucide-react"
 import type { ReactNode } from "react"
-import { Button, EmptyState, FullscreenSheet, ListRow, SectionHeader } from "@/components"
+import { Button, EmptyState, FullscreenSheet, ListRow, SectionHeader, Text } from "@/components"
 export interface ShortcutEditorModalEntry {
     id: string
     label: string
@@ -24,7 +24,9 @@ export interface ShortcutEditorModalProps {
 export function ShortcutEditorField({ label, children }: { label: string; children: ReactNode }) {
     return (
         <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-mono text-muted-foreground">{label}</span>
+            <Text variant="caption" tone="secondary" mono>
+                {label}
+            </Text>
             {children}
         </label>
     )
@@ -53,7 +55,9 @@ export function ShortcutEditorModal({
         >
             <div className="flex flex-col w-full h-full">
                 <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
-                    <span className="font-semibold text-base font-mono text-foreground">{title}</span>
+                    <Text variant="headline" mono>
+                        {title}
+                    </Text>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -86,8 +90,16 @@ export function ShortcutEditorModal({
                                         size="sm"
                                         variant={is_editing ? "filled" : "plain"}
                                         on_click={() => on_edit(entry.id)}
-                                        title={<span className="font-mono">{entry.label}</span>}
-                                        subtitle={<span className="font-mono text-[11px]">{entry.detail}</span>}
+                                        title={
+                                            <Text variant="body" weight="medium" tone="inherit" mono>
+                                                {entry.label}
+                                            </Text>
+                                        }
+                                        subtitle={
+                                            <Text variant="footnote" tone="inherit" mono>
+                                                {entry.detail}
+                                            </Text>
+                                        }
                                         className={
                                             is_editing ? "border border-foreground/40" : "border border-(--ui-border)"
                                         }

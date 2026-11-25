@@ -30,6 +30,7 @@ import {
     HorizontalScroller,
     ListRow,
     SectionHeader,
+    Text,
     view_switcher_controller
 } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
@@ -378,17 +379,21 @@ export function TerminalView() {
                                           : "bg-foreground/40"
                                 }`}
                             />
-                            <span className="capitalize text-foreground font-medium">{pty_state.status}</span>
+                            <Text variant="caption" weight="medium" mono className="capitalize">
+                                {pty_state.status}
+                            </Text>
                         </div>
 
                         {pty_state.exit_code !== null && (
-                            <span className="text-[11px] text-amber-500 shrink-0">
+                            <Text variant="footnote" tone="inherit" mono className="text-amber-500 shrink-0">
                                 Exited with code {pty_state.exit_code}
-                            </span>
+                            </Text>
                         )}
 
                         {pty_state.error && (
-                            <span className="text-[11px] text-red-400 truncate min-w-0">{pty_state.error}</span>
+                            <Text variant="footnote" tone="inherit" mono truncate className="text-red-400">
+                                {pty_state.error}
+                            </Text>
                         )}
                     </div>
 
@@ -410,7 +415,9 @@ export function TerminalView() {
                             >
                                 <span className="inline-flex items-center gap-1.5">
                                     <Play className="size-3" />
-                                    <span>Connect</span>
+                                    <Text variant="caption" weight="medium" tone="inherit" mono>
+                                        Connect
+                                    </Text>
                                 </span>
                             </Button>
                         )}
@@ -426,11 +433,11 @@ export function TerminalView() {
                         className="px-2 py-0.5 rounded text-[11px] shrink-0 text-black/60 dark:text-white/60 hover:text-foreground"
                     >
                         <span className="inline-flex items-center gap-1.5">
-                            <span className="truncate">
+                            <Text variant="footnote" tone="inherit" mono truncate>
                                 {pty_state.session_id
                                     ? `Session: ${pty_state.session_id.slice(0, 8)}`
                                     : `Sessions (${pty_state.sessions.length})`}
-                            </span>
+                            </Text>
                             <ChevronDown className="size-3 shrink-0" />
                         </span>
                     </Button>
@@ -445,7 +452,9 @@ export function TerminalView() {
                     >
                         <span className="flex w-full min-w-0 items-center gap-1.5">
                             <Folder className="size-3 shrink-0" />
-                            <span className="truncate">{format_display_path(pty_state.cwd)}</span>
+                            <Text variant="footnote" tone="inherit" mono truncate>
+                                {format_display_path(pty_state.cwd)}
+                            </Text>
                             <ChevronDown className="size-3 shrink-0" />
                         </span>
                     </Button>
@@ -465,7 +474,9 @@ export function TerminalView() {
                     >
                         <span className="inline-flex items-center gap-1">
                             <Keyboard className="size-3" />
-                            <span>Keys</span>
+                            <Text variant="footnote" tone="inherit" mono>
+                                Keys
+                            </Text>
                         </span>
                     </Button>
 
@@ -477,7 +488,9 @@ export function TerminalView() {
                     >
                         <span className="inline-flex items-center gap-1">
                             <Trash2 className="size-3" />
-                            <span>Clear</span>
+                            <Text variant="footnote" tone="inherit" mono>
+                                Clear
+                            </Text>
                         </span>
                     </Button>
 
@@ -490,7 +503,9 @@ export function TerminalView() {
                     >
                         <span className="inline-flex items-center gap-1">
                             {is_buffer_copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-                            <span>{is_buffer_copied ? "Copied" : "Copy"}</span>
+                            <Text variant="footnote" tone="inherit" mono>
+                                {is_buffer_copied ? "Copied" : "Copy"}
+                            </Text>
                         </span>
                     </Button>
                 </div>
@@ -502,9 +517,9 @@ export function TerminalView() {
 
                 {pty_state.status === "disconnected" && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
-                        <div className="text-foreground text-sm font-mono font-medium">
+                        <Text as="div" variant="body" weight="medium" mono>
                             Interactive Remote Terminal (PTY)
-                        </div>
+                        </Text>
 
                         {detached_sessions.length > 0 ? (
                             <div className="flex flex-col items-center gap-2.5 max-w-sm w-full">
@@ -521,11 +536,19 @@ export function TerminalView() {
                                             variant="filled"
                                             leading={<span className="size-2 rounded-full bg-amber-400" />}
                                             title={
-                                                <span className="inline-flex max-w-full items-center gap-2 font-mono text-xs">
-                                                    <span className="truncate font-medium">{s.command || "shell"}</span>
-                                                    <span className="shrink-0 text-[11px] font-normal text-foreground/50">
+                                                <span className="inline-flex max-w-full items-center gap-2">
+                                                    <Text
+                                                        variant="caption"
+                                                        weight="medium"
+                                                        tone="inherit"
+                                                        mono
+                                                        truncate
+                                                    >
+                                                        {s.command || "shell"}
+                                                    </Text>
+                                                    <Text variant="footnote" tone="secondary" mono className="shrink-0">
                                                         ({s.session_id.slice(0, 6)})
-                                                    </span>
+                                                    </Text>
                                                 </span>
                                             }
                                             trailing={
@@ -565,11 +588,11 @@ export function TerminalView() {
                             >
                                 <span className="inline-flex items-center gap-2">
                                     <Play className="size-3" />
-                                    <span>
+                                    <Text variant="caption" weight="medium" tone="inherit" mono>
                                         {session_state.agent_online
                                             ? "Open Terminal Session"
                                             : "Waiting for Agent to Connect..."}
-                                    </span>
+                                    </Text>
                                 </span>
                             </Button>
                         )}
@@ -585,7 +608,9 @@ export function TerminalView() {
                 onSubmit={handle_command_submit}
                 className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
             >
-                <span className="text-muted-foreground select-none shrink-0 font-bold">$</span>
+                <Text variant="caption" weight="bold" tone="secondary" mono className="select-none shrink-0">
+                    $
+                </Text>
                 <input
                     ref={command_input_ref}
                     type="text"
@@ -652,7 +677,9 @@ export function TerminalView() {
                 <div className="flex flex-col w-full h-full">
                     <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
                         <div className="flex items-center gap-2.5">
-                            <span className="font-semibold text-base font-mono">Terminal Sessions</span>
+                            <Text variant="headline" mono>
+                                Terminal Sessions
+                            </Text>
                             <Badge
                                 tone="subtle"
                                 shape="pill"
@@ -716,11 +743,13 @@ export function TerminalView() {
                                                 />
                                             }
                                             title={
-                                                <span className="inline-flex max-w-full items-center gap-2 font-mono text-xs">
-                                                    <span className="truncate font-bold">{s.command || "shell"}</span>
-                                                    <span className="shrink-0 text-[11px] font-normal text-black/50 dark:text-white/50">
+                                                <span className="inline-flex max-w-full items-center gap-2">
+                                                    <Text variant="caption" weight="bold" tone="inherit" mono truncate>
+                                                        {s.command || "shell"}
+                                                    </Text>
+                                                    <Text variant="footnote" tone="secondary" mono className="shrink-0">
                                                         ({s.session_id.slice(0, 8)})
-                                                    </span>
+                                                    </Text>
                                                     {is_current && (
                                                         <Badge
                                                             tone="custom"
@@ -740,7 +769,12 @@ export function TerminalView() {
                                                 </span>
                                             }
                                             subtitle={
-                                                <span className="inline-flex items-center gap-2 font-mono text-[11px]">
+                                                <Text
+                                                    variant="footnote"
+                                                    tone="inherit"
+                                                    mono
+                                                    className="inline-flex items-center gap-2"
+                                                >
                                                     <span className="capitalize">{s.status}</span>
                                                     {s.persistent ? (
                                                         <>
@@ -761,7 +795,7 @@ export function TerminalView() {
                                                             </span>
                                                         </>
                                                     )}
-                                                </span>
+                                                </Text>
                                             }
                                             trailing={
                                                 <div className="flex items-center gap-1.5">
@@ -827,15 +861,21 @@ export function TerminalView() {
                     </div>
 
                     {/* Footer Action */}
-                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 text-[11px] text-muted-foreground font-mono shrink-0">
+                    <Text
+                        as="div"
+                        variant="footnote"
+                        tone="secondary"
+                        mono
+                        className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 shrink-0"
+                    >
                         Detached sessions keep running in background.
-                    </div>
+                    </Text>
 
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 my-2 shrink-0 select-none">
                         <div />
                         <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
                             <Button
-                                className="px-4 h-8 font-mono text-xs font-medium"
+                                className="px-4 h-8"
                                 onClick={() => {
                                     void pty_controller.new_session()
                                     handle_close_sessions_modal()
@@ -843,7 +883,9 @@ export function TerminalView() {
                             >
                                 <span className="inline-flex items-center gap-1.5">
                                     <Plus className="size-3.5" />
-                                    <span>New</span>
+                                    <Text variant="caption" weight="medium" tone="inherit" mono>
+                                        New
+                                    </Text>
                                 </span>
                             </Button>
                         </div>
@@ -868,7 +910,9 @@ export function TerminalView() {
                     <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
                         <div className="flex items-center gap-2">
                             <Folder className="size-5 text-foreground shrink-0" />
-                            <span className="font-semibold text-base font-mono">Workspace Explorer</span>
+                            <Text variant="headline" mono>
+                                Workspace Explorer
+                            </Text>
                             <Badge
                                 tone="subtle"
                                 shape="pill"
@@ -923,12 +967,16 @@ export function TerminalView() {
                                         <span>..</span>
                                     </span>
                                 </Button>
-                                <span
-                                    className="truncate text-foreground font-medium select-text"
+                                <Text
+                                    variant="caption"
+                                    weight="medium"
+                                    mono
+                                    truncate
+                                    className="select-text"
                                     title={pty_state.dir_path ?? pty_state.cwd ?? "/"}
                                 >
                                     {pty_state.dir_path ?? pty_state.cwd ?? "/"}
-                                </span>
+                                </Text>
                             </div>
 
                             {pty_state.status === "connected" &&
@@ -986,19 +1034,24 @@ export function TerminalView() {
                                             )
                                         }
                                         title={
-                                            <span
-                                                className={
-                                                    entry.is_directory
-                                                        ? "font-mono text-xs font-semibold"
-                                                        : "font-mono text-xs font-normal text-foreground/90"
-                                                }
+                                            <Text
+                                                variant="caption"
+                                                weight={entry.is_directory ? "semibold" : "normal"}
+                                                tone="inherit"
+                                                mono
+                                                className={entry.is_directory ? undefined : "text-foreground/90"}
                                             >
                                                 {entry.name}
                                                 {entry.is_directory ? "/" : ""}
-                                            </span>
+                                            </Text>
                                         }
                                         subtitle={
-                                            <span className="inline-flex items-center gap-2 font-mono text-[10px]">
+                                            <Text
+                                                variant="footnote"
+                                                tone="inherit"
+                                                mono
+                                                className="inline-flex items-center gap-2 text-[10px]"
+                                            >
                                                 <span>{entry.permissions}</span>
                                                 <span>•</span>
                                                 <span>{entry.mtime_label}</span>
@@ -1008,7 +1061,7 @@ export function TerminalView() {
                                                         <span>{format_entry_size(entry.size)}</span>
                                                     </>
                                                 )}
-                                            </span>
+                                            </Text>
                                         }
                                         trailing={
                                             entry.is_directory && pty_state.status === "connected" ? (
@@ -1035,9 +1088,16 @@ export function TerminalView() {
                     </div>
 
                     {/* Footer */}
-                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 text-[11px] text-muted-foreground font-mono truncate shrink-0">
+                    <Text
+                        as="div"
+                        variant="footnote"
+                        tone="secondary"
+                        mono
+                        truncate
+                        className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 shrink-0"
+                    >
                         Terminal CWD: {pty_state.cwd ?? "Not connected"}
-                    </div>
+                    </Text>
 
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 my-2 shrink-0 select-none">
                         <div />

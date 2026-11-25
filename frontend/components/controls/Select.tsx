@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react"
 import { Popover } from "../presentation/Popover"
 import { join_classes } from "../utils"
+import { Text } from "../views/Text"
 import { Button } from "./Button"
 import { Menu } from "./Menu"
 
@@ -88,9 +89,15 @@ function Select<T extends string = string>({
     const menu_items: MenuItem[] = options.map((opt) => ({
         key: opt.value,
         icon: opt.icon,
-        label: <span className="min-w-0 truncate text-xs font-medium leading-tight">{opt.label}</span>,
+        label: (
+            <Text variant="caption" weight="medium" tone="inherit" truncate>
+                {opt.label}
+            </Text>
+        ),
         description: opt.description ? (
-            <span className="min-w-0 truncate text-[11px] text-(--ui-secondary-label)">{opt.description}</span>
+            <Text variant="footnote" tone="secondary" truncate>
+                {opt.description}
+            </Text>
         ) : undefined,
         trailing: opt.value === current_value ? selected_indicator : undefined,
         disabled: opt.disabled

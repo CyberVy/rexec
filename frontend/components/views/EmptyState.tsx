@@ -2,6 +2,7 @@
 
 import { join_classes } from "../utils"
 import { AnimatedGlowText } from "./AnimatedGlowText"
+import { Text } from "./Text"
 
 import type { ReactNode, Ref } from "react"
 
@@ -33,9 +34,6 @@ function EmptyState({
     ref
 }: EmptyStateProps) {
     const is_page = size === "page"
-    const title_class = is_page
-        ? "text-lg font-medium text-foreground"
-        : "text-xs font-medium text-black/45 dark:text-white/45"
 
     return (
         <div
@@ -57,23 +55,24 @@ function EmptyState({
                 </div>
             )}
 
-            {glow && typeof title === "string" ? (
-                <AnimatedGlowText text={title} className={title_class} />
-            ) : (
-                <div className={title_class}>{title}</div>
-            )}
+            <Text
+                as="div"
+                variant={is_page ? "title" : "caption"}
+                weight="medium"
+                tone={is_page ? "primary" : "secondary"}
+            >
+                {glow && typeof title === "string" ? <AnimatedGlowText text={title} /> : title}
+            </Text>
 
             {description != null && (
-                <div
-                    className={join_classes(
-                        "mx-auto max-w-xs",
-                        is_page
-                            ? "mt-2 text-sm text-black/50 dark:text-white/50"
-                            : "mt-1 text-[11px] text-black/40 dark:text-white/40"
-                    )}
+                <Text
+                    as="div"
+                    variant={is_page ? "body" : "footnote"}
+                    tone={is_page ? "secondary" : "tertiary"}
+                    className={join_classes("mx-auto max-w-xs", is_page ? "mt-2" : "mt-1")}
                 >
                     {description}
-                </div>
+                </Text>
             )}
 
             {action != null && <div className="mt-4">{action}</div>}

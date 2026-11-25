@@ -3,6 +3,7 @@
 import { Button } from "../controls/Button"
 import { HapticContainer } from "../feedback/HapticContainer"
 import { join_classes } from "../utils"
+import { Text } from "../views/Text"
 import { Modal } from "./Modal"
 
 import type { ReactNode, Ref } from "react"
@@ -87,8 +88,16 @@ function ActionSheet({
 
             {(title != null || message != null) && (
                 <div className="shrink-0 border-b border-(--ui-separator) px-2 pb-3 text-center">
-                    {title != null && <div className="text-sm font-semibold text-foreground">{title}</div>}
-                    {message != null && <div className="mt-1 text-xs text-foreground/60">{message}</div>}
+                    {title != null && (
+                        <Text as="div" variant="body" weight="semibold">
+                            {title}
+                        </Text>
+                    )}
+                    {message != null && (
+                        <Text as="div" variant="caption" tone="secondary" className="mt-1">
+                            {message}
+                        </Text>
+                    )}
                 </div>
             )}
 
@@ -126,14 +135,16 @@ function ActionSheet({
                                     )}
 
                                     <span className="flex-1 min-w-0">
-                                        <span className="text-sm font-medium flex items-center gap-2">
-                                            <span className="truncate">{action.label}</span>
+                                        <span className="flex items-center gap-2">
+                                            <Text variant="body" weight="medium" tone="inherit" truncate>
+                                                {action.label}
+                                            </Text>
                                             {action.badge}
                                         </span>
                                         {action.description != null && (
-                                            <span className="block text-xs text-foreground/50">
+                                            <Text as="span" variant="caption" tone="secondary" className="block">
                                                 {action.description}
-                                            </span>
+                                            </Text>
                                         )}
                                     </span>
 

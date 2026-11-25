@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react"
 import { useController } from "@/components/hooks"
-import { Button, view_switcher_controller } from "@/components"
+import { Button, Text, view_switcher_controller } from "@/components"
 import { pty_controller } from "@/core/controllers/pty_controller"
 import { pty_shortcut_controller, type PtyShortcutKind } from "@/core/controllers/pty_shortcut_controller"
 import { SHORTCUT_INPUT_CLASS, ShortcutEditorField, ShortcutEditorModal } from "../modals"
@@ -120,7 +120,9 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                         />
                     </ShortcutEditorField>
                     <div className="flex flex-col gap-1.5">
-                        <span className="text-xs font-mono text-muted-foreground">Send as</span>
+                        <Text variant="caption" tone="secondary" mono>
+                            Send as
+                        </Text>
                         <div className="inline-flex rounded-lg border border-black/10 dark:border-white/10 overflow-hidden w-fit">
                             {(["command", "key"] as const).map((kind) => {
                                 const is_selected = form.kind === kind
@@ -154,11 +156,11 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                             className={SHORTCUT_INPUT_CLASS}
                         />
                     </ShortcutEditorField>
-                    <p className="text-[11px] font-mono text-muted-foreground">
+                    <Text as="p" variant="footnote" tone="secondary" mono>
                         {form.kind === "command"
                             ? "Sent as one line, then Enter."
                             : "Sent exactly as typed, with no Enter. Use this inside a full-screen program."}
-                    </p>
+                    </Text>
                     <div className="flex items-center justify-end gap-3">
                         {editing_id && (
                             <Button variant="outline" size="md" onClick={reset_form} className="font-mono">

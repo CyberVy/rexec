@@ -1,6 +1,7 @@
 "use client"
 
 import { join_classes } from "../utils"
+import { Text } from "./Text"
 
 import type { ReactNode, Ref } from "react"
 
@@ -29,11 +30,6 @@ const ASPECT_CLASS: Record<CardAspect, string> = {
     video: "aspect-video",
     poster: "aspect-3/4",
     square: "aspect-square"
-}
-
-const TITLE_LINES_CLASS = {
-    1: "line-clamp-1",
-    2: "line-clamp-2"
 }
 
 /**
@@ -96,24 +92,31 @@ function Card({
 
             <div className="flex h-[75.5px] shrink-0 flex-col justify-between p-2.5">
                 <div className="overflow-hidden">
-                    <div
-                        className={join_classes(
-                            "text-xs sm:text-sm font-semibold leading-snug",
-                            TITLE_LINES_CLASS[title_lines]
-                        )}
+                    <Text
+                        as="div"
+                        variant="caption"
+                        weight="semibold"
+                        lines={title_lines}
+                        className="sm:text-sm leading-snug"
                     >
                         {title}
-                    </div>
+                    </Text>
                     {subtitle && (
-                        <div className="mt-0.5 truncate text-[11px] font-medium text-black/55 dark:text-white/55">
+                        <Text as="div" variant="footnote" weight="medium" tone="secondary" truncate className="mt-0.5">
                             {subtitle}
-                        </div>
+                        </Text>
                     )}
                 </div>
                 {(meta || meta_trailing) && (
-                    <div className="mt-1 flex items-center justify-between text-[11px] font-medium text-black/45 dark:text-white/45">
-                        <span className="truncate pr-1">{meta}</span>
-                        {meta_trailing && <span className="ml-1 shrink-0">{meta_trailing}</span>}
+                    <div className="mt-1 flex items-center justify-between">
+                        <Text variant="footnote" weight="medium" tone="tertiary" truncate className="pr-1">
+                            {meta}
+                        </Text>
+                        {meta_trailing && (
+                            <Text variant="footnote" weight="medium" tone="tertiary" className="ml-1 shrink-0">
+                                {meta_trailing}
+                            </Text>
+                        )}
                     </div>
                 )}
             </div>
