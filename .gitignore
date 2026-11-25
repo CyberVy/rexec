@@ -11,5 +11,3 @@ draft/
 target
 *.tsbuildinfo
 /buildServer.json
-/public/sw.js
-/public/debug_bridge.js

@@ -104,14 +104,14 @@ function dual_alias_plugin(): Plugin {
         resolveId(source, importer) {
             if (!source.startsWith("@/")) return null
             const sub = source.slice(2)
-            if (importer && importer.includes("/src/")) {
-                const in_src = resolve_file("src", sub)
-                if (in_src) return in_src
+            if (importer && importer.includes("/core/")) {
+                const in_core = resolve_file("core", sub)
+                if (in_core) return in_core
             }
             const in_frontend = resolve_file("frontend", sub)
             if (in_frontend) return in_frontend
-            const in_src = resolve_file("src", sub)
-            if (in_src) return in_src
+            const in_core = resolve_file("core", sub)
+            if (in_core) return in_core
             return null
         }
     }
@@ -130,7 +130,7 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
-            "@rexec": path.resolve(import.meta.dirname, "./src")
+            "@core": path.resolve(import.meta.dirname, "./core")
         }
     },
     server: {

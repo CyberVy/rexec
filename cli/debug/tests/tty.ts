@@ -467,8 +467,8 @@ async function run(): Promise<void> {
         console.log("[test:tty] Checking run_tty auto-reconnect with incremental resume...")
         const tsx_bin = path.join(repo_root, "node_modules", ".bin", "tsx")
         const reconnect_script = `
-            import { RexecCaller } from "./src/caller"
-            import { run_tty } from "./src/caller/terminal/tty"
+            import { RexecCaller } from "./core/caller"
+            import { run_tty } from "./core/caller/terminal/tty"
             const caller = new RexecCaller({ hub_url: ${JSON.stringify(config.hub_url)}, token: ${JSON.stringify(DEBUG_TOKEN)} })
             const hub_port = Number(new URL(${JSON.stringify(config.hub_url)}).port || 80)
             let dropped = false

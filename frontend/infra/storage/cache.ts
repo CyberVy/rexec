@@ -1,6 +1,6 @@
-import { create_logger } from "../logger"
+import { consola } from "consola"
 
-const logger = create_logger("CacheStorage")
+const logger = consola.withTag("CacheStorage")
 
 export class CacheStorageMap {
     private cache_name: string

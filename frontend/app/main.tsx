@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client"
 import "./globals.css"
 import App from "./App"
-import { is_in_native } from "@/infra/device.client"
+import { is_in_native } from "@/infra/device"
 
 function mount() {
     const root_element = document.getElementById("root")

@@ -1,8 +1,8 @@
 import { BaseController } from "@/infra/base_controller"
-import { create_logger } from "@/infra/logger"
+import { consola } from "consola"
 import { session_controller } from "./session_controller"
 
-const logger = create_logger("ExecController")
+const logger = consola.withTag("ExecController")
 
 export interface ExecChunk {
     stream: "stdout" | "stderr"

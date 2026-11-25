@@ -1,7 +1,7 @@
-import { web_ipc_call } from "@/infra/web_ipc.client"
-import { create_logger } from "@/infra/logger"
+import { web_ipc_call } from "@/infra/web_ipc"
+import { consola } from "consola"
 
-const logger = create_logger("InjectUtils")
+const logger = consola.withTag("InjectUtils")
 
 export function execute_after_dom_content_loaded(callback: () => void) {
     if (document.readyState === "loading") {

@@ -1,4 +1,4 @@
-import { is_in_dark } from "@/infra/device.client"
+import { is_in_dark } from "@/infra/device"
 
 type PendingHtmlIcon = "search" | "loading" | "clipboard" | "chat" | "external_link" | "none"
 

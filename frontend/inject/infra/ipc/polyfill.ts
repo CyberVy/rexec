@@ -4,8 +4,8 @@ import {
     init_ios_ipc_runtime,
     ios_ipc_call,
     is_ios_ipc_available
-} from "@/infra/ios_ipc.client"
-import { WebviewWindowProxy } from "@/infra/web_ipc.client"
+} from "@/infra/ios_ipc"
+import { WebviewWindowProxy } from "@/infra/web_ipc"
 
 declare global {
     interface Window {

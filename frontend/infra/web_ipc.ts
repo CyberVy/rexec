@@ -1,7 +1,7 @@
-import { has_ios_capability, ios_ipc_call } from "./ios_ipc.client"
-import { create_logger } from "./logger"
+import { has_ios_capability, ios_ipc_call } from "./ios_ipc"
+import { consola } from "consola"
 
-const logger = create_logger("WebIPC")
+const logger = consola.withTag("WebIPC")
 
 export class WebviewWindowProxy {
     constructor(public readonly label: string) {}

@@ -1,9 +1,9 @@
 import { is_dev } from "@/infra/version"
-import { CacheStorageMap } from "@/infra/storage/cache.client"
-import { create_logger } from "@/infra/logger"
+import { CacheStorageMap } from "@/infra/storage/cache"
+import { consola } from "consola"
 
 const STATIC_RESOURCE_CACHE_NAME = "static-resource-cache"
-const logger = create_logger("StaticCache")
+const logger = consola.withTag("StaticCache")
 const static_resource_cache = new CacheStorageMap(STATIC_RESOURCE_CACHE_NAME)
 let update_promise: Promise<void> | null = null
 

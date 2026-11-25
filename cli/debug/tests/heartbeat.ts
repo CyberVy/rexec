@@ -4,7 +4,7 @@ import type { AddressInfo, Socket } from "node:net"
 import path from "node:path"
 import { spawn, type ChildProcess } from "node:child_process"
 import { fileURLToPath } from "node:url"
-import { WsClient } from "../../../src/transport/ws"
+import { WsClient } from "../../../core/transport/ws"
 import { print_verdict, record_history } from "./helpers"
 
 const WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -156,7 +156,7 @@ async function listen_peer(mode: PeerMode): Promise<{ peer: Peer; port: number }
 function spawn_agent(port: number, env: Record<string, string>): ChildProcess {
     return spawn(
         tsx_bin,
-        ["src/agent/index.ts", "--hub", `http://127.0.0.1:${port}`, "--token", "heartbeat-token", "--node-id", "hb"],
+        ["core/agent/index.ts", "--hub", `http://127.0.0.1:${port}`, "--token", "heartbeat-token", "--node-id", "hb"],
         {
             cwd: repo_root,
             env: { ...process.env, ...env },

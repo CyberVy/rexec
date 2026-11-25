@@ -1,31 +1,9 @@
-import { is_in_native } from "@/infra/device.client"
-import { create_logger } from "./logger"
+import { consola } from "consola"
+import { is_in_native } from "@/infra/device"
 
-const logger = create_logger("SmartFetch")
+const logger = consola.withTag("SmartFetch")
 
-export type NestedRecordValue<T> = NestedRecord<T> | T | NestedRecordValue<T>[]
-export interface NestedRecord<T> {
-    [key: string]: NestedRecordValue<T>
-}
-
-export function scan_record_object<T>(node: NestedRecordValue<T>, target_key?: string): NestedRecordValue<T>[] {
-    const r: NestedRecordValue<T>[] = []
-    function visit(node: NestedRecordValue<T>) {
-        const node_record = node as Record<string, NestedRecordValue<T>>
-        for (const key in node_record) {
-            const node_item = node_record[key]
-            if (target_key && target_key === key) {
-                r.push(node_item)
-            }
-
-            if (typeof node_item === "object" && node_item !== null) {
-                visit(node_item)
-            }
-        }
-    }
-    visit(node)
-    return r
-}
+const PROXY_REMAPPED_HEADERS = new Set(["user-agent", "origin", "referer"])
 
 export async function smart_fetch(input: string | URL | Request, init?: RequestInit, cors_proxy = "") {
     let url: string = ""
@@ -114,7 +92,9 @@ export async function smart_fetch(input: string | URL | Request, init?: RequestI
         const fetch_headers = new Headers()
         headers.forEach((v, k) => {
             const lower_k = k.toLowerCase()
-            if (!cors_proxy && lower_k.startsWith("x-proxy-")) {
+            if (cors_proxy && PROXY_REMAPPED_HEADERS.has(lower_k)) {
+                fetch_headers.set(`x-proxy-${lower_k}`, v)
+            } else if (!cors_proxy && lower_k.startsWith("x-proxy-")) {
                 fetch_headers.set(k.slice(8), v)
             } else {
                 fetch_headers.set(k, v)

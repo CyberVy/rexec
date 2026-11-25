@@ -1,4 +1,4 @@
-import { is_touch_device } from "@/infra/device.client"
+import { is_touch_device } from "@/infra/device"
 import { generate_silent_wav_base64 } from "@/infra/data_generation_lib"
 
 let unique_audio_element: HTMLAudioElement | null = null

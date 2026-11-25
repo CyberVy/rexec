@@ -1,9 +1,9 @@
 import { BaseController } from "@/infra/base_controller"
-import { LocalStorageMap } from "@/infra/storage/kv.client"
-import { create_logger } from "@/infra/logger"
-import { RexecCaller, type HubChannelHealth, type HubStatus } from "@rexec/caller/core"
+import { LocalStorageMap } from "@/infra/storage/kv"
+import { consola } from "consola"
+import { RexecCaller, type HubChannelHealth, type HubStatus } from "@core/caller/core"
 
-const logger = create_logger("SessionController")
+const logger = consola.withTag("SessionController")
 
 export interface AgentRecord {
     id: string

@@ -6,8 +6,8 @@
         "moduleResolution": "bundler",
         "jsx": "react-jsx",
         "paths": {
-            "@/*": ["./src/*"],
-            "@rexec/*": ["./src/*"]
+            "@/*": ["./core/*"],
+            "@core/*": ["./core/*"]
         },
         "noEmit": true,
         "allowJs": true,
@@ -26,7 +26,8 @@
         ".wrangler",
         "dist",
         "frontend",
-        "src/server",
+        "cli/debug/browser",
+        "core/server",
         "src-tauri",
         "src-tauri/gen/apple/build",
         "draft",

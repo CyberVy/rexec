@@ -1,10 +1,10 @@
 import { BaseController } from "@/infra/base_controller"
-import { create_logger } from "@/infra/logger"
-import { type PtyConnection, type PtySessionInfo } from "@rexec/caller/core"
+import { consola } from "consola"
+import { type PtyConnection, type PtySessionInfo } from "@core/caller/core"
 import { fetch_workspace_entries, parse_osc7_path, resolve_parent_path, type WorkspaceEntry } from "@/core/workspace"
 import { session_controller } from "./session_controller"
 
-const logger = create_logger("PtyController")
+const logger = consola.withTag("PtyController")
 
 export type PtyStatus = "disconnected" | "connecting" | "connected" | "exited" | "error"
 

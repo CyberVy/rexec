@@ -1,4 +1,4 @@
-import { LocalStorageMap } from "@/infra/storage/kv.client"
+import { LocalStorageMap } from "@/infra/storage/kv"
 
 export interface ShortcutRecord {
     id: string

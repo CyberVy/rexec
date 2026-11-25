@@ -146,7 +146,8 @@ const layeringRestrictionsRule = {
                 "Layering violation: '{{file}}' must import from '@/components', '@/components/hooks', or '@/components/utils' instead of deep path '{{imported}}'.",
             noUiInNonUi:
                 "Layering violation: Non-UI file '{{file}}' must not import UI-related directory '{{imported}}'.",
-            noCoreInInfra: "Layering violation: infra must not depend on core."
+            noCoreInInfra: "Layering violation: infra must not depend on core.",
+            noFrontendInCore: "Layering violation: core must not depend on frontend."
         }
     },
     create(context) {
@@ -162,8 +163,11 @@ const layeringRestrictionsRule = {
         const isUiFile = UI_DIRS.some((dir) => is_in_directory(relativeFile, dir))
 
         function get_resolved_import(importPath) {
+            if (importPath.startsWith("@core/")) {
+                return importPath.replace("@core/", "core/")
+            }
             if (importPath.startsWith("@/")) {
-                const prefix = relativeFile.startsWith("frontend/") ? "frontend/" : "src/"
+                const prefix = relativeFile.startsWith("frontend/") ? "frontend/" : "core/"
                 return importPath.replace("@/", prefix)
             }
             if (importPath.startsWith(".") || importPath.startsWith("/")) {
@@ -188,11 +192,24 @@ const layeringRestrictionsRule = {
         function check_import(node, importSource) {
             if (!importSource || typeof importSource !== "string") return
             // Skip 3rd party libraries directly
-            if (!importSource.startsWith(".") && !importSource.startsWith("/") && !importSource.startsWith("@/")) {
+            if (
+                !importSource.startsWith(".") &&
+                !importSource.startsWith("/") &&
+                !importSource.startsWith("@/") &&
+                !importSource.startsWith("@core/")
+            ) {
                 return
             }
 
             const resolved = get_resolved_import(importSource)
+
+            // 0. core/ must NEVER import anything from frontend/
+            if (is_in_directory(relativeFile, "core") && is_in_directory(resolved, "frontend")) {
+                context.report({
+                    node,
+                    messageId: "noFrontendInCore"
+                })
+            }
 
             // 1. Non-UI files must NEVER import modules from UI-related directories
             if (!isUiFile) {

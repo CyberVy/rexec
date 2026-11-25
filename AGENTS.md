@@ -1,6 +1,6 @@
 ## Project Structure
 
-- `src/`: Core remote execution engine.
+- `core/`: Core remote execution engine.
     - `protocol.ts`: Shared protocol types and message envelopes across Server, Agent, and Caller.
     - `transport/`: Shared byte channel. WebSocket connection and binary frame envelope. Payloads stay opaque.
         - `framing.ts`: Channel domain binary packet multiplexing (Transfer 0x01, Forward 0x02, PTY 0x03).
@@ -31,8 +31,7 @@
     - `core/`: Domain logic, algorithms, and application state coordination.
         - `controllers/`: Centralized reactive state and data controllers (`exec_controller.ts`, `pty_controller.ts`, `session_controller.ts`).
     - `infra/`: Infrastructure, platform adapters, Web IPC client, and utilities.
-        - `*.client.ts`: Browser/webview-only client integrations.
-        - `web_ipc.client.ts`: Frontend-side Tauri IPC adapter.
+        - `web_ipc.ts`: Frontend-side Tauri IPC adapter.
         - `storage/`: Normalized client storage and caching adapters.
     - `inject/`: Client-side scripts injected directly into external WebViews.
         - Organized into `infra/` (environment/IPC polyfills) and `core/` (product logic injections).
@@ -175,7 +174,7 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
 - Variables, parameters, refs, and local state values: `snake_case` (e.g. `task_id`, `auth_token`, `current_session_id`).
 - Constants: `SCREAMING_SNAKE_CASE` for module-level immutable values / semantic constants; use `snake_case` for local values and function bindings.
 - Type imports: use `import type` when importing only types.
-- Path aliases: prefer `@/` for imports under `frontend/` (configured via `frontend/tsconfig.json`) or `src/` (in root host code via `tsconfig.json`), and `@rexec/` when `frontend/` imports shared modules from `src/`.
+- Path aliases: prefer `@/` for imports under `frontend/` (configured via `frontend/tsconfig.json`) or `core/` (in root host code via `tsconfig.json`), and `@core/` when `frontend/` imports shared modules from `core/`.
 - WebView injection scripts: entry point is `src-tauri/src/inject.ts` (source) and `src-tauri/src/inject.js` (compiled output). Sub-modules under `frontend/inject/` may use `*.inject.ts` naming.
 - Type Definitions: Follow the proximity principle (define types close to where they are used). Avoid creating separate type files (like `types.ts` or `*.types.ts`) unless the type declarations are highly complex or repeatedly reused across multiple files.
 - Descriptive Naming: All variable, function, component, and file names must clearly reflect their purpose and responsibility. Use readable, self-explanatory names and strictly avoid generic, vague, or obscure names (e.g. prefer `is_sidebar_open` over `temp` or `flag`).
@@ -198,13 +197,14 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
 
 ## Layering Rules
 
-- **UI vs Non-UI Directories**: React UI components, UI-specific React hooks, and JSX rendered by the main application may exist only in `frontend/app/`, `frontend/blocks/`, and `frontend/components/`. All other directories under `frontend/` (such as `frontend/core/`, `frontend/infra/`, `frontend/inject/`, and `frontend/sw/`) as well as `src/` are Non-UI environments.
+- **Core Engine Isolation**: `core/` must NEVER import from `frontend/`.
+- **UI vs Non-UI Directories**: React UI components, UI-specific React hooks, and JSX rendered by the main application may exist only in `frontend/app/`, `frontend/blocks/`, and `frontend/components/`. All other directories under `frontend/` (such as `frontend/core/`, `frontend/infra/`, `frontend/inject/`, and `frontend/sw/`) as well as `core/` are Non-UI environments.
 - **Non-UI Isolation**: Non-UI environments must NEVER import modules from `frontend/app/`, `frontend/blocks/`, or `frontend/components/`.
 - **Component Isolation**: `frontend/components/` must NEVER import from `frontend/app/`, `frontend/blocks/`, or `frontend/core/`. Keep business UI and domain dependencies out of reusable components.
 - **Infrastructure Isolation**: `frontend/infra/` must NEVER import from `frontend/core/`.
 - The import restrictions above apply to runtime imports, type-only imports, dynamic imports, and re-exports, and are enforced by Oxlint.
 - **Web IPC Communications**:
-    - All communication between frontend web app and backend Rust must utilize the Web IPC layer (e.g., [web_ipc.client.ts](frontend/infra/web_ipc.client.ts)).
+    - All communication between frontend web app and backend Rust must utilize the Web IPC layer (e.g., [web_ipc.ts](frontend/infra/web_ipc.ts)).
     - Shared data types used across the IPC boundary should follow the general type rules and be defined close to their usage/IPC client implementation.
 
 ## Base Rules

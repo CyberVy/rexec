@@ -1,6 +1,6 @@
-import { create_logger } from "./logger"
+import { consola } from "consola"
 
-const logger = create_logger("IosIPC")
+const logger = consola.withTag("IosIPC")
 
 const IOS_IPC_RUNTIME_KEY = "__IOS_IPC__"
 

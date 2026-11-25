@@ -1,6 +1,6 @@
-import { create_logger } from "./logger"
+import { consola } from "consola"
 
-const logger = create_logger("ServiceWorkerAPI")
+const logger = consola.withTag("ServiceWorkerAPI")
 
 export const SERVICE_WORKER_API_PATH = "/_sw/api"
 

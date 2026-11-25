@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react"
 import type { CSSProperties, TransitionEvent } from "react"
 import { create_swipe_gesture } from "@/infra"
-import type { SwipeEndResult } from "@/infra/gestures.client"
+import type { SwipeEndResult } from "@/infra/gestures"
 import type {
     View,
     TransitionGeometry,

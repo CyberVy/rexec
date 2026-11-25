@@ -1,7 +1,7 @@
-import { is_ios_device, is_android_device } from "./device.client"
-import { create_logger } from "./logger"
+import { is_ios_device, is_android_device } from "./device"
+import { consola } from "consola"
 
-const logger = create_logger("FileClient")
+const logger = consola.withTag("FileClient")
 
 export type SaveFileResult = {
     success: boolean

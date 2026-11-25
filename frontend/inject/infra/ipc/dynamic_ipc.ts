@@ -1,4 +1,4 @@
-import { handle_web_ipc, web_ipc_call } from "@/infra/web_ipc.client"
+import { handle_web_ipc, web_ipc_call } from "@/infra/web_ipc"
 
 export type RemoteProxy<T> = {
     [K in keyof T]: T[K] extends (...args: infer A) => infer R ? (...args: A) => RemoteProxy<R> : RemoteProxy<T[K]>

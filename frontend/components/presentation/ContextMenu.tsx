@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { create_press_gesture } from "@/infra/gestures.client"
+import { create_press_gesture } from "@/infra/gestures"
 import { Menu } from "../controls/Menu"
 import { useEscapeKey } from "../hooks"
 import { Portal } from "./Portal"

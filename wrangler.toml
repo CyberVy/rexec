@@ -1,5 +1,5 @@
 name = "rexec"
-main = "src/server/index.ts"
+main = "core/server/index.ts"
 compatibility_date = "2025-10-12"
 workers_dev = true
 preview_urls = true

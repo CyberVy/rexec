@@ -1,6 +1,6 @@
 "use client"
 
-import { is_in_browser } from "@/infra/device.client"
+import { is_in_browser } from "@/infra/device"
 import { useEscapeKey } from "../hooks"
 import { join_classes } from "../utils"
 import { Portal } from "./Portal"

@@ -1,6 +1,6 @@
 "use client"
 
-import { is_ios_device } from "@/infra/device.client"
+import { is_ios_device } from "@/infra/device"
 import { trigger_non_ios_haptic } from "../feedback/HapticContainer"
 import { useMergedRef } from "../hooks"
 import { join_classes } from "../utils"

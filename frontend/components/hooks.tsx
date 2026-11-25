@@ -1,7 +1,7 @@
 import type { Ref, RefCallback, RefObject } from "react"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react"
 import type { BaseController, BaseKeyedController } from "@/infra"
-import { is_ios_device } from "@/infra/device.client"
+import { is_ios_device } from "@/infra/device"
 
 export interface UseControllerOptions<State, Selected = State> {
     events: string | string[]

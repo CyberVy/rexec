@@ -13,7 +13,7 @@
     "node_modules",
     ".wrangler",
     "dist",
-    "public/sw.js",
+    "cli/dist",
     "src-tauri/src/inject.js",
     "draft",
     "extensions/vscode/dist"

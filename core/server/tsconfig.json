@@ -16,7 +16,7 @@
         "incremental": true,
         "paths": {
             "@/*": ["../*"],
-            "@rexec/*": ["../*"]
+            "@core/*": ["../*"]
         }
     },
     "include": ["./**/*.ts", "./**/*.mts"]

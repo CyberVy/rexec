@@ -1,4 +1,4 @@
-import type { RexecCaller } from "@rexec/caller/core"
+import type { RexecCaller } from "@core/caller/core"
 
 export interface WorkspaceEntry {
     name: string
