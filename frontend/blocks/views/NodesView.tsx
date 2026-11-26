@@ -129,7 +129,7 @@ export function NodesView() {
                                     key={agent_id}
                                     className={`p-3.5 rounded-xl border transition flex flex-col gap-2.5 ${
                                         is_active
-                                            ? "border-foreground/30 bg-ui-fill-subtle shadow-sm"
+                                            ? "border-ui-border-hover bg-ui-fill-subtle shadow-sm"
                                             : "border-ui-border bg-ui-fill-subtle hover:border-ui-border-hover"
                                     }`}
                                 >
