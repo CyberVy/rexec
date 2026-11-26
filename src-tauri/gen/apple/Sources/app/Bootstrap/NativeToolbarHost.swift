@@ -1,11 +1,15 @@
 import UIKit
 import WebKit
 
+@_silgen_name("app_built_with_ios26_sdk")
+private func appBuiltWithIOS26SDK() -> Bool
+
 /// Floating UIKit chrome for the web view switcher.
 /// The web controller remains the source of truth and pushes snapshots here.
-/// Requires iOS 26+ Liquid Glass `UITabBar` pill geometry; older OS versions fall back to the web toolbar.
+/// Requires iOS 26+ runtime and iOS 26+ SDK for Liquid Glass `UITabBar` pill geometry;
+/// older OS versions or older SDK builds fall back to the web toolbar.
 func makeNativeToolbarModule() -> (any IOSBridgeModule)? {
-    guard #available(iOS 26.0, *) else { return nil }
+    guard #available(iOS 26.0, *), appBuiltWithIOS26SDK() else { return nil }
     if (Bundle.main.object(forInfoDictionaryKey: "UIDesignRequiresCompatibility") as? Bool) == true {
         return nil
     }

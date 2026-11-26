@@ -145,6 +145,16 @@ static void enableAppBoundDomainsForAllWebViews(void) {
     method_setImplementation(method, (IMP)swizzledInitWithFrameConfiguration);
 }
 
+// Expose compile-time iOS SDK check to Swift, which has no built-in SDK version macro.
+// iOS 26 Liquid Glass UIKit styling requires linking against the iOS 26+ SDK.
+extern "C" bool app_built_with_ios26_sdk(void) {
+#if defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && __IPHONE_OS_VERSION_MAX_ALLOWED >= 260000
+    return true;
+#else
+    return false;
+#endif
+}
+
 int main(int argc, char * argv[]) {
     // Install the hook before bootstrapping Tauri.
     enableWindowSceneInitForTaoWindow();
