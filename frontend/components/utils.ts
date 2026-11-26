@@ -3,20 +3,10 @@ export function join_classes(...classes: (string | false | null | undefined)[]) 
 }
 
 /**
- * Checks if a DOM element is currently hidden via display: none (directly or via an ancestor)
- * without triggering a forced layout/reflow by traversing the parent chain.
+ * Checks if a DOM element has no rendered CSS layout box (disconnected or hidden via
+ * `display: none` on itself or any ancestor, regardless of how the style is applied).
  */
 export function is_element_hidden(element: HTMLElement | null): boolean {
     if (!element || !element.isConnected) return true
-    let curr: HTMLElement | null = element
-    while (curr) {
-        if (curr.style.display === "none") {
-            return true
-        }
-        if (curr.classList.contains("hidden") || curr.hasAttribute("hidden")) {
-            return true
-        }
-        curr = curr.parentElement
-    }
-    return false
+    return element.getClientRects().length === 0
 }
