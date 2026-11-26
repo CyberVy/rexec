@@ -11,6 +11,7 @@ const GLOBAL_COLOR_SCOPE = "*"
 
 export const INITIAL_VIEW_SWITCHER_STATE: ViewSwitcherControllerState = {
     instances: {},
+    active_transition_switcher_id: null,
     is_toolbar_hidden: false,
     active_color_overrides: {},
     view_active_color_overrides: {}
@@ -56,10 +57,46 @@ export function resolve_toolbar_active_color(
     )
 }
 
+export function resolve_host_status(
+    state: Readonly<ViewSwitcherControllerState>,
+    parent_id: string | null,
+    parent_view_id: string | null
+): { is_host_visible: boolean; is_host_transitioning: boolean } {
+    let curr_parent_id = parent_id
+    let curr_parent_view_id = parent_view_id
+    let is_host_visible = true
+    let is_host_transitioning = false
+    const visited = new Set<string>()
+
+    while (curr_parent_id !== null) {
+        if (visited.has(curr_parent_id)) break
+        visited.add(curr_parent_id)
+
+        const parent = state.instances[curr_parent_id]
+        if (!parent) {
+            is_host_visible = false
+            break
+        }
+        if (parent.is_transitioning) {
+            is_host_transitioning = true
+            is_host_visible = false
+        }
+        if (parent.active_view_id !== curr_parent_view_id) {
+            is_host_visible = false
+        }
+        curr_parent_view_id = parent.parent_view_id
+        curr_parent_id = parent.parent_id
+    }
+
+    return { is_host_visible, is_host_transitioning }
+}
+
 class ViewSwitcherController extends BaseController<ViewSwitcherControllerState, "change" | "switch_view"> {
     protected override _state: ViewSwitcherControllerState = INITIAL_VIEW_SWITCHER_STATE
 
     private registration_tokens = new Map<string, symbol>()
+    /** Synchronous mutual-exclusion lock so two nested switchers can never transition at once. */
+    private transition_lock_id: string | null = null
 
     // ============================================================================
     // Public Imperative API
@@ -116,6 +153,93 @@ class ViewSwitcherController extends BaseController<ViewSwitcherControllerState,
     }
 
     // ============================================================================
+    // Transition Mutual-Exclusion Lock & Lifecycle Sync
+    // ============================================================================
+
+    public is_transition_locked(exclude_id?: string): boolean {
+        return this.transition_lock_id !== null && this.transition_lock_id !== exclude_id
+    }
+
+    public claim_transition(id: string): boolean {
+        if (this.transition_lock_id !== null) return false
+        this.transition_lock_id = id
+        return true
+    }
+
+    public notify_transition_started(id: string): void {
+        if (this.transition_lock_id !== id) return
+        const current = this._state.instances[id]
+        if (!current) return
+
+        this.update_state({
+            active_transition_switcher_id: id,
+            instances: {
+                ...this._state.instances,
+                [id]: {
+                    ...current,
+                    is_transitioning: true,
+                    preview_view_id: null
+                }
+            }
+        })
+    }
+
+    public notify_transition_preview(id: string, preview_view_id: string): void {
+        if (this.transition_lock_id !== id) return
+        const current = this._state.instances[id]
+        if (!current || current.preview_view_id === preview_view_id) return
+
+        this.update_state({
+            active_transition_switcher_id: id,
+            instances: {
+                ...this._state.instances,
+                [id]: {
+                    ...current,
+                    is_transitioning: true,
+                    preview_view_id
+                }
+            }
+        })
+    }
+
+    public release_transition(id: string, settled_active_view_id?: string): void {
+        if (this.transition_lock_id === id) {
+            this.transition_lock_id = null
+        }
+
+        const current = this._state.instances[id]
+        if (!current) {
+            if (this._state.active_transition_switcher_id === id) {
+                this.update_state({ active_transition_switcher_id: this.transition_lock_id })
+            }
+            return
+        }
+
+        const next_active_view_id = settled_active_view_id ?? current.active_view_id
+        if (
+            !current.is_transitioning &&
+            current.preview_view_id === null &&
+            current.active_view_id === next_active_view_id &&
+            this._state.active_transition_switcher_id === this.transition_lock_id
+        ) {
+            return
+        }
+
+        this.update_state({
+            active_transition_switcher_id: this.transition_lock_id,
+            instances: {
+                ...this._state.instances,
+                [id]: {
+                    ...current,
+                    active_view_id: next_active_view_id,
+                    preview_view_id: null,
+                    is_transitioning: false
+                }
+            }
+        })
+    }
+
+    // ============================================================================
     // Internal Registry Coordination
     // ============================================================================
 
@@ -134,29 +258,39 @@ class ViewSwitcherController extends BaseController<ViewSwitcherControllerState,
             if (this.registration_tokens.get(instance.id) !== token) return
             this.registration_tokens.delete(instance.id)
 
+            if (this.transition_lock_id === instance.id) {
+                this.transition_lock_id = null
+            }
+
             const next_instances = { ...this._state.instances }
             delete next_instances[instance.id]
-            this.update_state({ instances: next_instances })
+            this.update_state({
+                active_transition_switcher_id:
+                    this._state.active_transition_switcher_id === instance.id
+                        ? this.transition_lock_id
+                        : this._state.active_transition_switcher_id,
+                instances: next_instances
+            })
         }
     }
 
     public update_instance(
         id: string,
-        updates: Partial<Pick<ViewSwitcherInstance, "parent_id" | "active_view_id" | "is_transitioning">>
+        updates: Partial<Pick<ViewSwitcherInstance, "parent_id" | "parent_view_id" | "active_view_id">>
     ): void {
         const current = this._state.instances[id]
         if (!current) return
 
         const next_parent_id = updates.parent_id !== undefined ? updates.parent_id : current.parent_id
+        const next_parent_view_id =
+            updates.parent_view_id !== undefined ? updates.parent_view_id : current.parent_view_id
         const next_active_view_id =
             updates.active_view_id !== undefined ? updates.active_view_id : current.active_view_id
-        const next_is_transitioning =
-            updates.is_transitioning !== undefined ? updates.is_transitioning : current.is_transitioning
 
         if (
             next_parent_id === current.parent_id &&
-            next_active_view_id === current.active_view_id &&
-            next_is_transitioning === current.is_transitioning
+            next_parent_view_id === current.parent_view_id &&
+            next_active_view_id === current.active_view_id
         ) {
             return
         }
@@ -165,22 +299,19 @@ class ViewSwitcherController extends BaseController<ViewSwitcherControllerState,
             instances: {
                 ...this._state.instances,
                 [id]: {
-                    id: current.id,
+                    ...current,
                     parent_id: next_parent_id,
-                    active_view_id: next_active_view_id,
-                    is_transitioning: next_is_transitioning
+                    parent_view_id: next_parent_view_id,
+                    active_view_id: next_active_view_id
                 }
             }
         })
     }
 
-    public has_other_transitioning(exclude_id: string): boolean {
-        for (const instance of Object.values(this._state.instances)) {
-            if (instance.id !== exclude_id && instance.is_transitioning) {
-                return true
-            }
-        }
-        return false
+    public is_instance_host_visible(id: string): boolean {
+        const current = this._state.instances[id]
+        if (!current) return true
+        return resolve_host_status(this._state, current.parent_id, current.parent_view_id).is_host_visible
     }
 
     private get_root_switcher_id(): string | undefined {

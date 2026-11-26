@@ -1,12 +1,99 @@
 "use client"
 
 import type { CSSProperties } from "react"
+import { useController } from "../../hooks"
 import { HapticContainer } from "../../feedback/HapticContainer"
 import { join_classes } from "../../utils"
-import type { ViewSwitcherToolbarProps } from "./types"
+import {
+    INITIAL_VIEW_SWITCHER_STATE,
+    resolve_host_status,
+    resolve_toolbar_active_color,
+    view_switcher_controller
+} from "./ViewSwitcherController"
+import { is_native_toolbar_active, useNativeToolbar } from "./native_toolbar"
+import type { ToolbarColor, ToolbarLayout, View, ViewSwitcherToolbarProps } from "./types"
 import styles from "./ViewSwitcher.module.css"
 
-/** Presentation only; the parent owns navigation rules and transition state. */
+/**
+ * Isolated controller subscriber for web and iOS native toolbars.
+ * Keeping this subscription out of ViewSwitcher ensures toolbar preview/visibility
+ * changes during Step 3-5 never trigger panel tree re-renders.
+ */
+export function ViewSwitcherToolbarHost<T extends string>({
+    switcher_id,
+    host_switcher_id,
+    host_view_id,
+    views,
+    active_view_id,
+    toolbar_layout,
+    toolbar_suppressed,
+    active_color,
+    on_view_select
+}: {
+    switcher_id: string
+    host_switcher_id: string | null
+    host_view_id: string | null
+    views: View<T>[]
+    active_view_id: T
+    toolbar_layout: ToolbarLayout
+    toolbar_suppressed: boolean
+    active_color?: ToolbarColor
+    on_view_select: (view_id: T) => boolean
+}) {
+    const controller_state = useController(view_switcher_controller, {
+        events: "change",
+        server_snapshot: INITIAL_VIEW_SWITCHER_STATE
+    })
+
+    const { is_host_visible, is_host_transitioning } = resolve_host_status(
+        controller_state,
+        host_switcher_id,
+        host_view_id
+    )
+    const instance = controller_state.instances[switcher_id]
+    const visual_active_view_id = (instance?.preview_view_id as T | null) ?? active_view_id
+    const visual_active_view = views.find((view) => view.id === visual_active_view_id)
+
+    const is_interactive = controller_state.active_transition_switcher_id === null
+    const is_visible = !visual_active_view?.hide_toolbar && !controller_state.is_toolbar_hidden
+    const resolved_active_color = resolve_toolbar_active_color(
+        controller_state,
+        switcher_id,
+        visual_active_view_id,
+        visual_active_view?.active_color,
+        active_color
+    )
+
+    const native_toolbar_active = is_native_toolbar_active()
+    useNativeToolbar({
+        enabled: native_toolbar_active && is_host_visible && !toolbar_suppressed,
+        host_transitioning: is_host_transitioning,
+        switcher_id,
+        layout: toolbar_layout,
+        views,
+        active_id: visual_active_view_id,
+        active_color: resolved_active_color,
+        visible: is_visible,
+        interactive: is_interactive,
+        on_select: on_view_select
+    })
+
+    if (native_toolbar_active || toolbar_suppressed) return null
+
+    return (
+        <ViewSwitcherToolbar
+            views={views}
+            active_view_id={visual_active_view_id}
+            toolbar_layout={toolbar_layout}
+            visible={is_visible}
+            interactive={is_interactive}
+            active_color={resolved_active_color}
+            on_view_select={on_view_select}
+        />
+    )
+}
+
+/** Presentation only; ViewSwitcherToolbarHost owns reactive controller state. */
 export function ViewSwitcherToolbar<T extends string>({
     views,
     active_view_id,
