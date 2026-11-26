@@ -257,4 +257,13 @@ When running the development server via `npm run dev`, a debug bridge is automat
     npm run debug:ui -- tap "<target>"
     ```
 - **Execution History**: The history of executed commands and their results is stored in [history.jsonl](.debug/frontend/history.jsonl).
-- **Sub-Agent Delegation**: When implementing features or fixing bugs that affect frontend runtime behavior, prefer delegating validation and log monitoring to a sub-agent. The sub-agent should actively use the Frontend Debug Bridge to execute tests, verify UI correctness, and tail [logs.jsonl](.debug/frontend/logs.jsonl) to ensure no regressions or runtime console errors are introduced.
+
+### Iterative Repro-Script Debugging Loop
+
+For non-trivial stateful, timing-sensitive, interactive, or multi-round bugs, do NOT repeatedly write disposable inline `debug:eval` snippets. Instead, maintain a persistent, incrementally growing reproduction script under `.debug/scripts/` (git-ignored) and iterate in a tight red-green loop:
+
+- **Persist & Reuse the Harness**: Save the reproduction and assertion script to `.debug/scripts/<topic>.ts` (runnable via `npx tsx .debug/scripts/<topic>.ts`, reusing [bridge_client.ts](cli/debug/host/bridge_client.ts) or `debug:ui` as needed) so every run produces concise pass/fail output without polluting context with repeated inline code.
+- **Probe-Driven Capture**: When the user hits an edge case that the current script does not catch, inject temporary diagnostic probes to record the exact state transitions, timing, or event sequence while the user reproduces it once.
+- **Codify & Verify Red First**: Append the newly captured trigger conditions and assertions into the same `.debug/scripts/<topic>.ts` file (preserving all prior cases to prevent regressions), and run it to confirm it reproduces the failure before editing production code.
+- **Autonomous Fix Loop**: Iterate on the root-cause fix against the accumulated repro script until every case passes reliably. Repeat the probe -> codify -> fix cycle for any remaining edge cases.
+- **Cleanup & Promotion**: Before finishing, remove all temporary diagnostic probes from source files, re-run the full repro script and `npm run check`, and clean up the temporary script in `.debug/scripts/` (or ask the developer before promoting high-value checks into [cli/debug/checks/](cli/debug/checks) or permanent tests).
