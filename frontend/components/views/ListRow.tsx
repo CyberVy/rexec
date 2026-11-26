@@ -44,15 +44,20 @@ const MEDIA_ASPECT_CLASS: Record<ListRowAspect, string> = {
     video: "aspect-video"
 }
 
-const SKELETON_HEIGHT_CLASS: Record<ListRowSize, string> = {
+const MEDIA_ROW_HEIGHT_CLASS: Record<ListRowSize, string> = {
     sm: "h-17",
     md: "h-22"
+}
+
+const TEXT_ROW_HEIGHT_CLASS: Record<ListRowSize, string> = {
+    sm: "h-15.25",
+    md: "h-16.25"
 }
 
 /**
  * List cell primitive with optional leading indicator, fixed-height thumbnail media,
  * primary/secondary text stack, and independent trailing actions.
- * Pair media rows inside LazyContainer with ListRowSkeleton of the same size for zero CLS.
+ * Pair rows inside LazyContainer with ListRowSkeleton of the same size and has_media mode for zero CLS.
  */
 function ListRow({
     size = "sm",
@@ -67,6 +72,9 @@ function ListRow({
     className,
     ref
 }: ListRowProps) {
+    const row_height_class =
+        media != null ? MEDIA_ROW_HEIGHT_CLASS[size] : subtitle != null ? TEXT_ROW_HEIGHT_CLASS[size] : undefined
+
     const main_content = (
         <>
             {leading != null && <div className="shrink-0">{leading}</div>}
@@ -106,6 +114,7 @@ function ListRow({
             className={join_classes(
                 "group flex items-center justify-between gap-3 rounded-xl transition-colors",
                 ROW_PADDING_CLASS[size],
+                row_height_class,
                 ROW_VARIANT_CLASS[variant],
                 className
             )}
@@ -123,15 +132,16 @@ function ListRow({
 
 export type ListRowSkeletonProps = {
     size?: ListRowSize
+    has_media?: boolean
     className?: string
 }
 
-function ListRowSkeleton({ size = "sm", className }: ListRowSkeletonProps) {
+function ListRowSkeleton({ size = "sm", has_media = true, className }: ListRowSkeletonProps) {
     return (
         <div
             className={join_classes(
                 "pointer-events-none w-full rounded-xl bg-black/5 select-none dark:bg-white/5",
-                SKELETON_HEIGHT_CLASS[size],
+                has_media ? MEDIA_ROW_HEIGHT_CLASS[size] : TEXT_ROW_HEIGHT_CLASS[size],
                 className
             )}
         />
