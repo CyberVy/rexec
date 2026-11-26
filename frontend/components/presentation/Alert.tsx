@@ -89,7 +89,6 @@ function Alert({
             enter_to={{ transform: "scale(1)", opacity: 1 }}
             exit_from={{ transform: "scale(1)", opacity: 1 }}
             exit_to={{ transform: "scale(0)", opacity: 1 }}
-            backdrop_class_name="bg-black/40 dark:bg-black/60 backdrop-blur-xs"
             className="w-[85vw] max-w-sm p-4 select-none"
         >
             <div className="flex flex-col gap-4">

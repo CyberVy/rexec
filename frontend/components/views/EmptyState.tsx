@@ -47,8 +47,8 @@ function EmptyState({
             {icon != null && (
                 <div
                     className={join_classes(
-                        "flex items-center justify-center",
-                        is_page ? "mb-4 text-black/40 dark:text-white/40" : "mb-2.5 text-black/35 dark:text-white/35"
+                        "flex items-center justify-center text-ui-label-tertiary",
+                        is_page ? "mb-4" : "mb-2.5"
                     )}
                 >
                     {icon}

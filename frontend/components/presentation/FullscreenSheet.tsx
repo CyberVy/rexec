@@ -75,7 +75,7 @@ function FullscreenSheet({
                         "relative w-full h-screen overflow-hidden overscroll-none",
                         // Keep 100vh as baseline in iOS containers without browser chrome (e.g. standalone/PWA).
                         IS_IN_BROWSER && "supports-[height:100dvh]:h-dvh",
-                        "bg-(--ui-surface-fullscreen) text-foreground backdrop-blur-2xl pt-[env(safe-area-inset-top)]",
+                        "bg-ui-surface-fullscreen text-ui-label backdrop-blur-2xl pt-[env(safe-area-inset-top)]",
                         className
                     )}
                 >

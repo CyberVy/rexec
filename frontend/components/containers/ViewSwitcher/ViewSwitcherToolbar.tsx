@@ -31,10 +31,10 @@ export function ViewSwitcherToolbar<T extends string>({
             className={join_classes(
                 is_top ? styles["viewswitcher-toolbar-top"] : styles["viewswitcher-toolbar-bottom"],
                 "fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5",
-                "bg-white/40 dark:bg-black/40 backdrop-blur-md",
+                "bg-ui-surface-glass backdrop-blur-md",
                 "rounded-full",
                 padding_class,
-                "border border-black/10 dark:border-white/10 shadow-lg",
+                "border border-ui-border shadow-lg",
                 styles["viewswitcher-toolbar"],
                 !visible && styles["toolbar-hidden"]
             )}
@@ -57,8 +57,8 @@ export function ViewSwitcherToolbar<T extends string>({
                     const text_class = is_active
                         ? active_color
                             ? styles["toolbar-item-active-custom"]
-                            : "text-black dark:text-white"
-                        : "text-black/50 dark:text-white/50"
+                            : "text-ui-label-strong"
+                        : "text-ui-label-secondary"
 
                     return (
                         <button

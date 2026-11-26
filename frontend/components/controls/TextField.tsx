@@ -101,13 +101,13 @@ function TextField({
         <div
             ref={ref}
             className={join_classes(
-                "relative flex items-center w-full py-2 border border-(--ui-border) focus-within:ring-1 focus-within:ring-(--ui-border-strong)",
+                "relative flex items-center w-full py-2 border border-ui-border focus-within:ring-1 focus-within:ring-ui-border-strong",
                 shape_class,
                 className
             )}
         >
             {icon && (
-                <div className="absolute left-3.5 flex items-center pointer-events-none text-(--ui-tertiary-label) z-10">
+                <div className="absolute left-3.5 flex items-center pointer-events-none text-ui-label-tertiary z-10">
                     {icon}
                 </div>
             )}
@@ -120,7 +120,7 @@ function TextField({
                 onChange={(event) => handle_change(event.target.value)}
                 onKeyDown={handle_key_down}
                 className={join_classes(
-                    "w-full bg-transparent focus:outline-none transition-all duration-200 text-black dark:text-white placeholder:text-(--ui-tertiary-label)",
+                    "w-full bg-transparent focus:outline-none transition-all duration-200 text-ui-label-strong placeholder:text-ui-label-tertiary",
                     icon ? "pl-9" : "pl-3.5",
                     right_padding,
                     input_class_name
@@ -133,7 +133,7 @@ function TextField({
                             type="button"
                             onClick={handle_clear}
                             aria-label={clear_label}
-                            className="flex items-center justify-center rounded-full hover:bg-(--ui-fill-hover) text-(--ui-tertiary-label) transition-colors cursor-pointer"
+                            className="flex items-center justify-center rounded-full hover:bg-ui-fill-hover text-ui-label-tertiary transition-colors cursor-pointer"
                         >
                             <HapticContainer>
                                 <span className="flex items-center justify-center">{clear_icon}</span>
@@ -144,7 +144,7 @@ function TextField({
                         <button
                             type="button"
                             onClick={handle_submit}
-                            className="flex items-center justify-center p-1 rounded-full hover:bg-(--ui-fill-hover) text-black/60 dark:text-white/60 transition-colors cursor-pointer"
+                            className="flex items-center justify-center p-1 rounded-full hover:bg-ui-fill-hover text-ui-label-secondary hover:text-ui-label-strong transition-colors cursor-pointer"
                         >
                             <HapticContainer>
                                 <span className="flex items-center justify-center">{submit_button}</span>

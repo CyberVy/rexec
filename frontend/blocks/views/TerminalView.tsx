@@ -365,7 +365,7 @@ export function TerminalView() {
     return (
         <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-2 pb-24 min-h-0">
             {/* Terminal Top Control Bar */}
-            <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono shrink-0">
+            <div className="flex flex-col gap-1.5 p-2 rounded-lg bg-ui-fill-subtle border border-ui-border text-xs font-mono shrink-0">
                 {/* Row 1: Status */}
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -402,7 +402,7 @@ export function TerminalView() {
                             <Button
                                 variant="unstyled"
                                 onClick={handle_disconnect}
-                                className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 text-white font-medium text-xs"
+                                className="px-2.5 py-1 rounded bg-red-700 hover:bg-red-600 text-ui-label-overlay font-medium text-xs"
                             >
                                 Disconnect
                             </Button>
@@ -411,7 +411,7 @@ export function TerminalView() {
                                 variant="unstyled"
                                 onClick={handle_connect}
                                 disabled={!session_state.agent_online}
-                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs"
+                                className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-ui-label-overlay font-medium text-xs"
                             >
                                 <span className="inline-flex items-center gap-1.5">
                                     <Play className="size-3" />
@@ -430,7 +430,7 @@ export function TerminalView() {
                         variant="outline"
                         shape="none"
                         onClick={handle_open_sessions_modal}
-                        className="px-2 py-0.5 rounded text-[11px] shrink-0 text-black/60 dark:text-white/60 hover:text-foreground"
+                        className="px-2 py-0.5 rounded text-[11px] shrink-0 text-ui-label-secondary hover:text-ui-label-strong"
                     >
                         <span className="inline-flex items-center gap-1.5">
                             <Text variant="footnote" tone="inherit" mono truncate>
@@ -448,7 +448,7 @@ export function TerminalView() {
                         onClick={handle_open_workspace_modal}
                         disabled={!session_state.agent_online && !pty_state.cwd}
                         title={pty_state.cwd ? `Current workspace: ${pty_state.cwd}` : "Browse workspace folder"}
-                        className="min-w-0 max-w-full px-2 py-0.5 rounded text-[11px] text-black/60 dark:text-white/60 hover:text-foreground"
+                        className="min-w-0 max-w-full px-2 py-0.5 rounded text-[11px] text-ui-label-secondary hover:text-ui-label-strong"
                     >
                         <span className="flex w-full min-w-0 items-center gap-1.5">
                             <Folder className="size-3 shrink-0" />
@@ -461,14 +461,14 @@ export function TerminalView() {
                 </div>
 
                 {/* Row 3: Action Controls */}
-                <div className="flex items-center gap-1.5 pt-1 border-t border-black/5 dark:border-white/5">
+                <div className="flex items-center gap-1.5 pt-1 border-t border-ui-separator">
                     <Button
                         variant="unstyled"
                         onClick={() => set_is_accessory_bar_open((prev) => !prev)}
                         className={`px-2 py-0.5 rounded text-[11px] ${
                             is_accessory_bar_open
-                                ? "bg-black/15 dark:bg-white/15 text-foreground font-medium"
-                                : "text-black/60 dark:text-white/60 hover:text-foreground hover:bg-black/5 dark:hover:bg-white/10"
+                                ? "bg-ui-fill-active text-ui-label-strong font-medium"
+                                : "text-ui-label-secondary hover:text-ui-label-strong hover:bg-ui-fill-subtle"
                         }`}
                         title={is_accessory_bar_open ? "Hide virtual keys" : "Show virtual keys"}
                     >
@@ -512,11 +512,11 @@ export function TerminalView() {
             </div>
 
             {/* XTerm Container */}
-            <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-black/10 dark:border-white/10 bg-white dark:bg-black shadow-inner p-2">
+            <div className="flex-1 min-h-0 relative rounded-xl overflow-hidden border border-ui-border bg-background shadow-inner p-2">
                 <div ref={attach_terminal_container} className="absolute inset-2" />
 
                 {pty_state.status === "disconnected" && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-black/60 backdrop-blur-xs gap-3.5 z-10 p-4">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-ui-surface-sheet backdrop-blur-xs gap-3.5 z-10 p-4">
                         <Text as="div" variant="body" weight="medium" mono>
                             Interactive Remote Terminal (PTY)
                         </Text>
@@ -557,12 +557,12 @@ export function TerminalView() {
                                                     onClick={() =>
                                                         void pty_controller.connect({ session_id: s.session_id })
                                                     }
-                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs shrink-0"
+                                                    className="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-ui-label-overlay font-medium text-xs shrink-0"
                                                 >
                                                     Resume
                                                 </Button>
                                             }
-                                            className="border border-(--ui-border)"
+                                            className="border border-ui-border"
                                         />
                                     ))}
                                 </div>
@@ -584,7 +584,7 @@ export function TerminalView() {
                                 variant="unstyled"
                                 onClick={handle_connect}
                                 disabled={!session_state.agent_online}
-                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs font-mono shadow-lg"
+                                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-ui-label-overlay font-medium text-xs font-mono shadow-lg"
                             >
                                 <span className="inline-flex items-center gap-2">
                                     <Play className="size-3" />
@@ -606,7 +606,7 @@ export function TerminalView() {
             {/* Zero-latency Command Input Bar */}
             <form
                 onSubmit={handle_command_submit}
-                className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono"
+                className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-ui-fill-subtle border border-ui-border text-xs font-mono"
             >
                 <Text variant="caption" weight="bold" tone="secondary" mono className="select-none shrink-0">
                     $
@@ -646,7 +646,7 @@ export function TerminalView() {
 
             {/* Accessory Virtual Keys Bar */}
             {is_accessory_bar_open && (
-                <HorizontalScroller className="shrink-0 items-center gap-1.5 py-1 px-1.5 rounded-lg bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-xs font-mono">
+                <HorizontalScroller className="shrink-0 items-center gap-1.5 py-1 px-1.5 rounded-lg bg-ui-fill-subtle border border-ui-border text-xs font-mono">
                     {ACCESSORY_KEYS.map((key) => (
                         <Button
                             key={key.label}
@@ -659,7 +659,7 @@ export function TerminalView() {
                                 if (!is_connected) return
                                 pty_controller.send(key.payload)
                             }}
-                            className="px-2.5 py-1 rounded bg-black/10 dark:bg-white/10 hover:bg-black/15 dark:hover:bg-white/15 active:bg-black/25 dark:active:bg-white/25 text-foreground font-medium shrink-0 disabled:opacity-40 disabled:pointer-events-none"
+                            className="px-2.5 py-1 rounded bg-ui-fill-hover hover:bg-ui-fill-solid/15 active:bg-ui-fill-solid/25 text-foreground font-medium shrink-0 disabled:opacity-40 disabled:pointer-events-none"
                         >
                             {key.label}
                         </Button>
@@ -672,20 +672,15 @@ export function TerminalView() {
                 open={is_sessions_modal_open}
                 on_close={handle_close_sessions_modal}
                 duration={250}
-                className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
+                className="pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
             >
                 <div className="flex flex-col w-full h-full">
-                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-ui-border shrink-0">
                         <div className="flex items-center gap-2.5">
                             <Text variant="headline" mono>
                                 Terminal Sessions
                             </Text>
-                            <Badge
-                                tone="subtle"
-                                shape="pill"
-                                mono
-                                className="border border-(--ui-border) px-2 text-[11px]"
-                            >
+                            <Badge tone="subtle" shape="pill" mono className="border border-ui-border px-2 text-[11px]">
                                 {pty_state.sessions.length} Available
                             </Badge>
                         </div>
@@ -720,7 +715,7 @@ export function TerminalView() {
                             {pty_state.sessions.length === 0 ? (
                                 <EmptyState
                                     title="No active or detached sessions on remote agent."
-                                    className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                                    className="rounded-xl border border-dashed border-ui-border font-mono"
                                 />
                             ) : (
                                 pty_state.sessions.map((s) => {
@@ -759,10 +754,7 @@ export function TerminalView() {
                                                         </Badge>
                                                     )}
                                                     {s.persistent && (
-                                                        <Badge
-                                                            tone="subtle"
-                                                            className="border border-black/15 dark:border-white/15"
-                                                        >
+                                                        <Badge tone="subtle" className="border border-ui-border">
                                                             Persistent
                                                         </Badge>
                                                     )}
@@ -816,8 +808,8 @@ export function TerminalView() {
                                                         }
                                                         className={`size-7 rounded-lg font-mono ${
                                                             s.persistent
-                                                                ? "border-black/30 dark:border-white/30 bg-black/10 dark:bg-white/15 font-medium"
-                                                                : "text-black/60 dark:text-white/60 hover:text-foreground"
+                                                                ? "border-ui-border-strong bg-ui-fill-active! font-medium"
+                                                                : "text-ui-label-secondary hover:text-ui-label-strong"
                                                         }`}
                                                     >
                                                         <MapPin className="size-3" />
@@ -842,7 +834,7 @@ export function TerminalView() {
                                                         shape="none"
                                                         onClick={() => void pty_controller.kill_session(s.session_id)}
                                                         title="Kill session process"
-                                                        className="size-7 rounded-lg text-black/50 dark:text-white/50 hover:bg-red-500/10 hover:text-red-400"
+                                                        className="size-7 rounded-lg text-ui-label-secondary hover:bg-red-500/10! hover:text-red-400"
                                                     >
                                                         <Trash2 className="size-3.5" />
                                                     </Button>
@@ -850,8 +842,8 @@ export function TerminalView() {
                                             }
                                             className={
                                                 is_current
-                                                    ? "border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 dark:bg-emerald-500/10"
-                                                    : "border border-(--ui-border)"
+                                                    ? "border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10! dark:bg-emerald-500/10"
+                                                    : "border border-ui-border"
                                             }
                                         />
                                     )
@@ -873,7 +865,7 @@ export function TerminalView() {
 
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 my-2 shrink-0 select-none">
                         <div />
-                        <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                        <div className="inline-flex items-center select-none rounded-full border border-ui-border p-1">
                             <Button
                                 className="px-4 h-8"
                                 onClick={() => {
@@ -889,7 +881,7 @@ export function TerminalView() {
                                 </span>
                             </Button>
                         </div>
-                        <div className="justify-self-end inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                        <div className="justify-self-end inline-flex items-center select-none rounded-full border border-ui-border p-1">
                             <Button className="w-14 h-8" onClick={handle_close_sessions_modal}>
                                 <ArrowLeft key="back" />
                             </Button>
@@ -903,22 +895,17 @@ export function TerminalView() {
                 open={is_workspace_modal_open}
                 on_close={handle_close_workspace_modal}
                 duration={250}
-                className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
+                className="pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
             >
                 <div className="flex flex-col w-full h-full">
                     {/* Header */}
-                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
+                    <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-ui-border shrink-0">
                         <div className="flex items-center gap-2">
                             <Folder className="size-5 text-foreground shrink-0" />
                             <Text variant="headline" mono>
                                 Workspace Explorer
                             </Text>
-                            <Badge
-                                tone="subtle"
-                                shape="pill"
-                                mono
-                                className="border border-(--ui-border) px-2 text-[11px]"
-                            >
+                            <Badge tone="subtle" shape="pill" mono className="border border-ui-border px-2 text-[11px]">
                                 {pty_state.dir_entries.length} Items
                             </Badge>
                         </div>
@@ -949,7 +936,7 @@ export function TerminalView() {
 
                     {/* Current Path Bar */}
                     <div className="w-full max-w-2xl mx-auto px-2 sm:px-4 pt-3 pb-2 shrink-0">
-                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 font-mono text-xs">
+                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl border border-ui-border bg-ui-fill-subtle font-mono text-xs">
                             <div className="flex items-center gap-2 min-w-0">
                                 <Button
                                     variant="outline"
@@ -1006,14 +993,14 @@ export function TerminalView() {
                             {pty_state.dir_error ? (
                                 <EmptyState
                                     title={pty_state.dir_error}
-                                    className="rounded-xl border border-(--ui-border) font-mono"
+                                    className="rounded-xl border border-ui-border font-mono"
                                 />
                             ) : pty_state.is_loading_dir && pty_state.dir_entries.length === 0 ? (
                                 <EmptyState title="Loading directory contents..." glow className="font-mono" />
                             ) : pty_state.dir_entries.length === 0 ? (
                                 <EmptyState
                                     title="Directory is empty."
-                                    className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                                    className="rounded-xl border border-dashed border-ui-border font-mono"
                                 />
                             ) : (
                                 pty_state.dir_entries.map((entry) => (
@@ -1030,7 +1017,7 @@ export function TerminalView() {
                                             entry.is_directory ? (
                                                 <Folder className="size-4 text-foreground" />
                                             ) : (
-                                                <File className="size-4 text-black/50 dark:text-white/50" />
+                                                <File className="size-4 text-ui-label-secondary" />
                                             )
                                         }
                                         title={
@@ -1074,13 +1061,13 @@ export function TerminalView() {
                                                         handle_close_workspace_modal()
                                                     }}
                                                     title={`cd into ${entry.name}`}
-                                                    className="shrink-0 rounded-lg font-mono hover:bg-foreground hover:text-background"
+                                                    className="shrink-0 rounded-lg font-mono hover:bg-foreground! hover:text-background"
                                                 >
                                                     cd
                                                 </Button>
                                             ) : undefined
                                         }
-                                        className="border border-(--ui-border) bg-black/5 dark:bg-white/5"
+                                        className="border border-ui-border bg-ui-fill-subtle"
                                     />
                                 ))
                             )}
@@ -1102,7 +1089,7 @@ export function TerminalView() {
                     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 my-2 shrink-0 select-none">
                         <div />
                         {pty_state.cwd && pty_state.dir_path && pty_state.dir_path !== pty_state.cwd ? (
-                            <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                            <div className="inline-flex items-center select-none rounded-full border border-ui-border p-1">
                                 <Button
                                     className="px-4 h-8 font-mono text-xs font-medium"
                                     onClick={() => void pty_controller.load_directory(pty_state.cwd ?? undefined)}
@@ -1113,7 +1100,7 @@ export function TerminalView() {
                         ) : (
                             <div />
                         )}
-                        <div className="justify-self-end inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                        <div className="justify-self-end inline-flex items-center select-none rounded-full border border-ui-border p-1">
                             <Button className="w-14 h-8" onClick={handle_close_workspace_modal}>
                                 <ArrowLeft key="back" />
                             </Button>

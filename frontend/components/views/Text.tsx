@@ -50,10 +50,10 @@ const WEIGHT_CLASS: Record<TextWeight, string> = {
 }
 
 const TONE_CLASS: Record<TextTone, string> = {
-    primary: "text-(--ui-label)",
-    secondary: "text-(--ui-secondary-label)",
-    tertiary: "text-(--ui-tertiary-label)",
-    destructive: "text-(--ui-destructive)",
+    primary: "text-ui-label",
+    secondary: "text-ui-label-secondary",
+    tertiary: "text-ui-label-tertiary",
+    destructive: "text-ui-destructive",
     inherit: ""
 }
 

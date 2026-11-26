@@ -1,39 +1,139 @@
 :root {
+    /* Surfaces & materials */
     --ui-surface: rgba(255, 255, 255, 0.85);
     --ui-surface-elevated: rgba(255, 255, 255, 0.8);
     --ui-surface-fullscreen: rgba(255, 255, 255, 0.95);
+    --ui-surface-fullscreen-glass: rgba(255, 255, 255, 0.78);
+    --ui-surface-sheet: rgba(255, 255, 255, 0.6);
+    --ui-surface-glass: rgba(255, 255, 255, 0.4);
+    --ui-surface-glass-subtle: rgba(255, 255, 255, 0.2);
+
+    /* Backdrops & media scrims */
     --ui-backdrop: rgba(0, 0, 0, 0.4);
-    --ui-border: rgba(0, 0, 0, 0.1);
-    --ui-border-strong: rgba(0, 0, 0, 0.3);
-    --ui-separator: rgba(0, 0, 0, 0.06);
+    --ui-scrim-subtle: rgba(0, 0, 0, 0.2);
+    --ui-scrim: rgba(0, 0, 0, 0.4);
+    --ui-scrim-strong: rgba(0, 0, 0, 0.7);
+
+    /* Interactive & container fills */
+    --ui-fill-faint: rgba(0, 0, 0, 0.02);
     --ui-fill-subtle: rgba(0, 0, 0, 0.05);
     --ui-fill-hover: rgba(0, 0, 0, 0.1);
-    --ui-label: rgba(0, 0, 0, 0.9);
-    --ui-secondary-label: rgba(0, 0, 0, 0.5);
-    --ui-tertiary-label: rgba(0, 0, 0, 0.4);
+    --ui-fill-active: rgba(0, 0, 0, 0.08);
+    --ui-fill-strong: rgba(0, 0, 0, 0.2);
+    --ui-fill-solid: #000000;
 
-    /* Semantic control tokens */
+    /* Borders & separators */
+    --ui-separator: rgba(0, 0, 0, 0.06);
+    --ui-border: rgba(0, 0, 0, 0.1);
+    --ui-border-hover: rgba(0, 0, 0, 0.2);
+    --ui-border-strong: rgba(0, 0, 0, 0.35);
+
+    /* Labels (text & icon ink) */
+    --ui-label-strong: #000000;
+    --ui-label: rgba(0, 0, 0, 0.9);
+    --ui-label-secondary: rgba(0, 0, 0, 0.55);
+    --ui-label-tertiary: rgba(0, 0, 0, 0.4);
+    --ui-label-inverse: #ffffff;
+    --ui-label-overlay: #ffffff;
+
+    /* Semantic control colors */
     --ui-accent: #0a84ff;
     --ui-destructive: #ff3b30;
     --ui-destructive-hover: #ff453a;
+    --ui-focus-ring: color-mix(in srgb, var(--ui-accent) 22%, transparent);
     --ui-switch-track: #e9e9ea;
     --ui-switch-checked: #34c759;
     --ui-switch-disabled-track: #f1f1f3;
+    --ui-switch-thumb: #ffffff;
+
+    /* Elevation shadows */
+    --ui-shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
+        /* Surfaces & materials */
         --ui-surface: rgba(20, 20, 20, 0.85);
         --ui-surface-elevated: rgba(24, 24, 24, 0.85);
         --ui-surface-fullscreen: rgba(17, 17, 17, 0.95);
+        --ui-surface-fullscreen-glass: rgba(17, 17, 17, 0.78);
+        --ui-surface-sheet: rgba(0, 0, 0, 0.6);
+        --ui-surface-glass: rgba(0, 0, 0, 0.4);
+        --ui-surface-glass-subtle: rgba(0, 0, 0, 0.2);
+
+        /* Backdrops */
         --ui-backdrop: rgba(0, 0, 0, 0.6);
-        --ui-border: rgba(255, 255, 255, 0.1);
-        --ui-border-strong: rgba(255, 255, 255, 0.3);
-        --ui-separator: rgba(255, 255, 255, 0.06);
+
+        /* Interactive & container fills */
+        --ui-fill-faint: rgba(255, 255, 255, 0.02);
         --ui-fill-subtle: rgba(255, 255, 255, 0.05);
         --ui-fill-hover: rgba(255, 255, 255, 0.1);
+        --ui-fill-active: rgba(255, 255, 255, 0.15);
+        --ui-fill-strong: rgba(255, 255, 255, 0.2);
+        --ui-fill-solid: #ffffff;
+
+        /* Borders & separators */
+        --ui-separator: rgba(255, 255, 255, 0.06);
+        --ui-border: rgba(255, 255, 255, 0.1);
+        --ui-border-hover: rgba(255, 255, 255, 0.2);
+        --ui-border-strong: rgba(255, 255, 255, 0.35);
+
+        /* Labels (text & icon ink) */
+        --ui-label-strong: #ffffff;
         --ui-label: rgba(255, 255, 255, 0.9);
-        --ui-secondary-label: rgba(255, 255, 255, 0.5);
-        --ui-tertiary-label: rgba(255, 255, 255, 0.4);
+        --ui-label-secondary: rgba(255, 255, 255, 0.55);
+        --ui-label-tertiary: rgba(255, 255, 255, 0.4);
+        --ui-label-inverse: #000000;
+
+        /* Semantic control colors */
+        --ui-switch-track: rgba(255, 255, 255, 0.22);
+        --ui-switch-disabled-track: rgba(255, 255, 255, 0.12);
+
+        /* Elevation shadows */
+        --ui-shadow-elevated: 0 16px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
+}
+
+@theme inline {
+    --color-ui-surface: var(--ui-surface);
+    --color-ui-surface-elevated: var(--ui-surface-elevated);
+    --color-ui-surface-fullscreen: var(--ui-surface-fullscreen);
+    --color-ui-surface-fullscreen-glass: var(--ui-surface-fullscreen-glass);
+    --color-ui-surface-sheet: var(--ui-surface-sheet);
+    --color-ui-surface-glass: var(--ui-surface-glass);
+    --color-ui-surface-glass-subtle: var(--ui-surface-glass-subtle);
+
+    --color-ui-backdrop: var(--ui-backdrop);
+    --color-ui-scrim-subtle: var(--ui-scrim-subtle);
+    --color-ui-scrim: var(--ui-scrim);
+    --color-ui-scrim-strong: var(--ui-scrim-strong);
+
+    --color-ui-fill-faint: var(--ui-fill-faint);
+    --color-ui-fill-subtle: var(--ui-fill-subtle);
+    --color-ui-fill-hover: var(--ui-fill-hover);
+    --color-ui-fill-active: var(--ui-fill-active);
+    --color-ui-fill-strong: var(--ui-fill-strong);
+    --color-ui-fill-solid: var(--ui-fill-solid);
+
+    --color-ui-separator: var(--ui-separator);
+    --color-ui-border: var(--ui-border);
+    --color-ui-border-hover: var(--ui-border-hover);
+    --color-ui-border-strong: var(--ui-border-strong);
+
+    --color-ui-label-strong: var(--ui-label-strong);
+    --color-ui-label: var(--ui-label);
+    --color-ui-label-secondary: var(--ui-label-secondary);
+    --color-ui-label-tertiary: var(--ui-label-tertiary);
+    --color-ui-label-inverse: var(--ui-label-inverse);
+    --color-ui-label-overlay: var(--ui-label-overlay);
+
+    --color-ui-accent: var(--ui-accent);
+    --color-ui-destructive: var(--ui-destructive);
+    --color-ui-destructive-hover: var(--ui-destructive-hover);
+    --color-ui-switch-track: var(--ui-switch-track);
+    --color-ui-switch-checked: var(--ui-switch-checked);
+    --color-ui-switch-disabled-track: var(--ui-switch-disabled-track);
+    --color-ui-switch-thumb: var(--ui-switch-thumb);
+
+    --shadow-ui-elevated: var(--ui-shadow-elevated);
 }

@@ -80,17 +80,16 @@ function ActionSheet({
             enter_to={ENTER_TO}
             exit_from={EXIT_FROM}
             exit_to={EXIT_TO}
-            backdrop_class_name="bg-black/40 dark:bg-black/60 backdrop-blur-xs"
             container_class_name="flex flex-col justify-end px-3 sm:px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
             className={join_classes(
-                "w-full max-w-md max-h-[calc(100dvh-2rem-env(safe-area-inset-bottom))] mx-auto bg-white/60 dark:bg-black/60 p-4 gap-2 select-none",
+                "w-full max-w-md max-h-[calc(100dvh-2rem-env(safe-area-inset-bottom))] mx-auto bg-ui-surface-sheet p-4 gap-2 select-none",
                 className
             )}
         >
-            <div className="w-10 h-1 bg-black/20 dark:bg-white/20 rounded-full mx-auto mb-1 shrink-0" />
+            <div className="w-10 h-1 bg-ui-fill-strong rounded-full mx-auto mb-1 shrink-0" />
 
             {(title != null || message != null) && (
-                <div className="shrink-0 border-b border-(--ui-separator) px-2 pb-3 text-center">
+                <div className="shrink-0 border-b border-ui-separator px-2 pb-3 text-center">
                     {title != null && (
                         <Text as="div" variant="body" weight="semibold">
                             {title}
@@ -118,8 +117,8 @@ function ActionSheet({
                                 "w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all text-left",
                                 action.disabled
                                     ? "cursor-not-allowed opacity-40"
-                                    : "cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 active:scale-98",
-                                is_destructive ? "text-(--ui-destructive)" : "text-foreground"
+                                    : "cursor-pointer hover:bg-ui-fill-subtle active:scale-98",
+                                is_destructive ? "text-ui-destructive" : "text-ui-label"
                             )}
                         >
                             <HapticContainer disabled={action.disabled}>
@@ -129,8 +128,8 @@ function ActionSheet({
                                             className={join_classes(
                                                 "size-9 rounded-xl border flex items-center justify-center shrink-0",
                                                 is_destructive
-                                                    ? "border-(--ui-destructive)/20 bg-(--ui-destructive)/10"
-                                                    : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5"
+                                                    ? "border-ui-destructive/20 bg-ui-destructive/10"
+                                                    : "border-ui-border bg-ui-fill-subtle"
                                             )}
                                         >
                                             {action.icon}

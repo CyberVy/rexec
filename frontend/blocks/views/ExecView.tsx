@@ -78,7 +78,7 @@ export function ExecView() {
     return (
         <div className="flex flex-col h-[calc(100vh-env(safe-area-inset-top))] p-4 gap-3 pb-24 min-h-0">
             {/* Command Input Bar */}
-            <div className="flex flex-col gap-2 p-3 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
+            <div className="flex flex-col gap-2 p-3 rounded-xl border border-ui-border bg-ui-fill-subtle shrink-0">
                 <div className="flex items-center gap-2">
                     <Text variant="body" weight="bold" tone="inherit" mono className="text-emerald-500 pl-1">
                         {">"}
@@ -96,14 +96,14 @@ export function ExecView() {
                         spellCheck={false}
                         placeholder="Command to execute (e.g. uname -a, ls -la)"
                         disabled={exec_state.is_running}
-                        className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-background border border-ui-border text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/50 disabled:opacity-50"
                     />
 
                     {exec_state.is_running ? (
                         <Button
                             variant="unstyled"
                             onClick={() => exec_controller.abort()}
-                            className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-medium text-xs font-mono"
+                            className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-ui-label-overlay font-medium text-xs font-mono"
                         >
                             <span className="inline-flex items-center gap-1.5">
                                 <Square className="size-3" />
@@ -117,7 +117,7 @@ export function ExecView() {
                             variant="unstyled"
                             onClick={() => handle_run()}
                             disabled={!cmd_input.trim()}
-                            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-medium text-xs font-mono shadow-sm"
+                            className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-ui-label-overlay font-medium text-xs font-mono shadow-sm"
                         >
                             <span className="inline-flex items-center gap-1.5">
                                 <Play className="size-3" />
@@ -145,7 +145,7 @@ export function ExecView() {
                         spellCheck={false}
                         placeholder="Optional working directory (e.g. /workspace)"
                         disabled={exec_state.is_running}
-                        className="flex-1 max-w-sm px-2 py-0.5 rounded bg-background/50 border border-black/10 dark:border-white/10 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 disabled:opacity-50"
+                        className="flex-1 max-w-sm px-2 py-0.5 rounded bg-background/50 border border-ui-border text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/50 disabled:opacity-50"
                     />
                 </div>
             </div>
@@ -225,7 +225,7 @@ export function ExecView() {
             <div
                 ref={attach_output_container}
                 onScroll={handle_scroll}
-                className="flex-1 min-h-0 overflow-auto rounded-xl p-3 bg-white dark:bg-black text-foreground font-mono text-xs leading-relaxed select-text border border-black/10 dark:border-white/10 shadow-inner"
+                className="flex-1 min-h-0 overflow-auto rounded-xl p-3 bg-background text-foreground font-mono text-xs leading-relaxed select-text border border-ui-border shadow-inner"
             >
                 {exec_state.chunks.length === 0 && !exec_state.error && !exec_state.is_running && (
                     <EmptyState

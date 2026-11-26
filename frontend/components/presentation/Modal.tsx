@@ -73,7 +73,7 @@ function Modal({
                 unmount_on_exit={true}
                 style={{ zIndex: z_index }}
                 className={join_classes(
-                    "fixed inset-0 bg-(--ui-backdrop) backdrop-blur-xs select-none",
+                    "fixed inset-0 bg-ui-backdrop backdrop-blur-xs select-none",
                     backdrop_class_name
                 )}
             >
@@ -107,7 +107,7 @@ function Modal({
                 <div
                     ref={ref}
                     className={join_classes(
-                        "pointer-events-auto flex flex-col rounded-3xl border border-(--ui-border) bg-(--ui-surface) backdrop-blur-xl shadow-2xl text-foreground",
+                        "pointer-events-auto flex flex-col rounded-3xl border border-ui-border bg-ui-surface backdrop-blur-xl shadow-2xl text-ui-label",
                         className
                     )}
                     onClick={(event) => {

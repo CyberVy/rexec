@@ -52,12 +52,12 @@ export function NodesView() {
     return (
         <div className="flex flex-col p-4 gap-3 pb-24 min-h-0">
             {/* Header / Summary Bar */}
-            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 shrink-0">
+            <div className="flex items-center justify-between px-3 py-2.5 rounded-xl border border-ui-border bg-ui-fill-subtle shrink-0">
                 <div className="flex items-center gap-2.5">
                     <Text variant="body" weight="semibold" className="tracking-tight">
                         Node Agents
                     </Text>
-                    <Badge tone="subtle" shape="pill" mono className="border border-(--ui-border) px-2 text-[11px]">
+                    <Badge tone="subtle" shape="pill" mono className="border border-ui-border px-2 text-[11px]">
                         {online_count} / {total_count} Online
                     </Badge>
                 </div>
@@ -70,7 +70,7 @@ export function NodesView() {
                         onClick={() => session_controller.refresh_all_agents()}
                         disabled={session.is_checking || session.agent_ids.length === 0}
                         title="Refresh all nodes status"
-                        className="size-7 rounded-lg bg-background"
+                        className="size-7 rounded-lg bg-background!"
                     >
                         <RefreshCw className={`size-3.5 ${session.is_checking ? "animate-spin" : ""}`} />
                     </Button>
@@ -98,7 +98,7 @@ export function NodesView() {
                     <EmptyState
                         title="No Node Agents configured"
                         description="Add a node agent to connect to a remote server or execution hub."
-                        className="min-h-48 rounded-xl border border-dashed border-(--ui-border) font-mono"
+                        className="min-h-48 rounded-xl border border-dashed border-ui-border font-mono"
                         action={
                             <Button
                                 variant="primary"
@@ -129,8 +129,8 @@ export function NodesView() {
                                     key={agent_id}
                                     className={`p-3.5 rounded-xl border transition flex flex-col gap-2.5 ${
                                         is_active
-                                            ? "border-foreground/30 bg-black/4 dark:bg-white/6 shadow-sm"
-                                            : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:border-black/20 dark:hover:border-white/20"
+                                            ? "border-foreground/30 bg-ui-fill-subtle shadow-sm"
+                                            : "border-ui-border bg-ui-fill-subtle hover:border-ui-border-hover"
                                     }`}
                                 >
                                     {/* Card Top: Status & Name */}
@@ -159,7 +159,7 @@ export function NodesView() {
                                                 <Badge
                                                     tone="subtle"
                                                     mono
-                                                    className="hidden max-w-32 truncate border border-(--ui-border) sm:inline-flex"
+                                                    className="hidden max-w-32 truncate border border-ui-border sm:inline-flex"
                                                 >
                                                     {agent.node_id}
                                                 </Badge>
@@ -187,7 +187,7 @@ export function NodesView() {
                                     </div>
 
                                     {/* Card Details: Hub URL & Token */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-background/50 p-2.5 rounded-lg border border-black/5 dark:border-white/5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-background/50 p-2.5 rounded-lg border border-ui-separator">
                                         <div className="min-w-0 flex items-center gap-1.5">
                                             <Text variant="caption" tone="secondary" mono className="shrink-0">
                                                 Hub:
@@ -214,7 +214,7 @@ export function NodesView() {
                                                 <Button
                                                     variant="unstyled"
                                                     onClick={() => toggle_show_token(agent_id)}
-                                                    className="text-[10px] text-black/50 dark:text-white/50 hover:text-foreground underline shrink-0"
+                                                    className="text-[10px] text-ui-label-secondary hover:text-ui-label-strong underline shrink-0"
                                                 >
                                                     {is_revealed ? "hide" : "show"}
                                                 </Button>
@@ -233,8 +233,8 @@ export function NodesView() {
                                                         mono
                                                         className={
                                                             active
-                                                                ? "gap-1 border border-black/15 dark:border-white/15 text-foreground"
-                                                                : "gap-1 border border-(--ui-border) text-black/50 dark:text-white/50 opacity-50"
+                                                                ? "gap-1 border border-ui-border text-ui-label-strong"
+                                                                : "gap-1 border border-ui-border text-ui-label-secondary opacity-50"
                                                         }
                                                     >
                                                         <span
@@ -258,7 +258,7 @@ export function NodesView() {
                                                     size="xs"
                                                     shape="none"
                                                     onClick={() => session_controller.select_agent(agent_id)}
-                                                    className="rounded-lg bg-background font-mono"
+                                                    className="rounded-lg bg-background! font-mono"
                                                 >
                                                     Activate
                                                 </Button>
@@ -276,7 +276,7 @@ export function NodesView() {
                                                     if (agent.is_checking) return
                                                     session_controller.refresh_agent_status(agent_id)
                                                 }}
-                                                className="rounded-lg border border-(--ui-border) font-mono"
+                                                className="rounded-lg border border-ui-border font-mono"
                                             >
                                                 Check
                                             </Button>
@@ -288,7 +288,7 @@ export function NodesView() {
                                             shape="none"
                                             onClick={() => session_controller.remove_agent(agent_id)}
                                             title="Delete node agent"
-                                            className="size-7 rounded-lg border-transparent hover:border-(--ui-destructive)/20"
+                                            className="size-7 rounded-lg border-transparent! hover:border-ui-destructive/20!"
                                         >
                                             <Trash2 className="size-3.5" />
                                         </Button>
@@ -305,10 +305,10 @@ export function NodesView() {
                 open={is_add_modal_open}
                 on_close={handle_close_add_modal}
                 duration={250}
-                className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
+                className="pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
             >
                 <div className="flex flex-col w-full h-full">
-                    <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
+                    <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-ui-border shrink-0">
                         <Text variant="headline" mono>
                             Add Node Agent
                         </Text>
@@ -338,7 +338,7 @@ export function NodesView() {
                                     value={new_name}
                                     onChange={(e) => set_new_name(e.target.value)}
                                     placeholder="e.g. Colab GPU, AWS Node"
-                                    className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                                    className="px-3.5 py-2 rounded-xl bg-background border border-ui-border text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
                                 />
                             </div>
 
@@ -352,7 +352,7 @@ export function NodesView() {
                                     value={new_hub}
                                     onChange={(e) => set_new_hub(e.target.value)}
                                     placeholder="e.g. https://hub.example.com"
-                                    className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                                    className="px-3.5 py-2 rounded-xl bg-background border border-ui-border text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
                                 />
                             </div>
 
@@ -365,11 +365,11 @@ export function NodesView() {
                                     value={new_token}
                                     onChange={(e) => set_new_token(e.target.value)}
                                     placeholder="Session token (optional)"
-                                    className="px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+                                    className="px-3.5 py-2 rounded-xl bg-background border border-ui-border text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
                                 />
                             </div>
 
-                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-black/10 dark:border-white/10">
+                            <div className="flex items-center justify-end gap-3 pt-3 border-t border-ui-border">
                                 <Button
                                     variant="outline"
                                     size="md"
@@ -386,7 +386,7 @@ export function NodesView() {
                     </div>
 
                     <div className="flex justify-end px-2 my-2 shrink-0 select-none">
-                        <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                        <div className="inline-flex items-center select-none rounded-full border border-ui-border p-1">
                             <Button className="w-14 h-8" onClick={handle_close_add_modal}>
                                 <ArrowLeft key="back" />
                             </Button>

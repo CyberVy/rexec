@@ -33,7 +33,7 @@ export function ShortcutEditorField({ label, children }: { label: string; childr
 }
 
 export const SHORTCUT_INPUT_CLASS =
-    "px-3.5 py-2 rounded-xl bg-background border border-black/15 dark:border-white/15 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
+    "px-3.5 py-2 rounded-xl bg-background border border-ui-border text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-foreground"
 
 export function ShortcutEditorModal({
     title,
@@ -51,10 +51,10 @@ export function ShortcutEditorModal({
             open={open}
             on_close={on_close}
             duration={250}
-            className="bg-background/95 pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
+            className="pt-[max(env(safe-area-inset-top),10px)] pb-[max(env(safe-area-inset-bottom),10px)] pl-[max(env(safe-area-inset-left),10px)] pr-[max(env(safe-area-inset-right),10px)]"
         >
             <div className="flex flex-col w-full h-full">
-                <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-black/10 dark:border-white/10 shrink-0">
+                <div className="w-full max-w-xl mx-auto px-2 sm:px-4 pt-2 pb-3 flex items-center justify-between border-b border-ui-border shrink-0">
                     <Text variant="headline" mono>
                         {title}
                     </Text>
@@ -79,7 +79,7 @@ export function ShortcutEditorModal({
                             {entries.length === 0 && (
                                 <EmptyState
                                     title="No shortcuts yet."
-                                    className="rounded-xl border border-dashed border-(--ui-border) font-mono"
+                                    className="rounded-xl border border-dashed border-ui-border font-mono"
                                 />
                             )}
                             {entries.map((entry, index) => {
@@ -101,7 +101,7 @@ export function ShortcutEditorModal({
                                             </Text>
                                         }
                                         className={
-                                            is_editing ? "border border-foreground/40" : "border border-(--ui-border)"
+                                            is_editing ? "border border-foreground/40" : "border border-ui-border"
                                         }
                                         trailing={
                                             <>
@@ -145,7 +145,7 @@ export function ShortcutEditorModal({
                 </div>
 
                 <div className="flex justify-end px-2 my-2 shrink-0 select-none">
-                    <div className="inline-flex items-center select-none rounded-full border border-black/10 dark:border-white/10 p-1">
+                    <div className="inline-flex items-center select-none rounded-full border border-ui-border p-1">
                         <Button className="w-14 h-8" onClick={on_close}>
                             <ArrowLeft key="back" />
                         </Button>

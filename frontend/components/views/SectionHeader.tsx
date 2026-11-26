@@ -25,7 +25,7 @@ function SectionHeader({ title, count, action_label, on_action, className, ref }
                 tone="secondary"
                 className={join_classes(
                     "uppercase tracking-wider transition-colors",
-                    on_action && "group-hover:text-black dark:group-hover:text-white"
+                    on_action && "group-hover:text-ui-label-strong"
                 )}
             >
                 {title}
@@ -35,10 +35,7 @@ function SectionHeader({ title, count, action_label, on_action, className, ref }
                     variant="caption"
                     tone="secondary"
                     mono
-                    className={join_classes(
-                        "transition-colors",
-                        on_action && "group-hover:text-black/70 dark:group-hover:text-white/70"
-                    )}
+                    className={join_classes("transition-colors", on_action && "group-hover:text-ui-label")}
                 >
                     ({count})
                 </Text>
@@ -63,7 +60,7 @@ function SectionHeader({ title, count, action_label, on_action, className, ref }
                 <button
                     type="button"
                     onClick={on_action}
-                    className="text-(--ui-secondary-label) hover:text-black dark:hover:text-white transition-colors cursor-pointer px-2 py-0.5 rounded-md hover:bg-black/5 dark:hover:bg-white/5"
+                    className="text-ui-label-secondary hover:text-ui-label-strong transition-colors cursor-pointer px-2 py-0.5 rounded-md hover:bg-ui-fill-subtle"
                 >
                     <Text variant="footnote" weight="medium" tone="inherit">
                         {action_label}

@@ -7,8 +7,8 @@ import { join_classes } from "../utils"
 
 import type { CSSProperties, ReactNode, Ref } from "react"
 
-const DEFAULT_TRACK_COLOR = "var(--ui-switch-track, #e9e9ea)"
-const DEFAULT_CHECKED_COLOR = "var(--ui-switch-checked, #34c759)"
+const DEFAULT_TRACK_COLOR = "var(--ui-switch-track)"
+const DEFAULT_CHECKED_COLOR = "var(--ui-switch-checked)"
 const IS_IOS_DEVICE = typeof window !== "undefined" && is_ios_device()
 
 function attach_switch_input(node: HTMLInputElement | null) {
@@ -80,21 +80,21 @@ function Switch({
                         } as CSSProperties
                     }
                     className={join_classes(
-                        "pointer-events-none absolute inset-0 rounded-full border border-black/5",
+                        "pointer-events-none absolute inset-0 rounded-full border border-ui-separator",
                         "bg-(--switch-background-color)",
                         "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04),inset_0_1px_2px_rgba(0,0,0,0.08)]",
                         "transition-all duration-200 ease-out",
-                        "peer-focus-visible:shadow-[0_0_0_3px_rgba(10,132,255,0.22),inset_0_1px_0_rgba(255,255,255,0.98),0_0.5px_1px_rgba(0,0,0,0.16),0_3px_8px_rgba(0,0,0,0.08)]",
+                        "peer-focus-visible:shadow-[0_0_0_3px_var(--ui-focus-ring),inset_0_1px_0_rgba(255,255,255,0.98),0_0.5px_1px_rgba(0,0,0,0.16),0_3px_8px_rgba(0,0,0,0.08)]",
                         "peer-checked:border-(--switch-active-color)",
                         "peer-checked:bg-(--switch-active-color)",
                         "peer-checked:shadow-[inset_0_0_0_1px_var(--switch-active-shadow-color)]",
-                        "peer-disabled:bg-(--ui-switch-disabled-track,#f1f1f3) peer-disabled:shadow-none"
+                        "peer-disabled:bg-ui-switch-disabled-track peer-disabled:shadow-none"
                     )}
                 />
                 <span
                     aria-hidden="true"
                     className={join_classes(
-                        "pointer-events-none absolute left-0.5 top-0.5 h-6.75 w-6.75 rounded-full bg-white",
+                        "pointer-events-none absolute left-0.5 top-0.5 h-6.75 w-6.75 rounded-full bg-ui-switch-thumb",
                         "shadow-[0_1px_3px_rgba(0,0,0,0.24),0_0.5px_1px_rgba(0,0,0,0.12)]",
                         "transition-transform duration-300 ease-in-out",
                         "peer-checked:translate-x-5"

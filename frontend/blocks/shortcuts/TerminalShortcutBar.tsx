@@ -123,7 +123,7 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                         <Text variant="caption" tone="secondary" mono>
                             Send as
                         </Text>
-                        <div className="inline-flex rounded-lg border border-black/10 dark:border-white/10 overflow-hidden w-fit">
+                        <div className="inline-flex rounded-lg border border-ui-border overflow-hidden w-fit">
                             {(["command", "key"] as const).map((kind) => {
                                 const is_selected = form.kind === kind
                                 return (
@@ -134,7 +134,7 @@ export function TerminalShortcutBar({ disabled = false }: TerminalShortcutBarPro
                                         className={`px-3 py-1.5 text-xs font-mono ${
                                             is_selected
                                                 ? "bg-foreground text-background"
-                                                : "text-black/60 dark:text-white/60 hover:text-foreground"
+                                                : "text-ui-label-secondary hover:text-ui-label-strong"
                                         }`}
                                     >
                                         {kind === "command" ? "Command" : "Keys"}

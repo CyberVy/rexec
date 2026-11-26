@@ -7,7 +7,7 @@ import { Text } from "../views/Text"
 
 import type { CSSProperties, ReactNode, Ref } from "react"
 
-const DEFAULT_ACCENT_COLOR = "var(--ui-accent, #0a84ff)"
+const DEFAULT_ACCENT_COLOR = "var(--ui-accent)"
 
 export type MenuItem = {
     key: string
@@ -76,14 +76,11 @@ function Menu({
             style={
                 {
                     "--menu-accent-color": accent_color,
-                    "--menu-accent-soft-color": `color-mix(in srgb, ${accent_color} 18%, transparent)`,
-                    "--menu-destructive-color": "var(--ui-destructive, #ff3b30)",
-                    "--menu-destructive-hover-color": "var(--ui-destructive-hover, #ff453a)"
+                    "--menu-accent-soft-color": `color-mix(in srgb, ${accent_color} 18%, transparent)`
                 } as CSSProperties
             }
             className={join_classes(
-                "rounded-2xl border border-(--ui-border) bg-(--ui-surface-elevated) p-1 text-(--ui-label) shadow-[0_12px_32px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.6)] backdrop-blur-xl",
-                "dark:shadow-[0_16px_36px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05)]",
+                "rounded-2xl border border-ui-border bg-ui-surface-elevated p-1 text-ui-label shadow-ui-elevated backdrop-blur-xl",
                 className
             )}
         >
@@ -95,7 +92,7 @@ function Menu({
                         key={section.key || `${section_index}`}
                         className={join_classes(
                             "flex flex-col gap-0.5",
-                            section_index > 0 && "pt-1 mt-0.5 border-t border-(--ui-separator)"
+                            section_index > 0 && "pt-1 mt-0.5 border-t border-ui-separator"
                         )}
                     >
                         {(section.title || section.caption) && (
@@ -131,10 +128,10 @@ function Menu({
                                                     "flex shrink-0 items-center justify-center transition-colors duration-150",
                                                     is_selected
                                                         ? "text-(--menu-accent-color)"
-                                                        : "text-black/60 group-hover:text-black/90 dark:text-white/60 dark:group-hover:text-white/90",
+                                                        : "text-ui-label-secondary group-hover:text-ui-label",
                                                     is_destructive &&
                                                         !is_selected &&
-                                                        "text-(--menu-destructive-color) group-hover:text-(--menu-destructive-hover-color)"
+                                                        "text-ui-destructive group-hover:text-ui-destructive-hover"
                                                 )}
                                             >
                                                 {item.icon}
@@ -183,8 +180,8 @@ function Menu({
                                             item.disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
                                             is_selected
                                                 ? "bg-(--menu-accent-soft-color) text-(--menu-accent-color)"
-                                                : "hover:bg-(--ui-fill-subtle) active:bg-black/8 active:scale-[0.985] dark:active:bg-white/15",
-                                            is_destructive && !is_selected && "text-(--menu-destructive-color)"
+                                                : "hover:bg-ui-fill-subtle active:bg-ui-fill-active active:scale-[0.985]",
+                                            is_destructive && !is_selected && "text-ui-destructive"
                                         )}
                                     >
                                         {enable_haptic ? (
@@ -200,7 +197,7 @@ function Menu({
                 ))}
             </div>
 
-            {footer && <div className="border-t border-(--ui-separator) px-2.5 pt-1.5 pb-1">{footer}</div>}
+            {footer && <div className="border-t border-ui-separator px-2.5 pt-1.5 pb-1">{footer}</div>}
         </div>
     )
 }

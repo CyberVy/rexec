@@ -17,15 +17,14 @@ export type ButtonProps = ComponentPropsWithRef<"button"> & {
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
     unstyled: "",
-    primary:
-        "bg-black text-white hover:opacity-90 dark:bg-white dark:text-black disabled:opacity-45 disabled:pointer-events-none",
+    primary: "bg-ui-fill-solid text-ui-label-inverse hover:opacity-90 disabled:opacity-45 disabled:pointer-events-none",
     secondary:
-        "border border-(--ui-border) bg-(--ui-fill-subtle) text-(--ui-label) hover:bg-(--ui-fill-hover) disabled:opacity-45 disabled:pointer-events-none",
+        "border border-ui-border bg-ui-fill-subtle text-ui-label hover:bg-ui-fill-hover disabled:opacity-45 disabled:pointer-events-none",
     outline:
-        "border border-(--ui-border) bg-transparent text-(--ui-label) hover:bg-(--ui-fill-subtle) disabled:opacity-45 disabled:pointer-events-none",
-    ghost: "bg-transparent text-black/60 hover:bg-(--ui-fill-subtle) hover:text-black dark:text-white/60 dark:hover:text-white disabled:opacity-35 disabled:pointer-events-none",
+        "border border-ui-border bg-transparent text-ui-label hover:bg-ui-fill-subtle disabled:opacity-45 disabled:pointer-events-none",
+    ghost: "bg-transparent text-ui-label-secondary hover:bg-ui-fill-subtle hover:text-ui-label-strong disabled:opacity-35 disabled:pointer-events-none",
     destructive:
-        "border border-(--ui-destructive)/20 bg-transparent text-(--ui-destructive) hover:bg-(--ui-destructive)/10 disabled:opacity-45 disabled:pointer-events-none"
+        "border border-ui-destructive/20 bg-transparent text-ui-destructive hover:bg-ui-destructive/10 disabled:opacity-45 disabled:pointer-events-none"
 }
 
 const SIZE_CLASS: Record<ButtonSize, string> = {

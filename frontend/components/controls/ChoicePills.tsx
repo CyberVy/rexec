@@ -63,8 +63,8 @@ function ChoicePills({
                         className={join_classes(
                             "inline-flex items-center cursor-pointer rounded-full border font-medium transition-all duration-150 active:scale-[0.96]",
                             is_selected
-                                ? "border-black bg-black text-white shadow-xs dark:border-white dark:bg-white dark:text-black"
-                                : "border-(--ui-border) bg-(--ui-fill-subtle) text-black/70 hover:bg-(--ui-fill-hover) hover:text-black dark:text-white/70 dark:hover:text-white"
+                                ? "border-ui-fill-solid bg-ui-fill-solid text-ui-label-inverse shadow-xs"
+                                : "border-ui-border bg-ui-fill-subtle text-ui-label-secondary hover:bg-ui-fill-hover hover:text-ui-label-strong"
                         )}
                     >
                         <HapticContainer>

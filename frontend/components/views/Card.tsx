@@ -61,10 +61,10 @@ function Card({
             ref={ref}
             onClick={on_click}
             className={join_classes(
-                "group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-black/5 dark:bg-white/5 select-none transition-all duration-300",
+                "group relative flex h-full flex-col overflow-hidden rounded-2xl border bg-ui-fill-subtle select-none transition-all duration-300",
                 is_dashed
-                    ? "border-dashed border-black/20 dark:border-white/20 hover:border-black/40 dark:hover:border-white/40"
-                    : "border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20",
+                    ? "border-dashed border-ui-border-hover hover:border-ui-border-strong"
+                    : "border-ui-border hover:border-ui-border-hover",
                 on_click && "cursor-pointer hover:-translate-y-1",
                 className
             )}
@@ -73,13 +73,13 @@ function Card({
                 className={join_classes(
                     "relative w-full shrink-0 overflow-hidden",
                     ASPECT_CLASS[aspect],
-                    is_dashed ? "bg-black/5 dark:bg-white/5" : "bg-black/20"
+                    is_dashed ? "bg-ui-fill-subtle" : "bg-ui-scrim-subtle"
                 )}
             >
                 {media}
                 {hover_icon && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                        <div className="flex size-11 items-center justify-center rounded-full bg-white/60 text-black shadow-lg dark:bg-black/60 dark:text-white">
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ui-scrim opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                        <div className="flex size-11 items-center justify-center rounded-full bg-ui-surface-sheet text-ui-label-strong shadow-lg">
                             {hover_icon}
                         </div>
                     </div>
@@ -133,7 +133,7 @@ function CardSkeleton({ aspect, className }: CardSkeletonProps) {
     return (
         <div
             className={join_classes(
-                "pointer-events-none flex h-full flex-col overflow-hidden rounded-2xl border border-black/10 bg-black/5 select-none dark:border-white/10 dark:bg-white/5",
+                "pointer-events-none flex h-full flex-col overflow-hidden rounded-2xl border border-ui-border bg-ui-fill-subtle select-none",
                 className
             )}
         >

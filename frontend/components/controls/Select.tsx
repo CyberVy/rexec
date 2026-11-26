@@ -145,7 +145,7 @@ function Select<T extends string = string>({
                     "min-w-36 w-max max-h-60 overflow-y-auto overscroll-none no-scrollbar shadow-2xl",
                     menu_class_name
                 )}
-                accent_color="var(--foreground)"
+                accent_color="var(--ui-label-strong)"
                 selected_key={current_value}
                 on_select={handle_select}
                 sections={[{ items: menu_items }]}

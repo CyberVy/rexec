@@ -29,8 +29,8 @@ const ROW_PADDING_CLASS: Record<ListRowSize, string> = {
 }
 
 const ROW_VARIANT_CLASS: Record<ListRowVariant, string> = {
-    plain: "hover:bg-black/5 dark:hover:bg-white/5",
-    filled: "bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10"
+    plain: "hover:bg-ui-fill-subtle",
+    filled: "bg-ui-fill-subtle hover:bg-ui-fill-hover"
 }
 
 const MEDIA_HEIGHT_CLASS: Record<ListRowSize, string> = {
@@ -81,7 +81,7 @@ function ListRow({
             {media != null && (
                 <div
                     className={join_classes(
-                        "shrink-0 overflow-hidden rounded-lg border border-black/10 bg-black/10 dark:border-white/10 dark:bg-white/10",
+                        "shrink-0 overflow-hidden rounded-lg border border-ui-border bg-ui-fill-hover",
                         MEDIA_HEIGHT_CLASS[size],
                         MEDIA_ASPECT_CLASS[media_aspect]
                     )}
@@ -95,7 +95,7 @@ function ListRow({
                     variant="body"
                     weight="medium"
                     truncate
-                    className="transition-colors group-hover:text-black dark:group-hover:text-white"
+                    className="transition-colors group-hover:text-ui-label-strong"
                 >
                     {title}
                 </Text>
@@ -140,7 +140,7 @@ function ListRowSkeleton({ size = "sm", has_media = true, className }: ListRowSk
     return (
         <div
             className={join_classes(
-                "pointer-events-none w-full rounded-xl bg-black/5 select-none dark:bg-white/5",
+                "pointer-events-none w-full rounded-xl bg-ui-fill-subtle select-none",
                 has_media ? MEDIA_ROW_HEIGHT_CLASS[size] : TEXT_ROW_HEIGHT_CLASS[size],
                 className
             )}

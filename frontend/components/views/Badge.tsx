@@ -11,9 +11,9 @@ export type BadgeProps = ComponentPropsWithRef<"span"> & {
 }
 
 const TONE_CLASS: Record<NonNullable<BadgeProps["tone"]>, string> = {
-    overlay: "bg-black/70 text-white",
-    subtle: "bg-black/5 text-black/60 dark:bg-white/10 dark:text-white/60",
-    solid: "bg-foreground text-background",
+    overlay: "bg-ui-scrim-strong text-ui-label-overlay",
+    subtle: "bg-ui-fill-subtle text-ui-label-secondary",
+    solid: "bg-ui-fill-solid text-ui-label-inverse",
     custom: ""
 }
 
