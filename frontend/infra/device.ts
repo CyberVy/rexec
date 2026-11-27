@@ -6,6 +6,14 @@ export function is_apple_device() {
     return user_agent.includes("iphone") || user_agent.includes("ipad") || user_agent.includes("macintosh")
 }
 
+export function is_apple_webkit() {
+    if (typeof window === "undefined") {
+        return false
+    }
+    const user_agent = navigator.userAgent
+    return is_apple_device() && /AppleWebKit/i.test(user_agent) && !/Chrome\/|Chromium\//i.test(user_agent)
+}
+
 export function is_touch_device() {
     if (typeof window === "undefined") {
         return false

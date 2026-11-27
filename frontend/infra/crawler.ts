@@ -114,3 +114,8 @@ export async function smart_fetch(input: string | URL | Request, init?: RequestI
         return await fetch(`${cors_proxy}${url}`, fetch_init)
     }
 }
+
+export function create_smart_fetch(cors_proxy = "", default_init?: RequestInit) {
+    return (input: string | URL | Request, init?: RequestInit): Promise<Response> =>
+        smart_fetch(input, default_init ? { ...default_init, ...init } : init, cors_proxy)
+}

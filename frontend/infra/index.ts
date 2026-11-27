@@ -1,5 +1,5 @@
 // crawler.ts
-export { smart_fetch } from "./crawler"
+export { smart_fetch, create_smart_fetch } from "./crawler"
 
 // data_generation_lib.ts
 export {
@@ -13,6 +13,7 @@ export type { CoverImageOptions } from "./data_generation_lib"
 // device.ts
 export {
     is_apple_device,
+    is_apple_webkit,
     is_touch_device,
     is_ios_device,
     is_ios_desktop_device,
