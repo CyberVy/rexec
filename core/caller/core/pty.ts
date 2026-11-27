@@ -7,7 +7,7 @@ import {
     type PtyUpdateResMessage
 } from "@/protocol"
 import { SESSION_ID_BYTES, decode_pty_frame, encode_pty_frame } from "@/transport/framing"
-import { build_ws_url, WsClient } from "@/transport/ws"
+import { HubTunnelClient, type HubTunnelDropInfo } from "./tunnel_client"
 
 export { PTY_CALLER_REPLACED_REASON }
 
@@ -80,24 +80,37 @@ export interface PtyMuxOptions {
  * Caller<->Hub WebSocket connection.
  */
 export class PtyMuxClient {
-    private readonly hub_url: string
-    private readonly token: string
     private readonly keep_alive: boolean
+    private readonly transport: HubTunnelClient
 
-    private client: WsClient | null = null
-    private connect_promise: Promise<void> | null = null
-    private resolve_status: (() => void) | null = null
-    private reject_status: ((err: Error) => void) | null = null
-    private status_received = false
-    private agent_online = false
     private leases = 0
     private readonly sessions = new Map<string, RegisteredPtySession>()
     private readonly pending_rpcs = new Map<string, PendingRpc>()
 
     public constructor(options: PtyMuxOptions) {
-        this.hub_url = options.hub_url
-        this.token = options.token
         this.keep_alive = Boolean(options.keep_alive)
+        this.transport = new HubTunnelClient({
+            hub_url: options.hub_url,
+            path: HUB_ROUTES.WS_PTY.path,
+            token: options.token,
+            reconnect: false,
+            ping_interval_ms: PTY_PING_INTERVAL_MS,
+            idle_timeout_ms: PTY_IDLE_TIMEOUT_MS,
+            default_timeout_ms: 10_000,
+            on_json: (msg) => this.handle_message(msg),
+            on_binary: (bytes) => {
+                const decoded = decode_pty_frame(bytes)
+                if (decoded) {
+                    this.sessions.get(decoded.session_id)?.on_data(decoded.payload)
+                }
+            },
+            on_agent_offline: () => this.handle_agent_offline(),
+            on_agent_online: () => this.handle_agent_online(),
+            on_drop: (info) => this.handle_transport_closed(this.make_drop_error(info)),
+            create_abort_error: () => new PtySocketClosed(1000, "PTY connection aborted"),
+            create_closed_error: () => new PtySocketClosed(1000, "PTY client closed"),
+            create_drop_error: (info) => this.make_drop_error(info)
+        })
     }
 
     public async list_ptys(): Promise<PtySessionInfo[]> {
@@ -147,38 +160,29 @@ export class PtyMuxClient {
     }
 
     public send_json(data: unknown): void {
-        this.client?.send_json(data)
+        this.transport.send_json(data)
     }
 
     public send_binary(data: Uint8Array): void {
-        this.client?.send_binary(data)
+        this.transport.send_binary(data)
     }
 
     public ping(): void {
-        this.client?.ping()
+        this.transport.ping()
     }
 
     public close(): void {
-        const client = this.client
-        this.client = null
-        this.status_received = false
-        this.agent_online = false
         this.leases = 0
-
-        const reject = this.reject_status
-        this.resolve_status = null
-        this.reject_status = null
-        reject?.(new PtySocketClosed(1000, "PTY client closed"))
-
-        this.fail_pending_rpcs(new PtySocketClosed(1000, "PTY client closed"))
+        const err = new PtySocketClosed(1000, "PTY client closed")
+        this.fail_pending_rpcs(err)
 
         const stale = [...this.sessions.values()]
         this.sessions.clear()
         for (const entry of stale) {
-            entry.on_transport_closed(new PtySocketClosed(1000, "PTY client closed"))
+            entry.on_transport_closed(err)
         }
 
-        client?.close(1000, "PTY client closed")
+        this.transport.close("PTY client closed")
     }
 
     private async run_rpc<T>(build_msg: (req_id: string) => unknown, timeout_message: string): Promise<T> {
@@ -205,102 +209,18 @@ export class PtyMuxClient {
     }
 
     private async ensure_connected(signal?: AbortSignal): Promise<void> {
-        if (signal?.aborted) {
-            throw new PtySocketClosed(1000, "PTY connection aborted")
-        }
-
-        if (this.client?.is_open && this.status_received) {
-            if (!this.agent_online) {
-                throw new Error("No agent connected for this token")
-            }
-            return
-        }
-
-        if (!this.connect_promise) {
-            this.connect_promise = this.open_transport().finally(() => {
-                this.connect_promise = null
-            })
-        }
-
-        if (!signal) {
-            await this.connect_promise
-            return
-        }
-
-        await new Promise<void>((resolve, reject) => {
-            const on_abort = () => reject(new PtySocketClosed(1000, "PTY connection aborted"))
-            signal.addEventListener("abort", on_abort, { once: true })
-            this.connect_promise!.then(
-                () => {
-                    signal.removeEventListener("abort", on_abort)
-                    resolve()
-                },
-                (err) => {
-                    signal.removeEventListener("abort", on_abort)
-                    reject(err)
-                }
-            )
-        })
+        await this.transport.ensure_connected(signal)
     }
 
-    private async open_transport(): Promise<void> {
-        this.status_received = false
-        this.agent_online = false
-
-        const status_promise = new Promise<void>((resolve, reject) => {
-            this.resolve_status = resolve
-            this.reject_status = reject
-        })
-        status_promise.catch(() => {})
-
-        const client = new WsClient({
-            url: build_ws_url(this.hub_url, HUB_ROUTES.WS_PTY.path, this.token),
-            reconnect: false,
-            connect_timeout_ms: 10000,
-            ping_interval_ms: PTY_PING_INTERVAL_MS,
-            idle_timeout_ms: PTY_IDLE_TIMEOUT_MS,
-            on_message: (data) => this.handle_message(data),
-            on_binary: (bytes) => {
-                const decoded = decode_pty_frame(bytes)
-                if (decoded) {
-                    this.sessions.get(decoded.session_id)?.on_data(decoded.payload)
-                }
-            },
-            on_close: (event) => {
-                this.handle_transport_closed(client, new PtySocketClosed(event.code, event.reason || ""))
-            },
-            on_dead: (reason) => {
-                this.handle_transport_closed(client, new Error(reason || "PTY connection closed"))
-            }
-        })
-
-        this.client = client
-        try {
-            await client.connect()
-            await status_promise
-        } catch (err) {
-            if (this.client === client && !this.keep_alive && this.leases === 0 && this.sessions.size === 0) {
-                this.client = null
-                this.status_received = false
-                this.agent_online = false
-                client.close(1000, "PTY connect failed")
-            }
-            throw err
+    private make_drop_error(info: HubTunnelDropInfo): Error {
+        if (info.from_close) {
+            return new PtySocketClosed(info.code ?? 1006, info.reason)
         }
+        return new Error(info.reason || "PTY connection closed")
     }
 
-    private handle_transport_closed(client: WsClient, err: Error): void {
-        if (this.client !== client) return
-        this.client = null
-        this.status_received = false
-        this.agent_online = false
+    private handle_transport_closed(err: Error): void {
         this.leases = 0
-
-        const reject = this.reject_status
-        this.resolve_status = null
-        this.reject_status = null
-        reject?.(err)
-
         this.fail_pending_rpcs(err)
 
         const stale = [...this.sessions.values()]
@@ -310,141 +230,110 @@ export class PtyMuxClient {
         }
     }
 
-    private handle_message(data: string): void {
-        try {
-            const msg = JSON.parse(data) as {
-                type?: string
-                agent_connected?: boolean
-                session_id?: string
-                req_id?: string
-                code?: number
-                signal?: number
-                error?: string
-                reason?: string
-                bytes?: number
-                reset?: boolean
-                offset?: number
-                sessions?: PtySessionInfo[]
-                killed?: boolean
-                updated?: boolean
+    private handle_agent_offline(): void {
+        this.fail_pending_rpcs(new Error("Agent disconnected"))
+        for (const [session_id, entry] of Array.from(this.sessions)) {
+            if (entry.survive_agent_offline) {
+                entry.on_agent_offline?.()
+            } else {
+                this.sessions.delete(session_id)
+                entry.on_error(new Error("Agent disconnected"))
             }
+        }
+    }
 
-            if (msg.type === "hub:status") {
-                this.status_received = true
-                this.agent_online = Boolean(msg.agent_connected)
-                if (this.agent_online) {
-                    const resolve = this.resolve_status
-                    this.resolve_status = null
-                    this.reject_status = null
-                    resolve?.()
-                } else {
-                    const reject = this.reject_status
-                    this.resolve_status = null
-                    this.reject_status = null
-                    reject?.(new Error("No agent connected for this token"))
-                }
-                return
+    private handle_agent_online(): void {
+        for (const [session_id, entry] of Array.from(this.sessions)) {
+            if (!entry.survive_agent_offline) continue
+            const params = entry.get_reattach_params?.()
+            if (!params) continue
+            this.send_json({
+                type: "pty:attach",
+                session_id,
+                cols: params.cols,
+                rows: params.rows,
+                ...(typeof params.offset === "number" ? { offset: params.offset } : {})
+            })
+        }
+    }
+
+    private handle_message(raw_msg: Record<string, unknown>): void {
+        const msg = raw_msg as {
+            type?: string
+            session_id?: string
+            req_id?: string
+            code?: number
+            signal?: number
+            error?: string
+            reason?: string
+            bytes?: number
+            reset?: boolean
+            offset?: number
+            sessions?: PtySessionInfo[]
+            killed?: boolean
+            updated?: boolean
+        }
+
+        if (msg.type === "pty:list_res" && msg.req_id) {
+            const rpc = this.pending_rpcs.get(msg.req_id)
+            if (rpc) {
+                clearTimeout(rpc.timer)
+                this.pending_rpcs.delete(msg.req_id)
+                rpc.resolve((msg as PtyListResMessage).sessions)
             }
+            return
+        }
 
-            if (msg.type === "hub:agent_offline") {
-                this.agent_online = false
-                this.fail_pending_rpcs(new Error("Agent disconnected"))
-                for (const [session_id, entry] of Array.from(this.sessions)) {
-                    if (entry.survive_agent_offline) {
-                        entry.on_agent_offline?.()
-                    } else {
-                        this.sessions.delete(session_id)
-                        entry.on_error(new Error("Agent disconnected"))
-                    }
-                }
-                return
+        if (msg.type === "pty:kill_res" && msg.req_id) {
+            const rpc = this.pending_rpcs.get(msg.req_id)
+            if (rpc) {
+                clearTimeout(rpc.timer)
+                this.pending_rpcs.delete(msg.req_id)
+                void (msg as PtyKillResMessage)
+                rpc.resolve(undefined)
             }
+            return
+        }
 
-            if (msg.type === "hub:agent_online") {
-                if (!this.status_received) return
-                this.agent_online = true
-                const resolve = this.resolve_status
-                this.resolve_status = null
-                this.reject_status = null
-                resolve?.()
-                for (const [session_id, entry] of Array.from(this.sessions)) {
-                    if (!entry.survive_agent_offline) continue
-                    const params = entry.get_reattach_params?.()
-                    if (!params) continue
-                    this.send_json({
-                        type: "pty:attach",
-                        session_id,
-                        cols: params.cols,
-                        rows: params.rows,
-                        ...(typeof params.offset === "number" ? { offset: params.offset } : {})
-                    })
-                }
-                return
+        if (msg.type === "pty:update_res" && msg.req_id) {
+            const rpc = this.pending_rpcs.get(msg.req_id)
+            if (rpc) {
+                clearTimeout(rpc.timer)
+                this.pending_rpcs.delete(msg.req_id)
+                void (msg as PtyUpdateResMessage)
+                rpc.resolve(undefined)
             }
+            return
+        }
 
-            if (msg.type === "pty:list_res" && msg.req_id) {
-                const rpc = this.pending_rpcs.get(msg.req_id)
-                if (rpc) {
-                    clearTimeout(rpc.timer)
-                    this.pending_rpcs.delete(msg.req_id)
-                    rpc.resolve((msg as PtyListResMessage).sessions)
-                }
-                return
-            }
+        if (!msg.session_id) return
+        const entry = this.sessions.get(msg.session_id)
+        if (!entry) return
 
-            if (msg.type === "pty:kill_res" && msg.req_id) {
-                const rpc = this.pending_rpcs.get(msg.req_id)
-                if (rpc) {
-                    clearTimeout(rpc.timer)
-                    this.pending_rpcs.delete(msg.req_id)
-                    void (msg as PtyKillResMessage)
-                    rpc.resolve(undefined)
-                }
-                return
-            }
+        if (msg.type === "pty:replay" && typeof msg.bytes === "number") {
+            entry.on_replay({
+                bytes: msg.bytes,
+                reset: msg.reset !== false,
+                offset: typeof msg.offset === "number" ? msg.offset : undefined
+            })
+            return
+        }
 
-            if (msg.type === "pty:update_res" && msg.req_id) {
-                const rpc = this.pending_rpcs.get(msg.req_id)
-                if (rpc) {
-                    clearTimeout(rpc.timer)
-                    this.pending_rpcs.delete(msg.req_id)
-                    void (msg as PtyUpdateResMessage)
-                    rpc.resolve(undefined)
-                }
-                return
-            }
+        if (msg.type === "pty:exit") {
+            this.sessions.delete(msg.session_id)
+            entry.on_exit({ code: msg.code ?? 0, signal: msg.signal ?? 0 })
+            return
+        }
 
-            if (!msg.session_id) return
-            const entry = this.sessions.get(msg.session_id)
-            if (!entry) return
+        if (msg.type === "pty:error") {
+            this.sessions.delete(msg.session_id)
+            entry.on_error(new PtySessionError(msg.error || "PTY session failed"))
+            return
+        }
 
-            if (msg.type === "pty:replay" && typeof msg.bytes === "number") {
-                entry.on_replay({
-                    bytes: msg.bytes,
-                    reset: msg.reset !== false,
-                    offset: typeof msg.offset === "number" ? msg.offset : undefined
-                })
-                return
-            }
-
-            if (msg.type === "pty:exit") {
-                this.sessions.delete(msg.session_id)
-                entry.on_exit({ code: msg.code ?? 0, signal: msg.signal ?? 0 })
-                return
-            }
-
-            if (msg.type === "pty:error") {
-                this.sessions.delete(msg.session_id)
-                entry.on_error(new PtySessionError(msg.error || "PTY session failed"))
-                return
-            }
-
-            if (msg.type === "pty:detached") {
-                this.sessions.delete(msg.session_id)
-                entry.on_detached(msg.reason || PTY_CALLER_REPLACED_REASON)
-            }
-        } catch {
-            // Ignore malformed JSON
+        if (msg.type === "pty:detached") {
+            this.sessions.delete(msg.session_id)
+            entry.on_detached(msg.reason || PTY_CALLER_REPLACED_REASON)
         }
     }
 
@@ -460,11 +349,7 @@ export class PtyMuxClient {
         if (this.keep_alive || this.leases > 0 || this.sessions.size > 0 || this.pending_rpcs.size > 0) {
             return
         }
-        const client = this.client
-        this.client = null
-        this.status_received = false
-        this.agent_online = false
-        client?.close(1000, "PTY client idle")
+        this.transport.close("PTY client idle")
     }
 }
 

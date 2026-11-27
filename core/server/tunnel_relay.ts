@@ -99,8 +99,18 @@ export class TunnelRelay {
             })
         })
 
-        server.addEventListener("close", () => this.cleanup_caller(token, client_id))
-        server.addEventListener("error", () => this.cleanup_caller(token, client_id))
+        server.addEventListener("close", () => {
+            this.cleanup_caller(token, client_id)
+            try {
+                server.close()
+            } catch {}
+        })
+        server.addEventListener("error", () => {
+            this.cleanup_caller(token, client_id)
+            try {
+                server.close()
+            } catch {}
+        })
 
         return new Response(null, { status: 101, webSocket: client })
     }

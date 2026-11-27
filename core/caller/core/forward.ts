@@ -1,6 +1,6 @@
 import { HUB_ROUTES } from "@/protocol"
 import { SESSION_ID_BYTES, decode_forward_frame, encode_forward_frame } from "@/transport/framing"
-import { build_ws_url, WsClient } from "@/transport/ws"
+import { HubTunnelClient } from "./tunnel_client"
 
 const FORWARD_PING_INTERVAL_MS = 20_000
 /** Three missed pongs, matching the agent heartbeat. A half-open tunnel reconnects instead of blackholing. */
@@ -30,64 +30,44 @@ export interface ForwardMuxOptions {
  * remote ports to share a single Caller<->Hub WebSocket connection.
  */
 export class ForwardMuxClient {
-    private readonly hub_url: string
-    private readonly token: string
     private readonly keep_alive: boolean
-    private readonly default_timeout_ms: number
     private readonly tunnels = new Map<string, ForwardTunnelRegistration>()
-
-    private client: WsClient | null = null
-    private connect_promise: Promise<void> | null = null
-    private resolve_status: (() => void) | null = null
-    private reject_status: ((err: Error) => void) | null = null
-    private status_received = false
-    private has_ever_connected = false
-    private agent_online = false
-    private attached = false
+    private readonly transport: HubTunnelClient
 
     public constructor(options: ForwardMuxOptions) {
-        this.hub_url = options.hub_url
-        this.token = options.token
         this.keep_alive = Boolean(options.keep_alive)
-        this.default_timeout_ms = options.timeout_ms ?? 10_000
+        this.transport = new HubTunnelClient({
+            hub_url: options.hub_url,
+            path: HUB_ROUTES.WS_FORWARD.path,
+            token: options.token,
+            reconnect: true,
+            ping_interval_ms: FORWARD_PING_INTERVAL_MS,
+            idle_timeout_ms: FORWARD_IDLE_TIMEOUT_MS,
+            default_timeout_ms: options.timeout_ms,
+            on_json: (msg) => this.handle_message(msg),
+            on_binary: (bytes) => {
+                const decoded = decode_forward_frame(bytes)
+                if (!decoded) return
+                this.tunnels.get(decoded.session_id)?.on_data(decoded.conn_id, decoded.payload)
+            },
+            on_agent_offline: () => {
+                this.notify_disconnect("agent disconnected")
+            },
+            on_drop: (info) => {
+                this.notify_disconnect(info.reason || "forward session disconnected")
+            },
+            create_abort_error: () => new Error("Connection aborted"),
+            create_closed_error: () => new Error("Forward client closed"),
+            create_drop_error: (info) => new Error(info.reason || "forward session disconnected")
+        })
     }
 
     public get is_attached(): boolean {
-        return this.attached
+        return this.transport.is_ready
     }
 
     public async ensure_connected(signal?: AbortSignal, timeout_ms?: number): Promise<void> {
-        if (this.attached) return
-
-        if (signal?.aborted) {
-            throw new Error("Connection aborted")
-        }
-
-        if (!this.connect_promise) {
-            this.connect_promise = this.open_transport(timeout_ms ?? this.default_timeout_ms).finally(() => {
-                this.connect_promise = null
-            })
-        }
-
-        if (!signal) {
-            await this.connect_promise
-            return
-        }
-
-        await new Promise<void>((resolve, reject) => {
-            const on_abort = () => reject(new Error("Connection aborted"))
-            signal.addEventListener("abort", on_abort, { once: true })
-            this.connect_promise!.then(
-                () => {
-                    signal.removeEventListener("abort", on_abort)
-                    resolve()
-                },
-                (err) => {
-                    signal.removeEventListener("abort", on_abort)
-                    reject(err)
-                }
-            )
-        })
+        await this.transport.ensure_connected(signal, timeout_ms)
     }
 
     public register_tunnel(reg: ForwardTunnelRegistration): void {
@@ -101,7 +81,7 @@ export class ForwardMuxClient {
 
     public unregister_tunnel(session_id: string): void {
         const had = this.tunnels.delete(session_id)
-        if (had && this.attached) {
+        if (had && this.is_attached) {
             this.send_json({ type: "forward:session_end", session_id })
         }
         if (this.tunnels.size === 0 && !this.keep_alive) {
@@ -110,156 +90,41 @@ export class ForwardMuxClient {
     }
 
     public send_json(data: unknown): void {
-        if (!this.attached) return
-        this.client?.send_json(data)
+        this.transport.send_json(data)
     }
 
     public send_binary(data: Uint8Array): void {
-        if (!this.attached) return
-        this.client?.send_binary(data)
+        this.transport.send_binary(data)
     }
 
     public close(): void {
-        this.attached = false
-        this.agent_online = false
-        this.status_received = false
-        const reject = this.reject_status
-        this.resolve_status = null
-        this.reject_status = null
-        reject?.(new Error("Forward client closed"))
-
-        const client = this.client
-        this.client = null
-        client?.close(1000, "Client stopped port forward")
-
-        for (const reg of Array.from(this.tunnels.values())) {
-            reg.on_disconnect("forward session closed")
-        }
+        this.transport.close("Client stopped port forward")
+        this.notify_disconnect("forward session closed")
     }
 
-    private async open_transport(timeout_ms: number): Promise<void> {
-        this.status_received = false
-        this.agent_online = false
-        this.attached = false
-
-        const status_promise = new Promise<void>((resolve, reject) => {
-            this.resolve_status = resolve
-            this.reject_status = reject
-        })
-        status_promise.catch(() => {})
-
-        const client = new WsClient({
-            url: build_ws_url(this.hub_url, HUB_ROUTES.WS_FORWARD.path, this.token),
-            connect_timeout_ms: timeout_ms,
-            ping_interval_ms: FORWARD_PING_INTERVAL_MS,
-            idle_timeout_ms: FORWARD_IDLE_TIMEOUT_MS,
-            reconnect: true,
-            on_close: (event) => {
-                this.handle_transport_drop(event.reason || "forward session disconnected")
-            },
-            on_dead: (reason) => {
-                this.handle_transport_drop(reason || "forward session disconnected")
-            },
-            on_message: (data) => {
-                this.handle_message(data)
-            },
-            on_binary: (bytes) => {
-                const decoded = decode_forward_frame(bytes)
-                if (!decoded) return
-                this.tunnels.get(decoded.session_id)?.on_data(decoded.conn_id, decoded.payload)
-            }
-        })
-
-        this.client = client
-        try {
-            await client.connect()
-            await status_promise
-        } catch (err) {
-            if (this.client === client && !this.has_ever_connected) {
-                this.client = null
-                client.close(1000, "Forward connect failed")
-            }
-            throw err
-        }
-    }
-
-    private handle_transport_drop(reason: string): void {
-        this.attached = false
-        this.agent_online = false
-        this.status_received = false
-
-        const reject = this.reject_status
-        this.resolve_status = null
-        this.reject_status = null
-        reject?.(new Error(reason))
-
+    private notify_disconnect(reason: string): void {
         for (const reg of Array.from(this.tunnels.values())) {
             reg.on_disconnect(reason)
         }
     }
 
-    private handle_message(data: string): void {
-        try {
-            const msg = JSON.parse(data) as {
-                type?: string
-                agent_connected?: boolean
-                session_id?: string
-                conn_id?: number
-                reason?: string
-                error?: string
-            }
+    private handle_message(raw_msg: Record<string, unknown>): void {
+        const msg = raw_msg as {
+            type?: string
+            session_id?: string
+            conn_id?: number
+            reason?: string
+            error?: string
+        }
 
-            if (msg.type === "hub:status") {
-                this.status_received = true
-                this.agent_online = Boolean(msg.agent_connected)
-                this.attached = this.agent_online
-                if (this.agent_online) {
-                    this.has_ever_connected = true
-                    const resolve = this.resolve_status
-                    this.resolve_status = null
-                    this.reject_status = null
-                    resolve?.()
-                } else if (!this.has_ever_connected) {
-                    const reject = this.reject_status
-                    this.resolve_status = null
-                    this.reject_status = null
-                    reject?.(new Error("No agent connected for this token"))
-                }
-                return
+        if (msg.session_id && typeof msg.conn_id === "number") {
+            const reg = this.tunnels.get(msg.session_id)
+            if (!reg) return
+            if (msg.type === "forward:close") {
+                reg.on_close(msg.conn_id, msg.reason)
+            } else if (msg.type === "forward:error") {
+                reg.on_error(msg.conn_id, msg.error || "Unknown remote socket error")
             }
-
-            if (msg.type === "hub:agent_online") {
-                if (!this.status_received) return
-                this.agent_online = true
-                this.attached = true
-                this.has_ever_connected = true
-                const resolve = this.resolve_status
-                this.resolve_status = null
-                this.reject_status = null
-                resolve?.()
-                return
-            }
-
-            if (msg.type === "hub:agent_offline") {
-                this.agent_online = false
-                this.attached = false
-                for (const reg of Array.from(this.tunnels.values())) {
-                    reg.on_disconnect("agent disconnected")
-                }
-                return
-            }
-
-            if (msg.session_id && typeof msg.conn_id === "number") {
-                const reg = this.tunnels.get(msg.session_id)
-                if (!reg) return
-                if (msg.type === "forward:close") {
-                    reg.on_close(msg.conn_id, msg.reason)
-                } else if (msg.type === "forward:error") {
-                    reg.on_error(msg.conn_id, msg.error || "Unknown remote socket error")
-                }
-            }
-        } catch {
-            // Ignore malformed JSON
         }
     }
 }

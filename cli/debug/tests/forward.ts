@@ -1,6 +1,7 @@
+import crypto from "node:crypto"
 import http from "node:http"
 import type { Socket } from "node:net"
-import { RexecCaller } from "@/caller"
+import { ForwardMuxClient, open_forward_tunnel, RexecCaller } from "@/caller"
 import { run_port_forward } from "@/caller/terminal/forward"
 import { DEBUG_TOKEN, read_debug_config, record_history } from "./helpers"
 
@@ -40,22 +41,59 @@ async function run(): Promise<void> {
         new Promise<void>((resolve) => target_server_2.listen(REMOTE_PORT_2, "127.0.0.1", () => resolve()))
     ])
 
+    const started_at = Date.now()
     const abort_controller = new AbortController()
     console.log(
         `[test:forward] Launching port forwards ${LOCAL_PORT} -> ${REMOTE_PORT} & ${LOCAL_PORT_2} -> ${REMOTE_PORT_2}...`
     )
 
+    let mark_ready_1!: () => void
+    let mark_ready_2!: () => void
+    const ready_1 = new Promise<void>((resolve) => {
+        mark_ready_1 = resolve
+    })
+    const ready_2 = new Promise<void>((resolve) => {
+        mark_ready_2 = resolve
+    })
+
     const forward_promise = run_port_forward(caller, LOCAL_PORT, REMOTE_PORT, {
-        signal: abort_controller.signal
+        signal: abort_controller.signal,
+        on_ready: () => mark_ready_1()
     })
     const forward_promise_2 = run_port_forward(caller, LOCAL_PORT_2, REMOTE_PORT_2, {
-        signal: abort_controller.signal
+        signal: abort_controller.signal,
+        on_ready: () => mark_ready_2()
     })
+    forward_promise.catch(() => {})
+    forward_promise_2.catch(() => {})
 
-    // Wait a moment for forward server to bind
-    await new Promise((r) => setTimeout(r, 800))
-
+    let exit_code = 0
     try {
+        const startup_timeout_ms = 15_000
+        let startup_timer: ReturnType<typeof setTimeout> | null = null
+        try {
+            await Promise.race([
+                Promise.all([ready_1, ready_2]),
+                forward_promise.then(() => {
+                    throw new Error("Forward tunnel 1 exited before becoming ready")
+                }),
+                forward_promise_2.then(() => {
+                    throw new Error("Forward tunnel 2 exited before becoming ready")
+                }),
+                new Promise<never>((_, reject) => {
+                    startup_timer = setTimeout(
+                        () =>
+                            reject(
+                                new Error(`Timed out waiting for forward servers to bind after ${startup_timeout_ms}ms`)
+                            ),
+                        startup_timeout_ms
+                    )
+                })
+            ])
+        } finally {
+            if (startup_timer) clearTimeout(startup_timer)
+        }
+
         console.log(`[test:forward] Testing GET http://127.0.0.1:${LOCAL_PORT}/hello...`)
         const res1 = await fetch(`http://127.0.0.1:${LOCAL_PORT}/hello`)
         if (!res1.ok) {
@@ -109,34 +147,46 @@ async function run(): Promise<void> {
         await wait_until_forward_responds(LOCAL_PORT_2, "/reconnect-check")
         console.log(`✓ Both tunnels shared 1 WS and recovered after WebSocket drop`)
 
+        abort_controller.abort()
+        await Promise.allSettled([forward_promise, forward_promise_2])
+        await wait_for_hub_sockets(hub, (count) => count === 0)
+
+        console.log(`[test:forward] Verifying ensure_connected during backoff keeps a single Hub socket...`)
+        await verify_backoff_single_socket(config.hub_url, hub, REMOTE_PORT)
+        console.log(`✓ Reconnecting during backoff kept exactly 1 shared Hub socket`)
+
+        console.log(`[test:forward] Verifying timeout when Hub omits initial hub:status...`)
+        await verify_missing_status_timeout()
+        console.log(`✓ Forward connect timed out cleanly when hub:status was never received`)
+
         record_history({
             test_name: "port_forward",
             command: `rexec forward ${LOCAL_PORT}:${REMOTE_PORT}`,
             verdict: "PASS",
             exit_code: 0,
-            duration_ms: 1200
+            duration_ms: Date.now() - started_at
         })
 
         console.log("\n======================================================")
         console.log("ALL PORT FORWARD TESTS PASSED!")
         console.log("======================================================\n")
     } catch (err) {
+        exit_code = 1
         record_history({
             test_name: "port_forward",
             command: `rexec forward ${LOCAL_PORT}:${REMOTE_PORT}`,
             verdict: "FAIL",
             exit_code: 1,
-            duration_ms: 1200,
+            duration_ms: Date.now() - started_at,
             error_message: (err as Error).message
         })
         console.error(`[test:forward failed]`, err)
-        process.exit(1)
     } finally {
         abort_controller.abort()
         target_server.close()
         target_server_2.close()
         await Promise.allSettled([forward_promise, forward_promise_2])
-        process.exit(0)
+        process.exit(exit_code)
     }
 }
 
@@ -191,6 +241,88 @@ async function wait_until_forward_responds(local_port: number, path: string): Pr
         await new Promise((resolve) => setTimeout(resolve, 250))
     }
     throw new Error(`Tunnel on port ${local_port} did not recover after reconnect: ${last_error}`)
+}
+
+async function verify_backoff_single_socket(hub_url: string, hub: number, remote_port: number): Promise<void> {
+    const mux = new ForwardMuxClient({ hub_url, token: DEBUG_TOKEN })
+    const t1 = await open_forward_tunnel({ hub_url, token: DEBUG_TOKEN, remote_port, transport: mux })
+    try {
+        await wait_for_hub_sockets(hub, (count) => count === 1)
+        const dropped = drop_hub_sockets(hub)
+        if (dropped !== 1) {
+            throw new Error(`Expected 1 socket to drop for backoff check, dropped ${dropped}`)
+        }
+
+        // Wait until WsClient observes the close and enters backoff (mux.is_attached === false)
+        const deadline = Date.now() + 5_000
+        while (mux.is_attached && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+        if (mux.is_attached) {
+            throw new Error("ForwardMuxClient did not detach after socket drop")
+        }
+
+        const t2 = await open_forward_tunnel({ hub_url, token: DEBUG_TOKEN, remote_port, transport: mux })
+        try {
+            await wait_for_hub_sockets(hub, (count) => count === 1)
+        } finally {
+            t2.close()
+        }
+    } finally {
+        t1.close()
+        mux.close()
+    }
+}
+
+async function verify_missing_status_timeout(): Promise<void> {
+    const sockets = new Set<Socket>()
+    const silent_hub = http.createServer()
+    silent_hub.on("upgrade", (req, socket: Socket) => {
+        sockets.add(socket)
+        socket.on("close", () => sockets.delete(socket))
+        const key = req.headers["sec-websocket-key"]
+        if (typeof key !== "string") {
+            socket.destroy()
+            return
+        }
+        const accept = crypto.createHash("sha1").update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest("base64")
+        socket.write(
+            "HTTP/1.1 101 Switching Protocols\r\n" +
+                "Upgrade: websocket\r\n" +
+                "Connection: Upgrade\r\n" +
+                `Sec-WebSocket-Accept: ${accept}\r\n\r\n`
+        )
+    })
+
+    await new Promise<void>((resolve) => silent_hub.listen(0, "127.0.0.1", () => resolve()))
+    const address = silent_hub.address()
+    if (!address || typeof address === "string") {
+        silent_hub.close()
+        throw new Error("Failed to bind silent mock hub")
+    }
+
+    const silent_caller = new RexecCaller({
+        hub_url: `http://127.0.0.1:${address.port}`,
+        token: DEBUG_TOKEN
+    })
+    const started = Date.now()
+    try {
+        await silent_caller.forward(18989, { timeout_ms: 250 })
+        throw new Error("Expected forward connect to time out without hub:status")
+    } catch (err) {
+        const message = (err as Error).message
+        const elapsed = Date.now() - started
+        if (!message.includes("hub:status")) {
+            throw new Error(`Expected hub:status timeout error, got: ${message}`)
+        }
+        if (elapsed > 2000) {
+            throw new Error(`Expected fast hub:status timeout, took ${elapsed}ms`)
+        }
+    } finally {
+        silent_caller.close()
+        for (const socket of sockets) socket.destroy()
+        silent_hub.close()
+    }
 }
 
 run().catch((err) => {

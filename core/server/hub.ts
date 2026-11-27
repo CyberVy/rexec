@@ -200,10 +200,16 @@ export class RexecHub extends DurableObject {
 
         server.addEventListener("close", () => {
             this.cleanup_agent_channel(token, channel, server, "Agent disconnected unexpectedly")
+            try {
+                server.close()
+            } catch {}
         })
 
         server.addEventListener("error", () => {
             this.cleanup_agent_channel(token, channel, server, "Agent connection error")
+            try {
+                server.close()
+            } catch {}
         })
 
         return new Response(null, { status: 101, webSocket: client })

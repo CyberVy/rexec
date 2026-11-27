@@ -97,7 +97,7 @@ async function run(): Promise<void> {
         ...process.env,
         HOME: DEBUG_DIR,
         FORCE_COLOR: "0",
-        WRANGLER_LOG: "none",
+        WRANGLER_LOG: "log",
         WRANGLER_HOME: path.join(DEBUG_DIR, "wrangler"),
         XDG_CONFIG_HOME: path.join(DEBUG_DIR, "wrangler-config"),
         XDG_DATA_HOME: path.join(DEBUG_DIR, "wrangler-data")

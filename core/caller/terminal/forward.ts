@@ -4,6 +4,7 @@ import { format_bytes } from "./ui"
 
 export interface ForwardOptions {
     signal?: AbortSignal
+    on_ready?: (info: { local_port: number; remote_port: number }) => void
 }
 
 export async function run_port_forward(
@@ -80,17 +81,24 @@ export async function run_port_forward(
         })
     })
 
-    await new Promise<void>((resolve, reject) => {
-        server.on("error", (err) => {
-            reject(err)
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const on_listen_error = (err: Error) => reject(err)
+            server.once("error", on_listen_error)
+            server.listen(local_port, "127.0.0.1", () => {
+                server.off("error", on_listen_error)
+                resolve()
+            })
         })
+    } catch (err) {
+        tunnel.close()
+        throw err
+    }
 
-        server.listen(local_port, "127.0.0.1", () => {
-            resolve()
-        })
-    })
-
+    let stopped = false
     const shutdown = () => {
+        if (stopped) return
+        stopped = true
         console.log(`\n[rexec forward] Stopping forward server...`)
         for (const [, item] of active_sockets) {
             item.socket.destroy()
@@ -104,21 +112,30 @@ export async function run_port_forward(
         tunnel.close()
     }
 
-    if (options?.signal) {
-        options.signal.addEventListener("abort", shutdown, { once: true })
+    const on_process_signal = () => {
+        shutdown()
+        process.exit(0)
     }
 
-    process.on("SIGINT", () => {
+    if (options?.signal?.aborted) {
         shutdown()
-        process.exit(0)
-    })
-    process.on("SIGTERM", () => {
-        shutdown()
-        process.exit(0)
-    })
+        return
+    }
 
-    // Keep running until signal aborts or server closes
-    await new Promise<void>((resolve) => {
-        server.on("close", resolve)
-    })
+    options?.signal?.addEventListener("abort", shutdown, { once: true })
+    process.on("SIGINT", on_process_signal)
+    process.on("SIGTERM", on_process_signal)
+
+    options?.on_ready?.({ local_port, remote_port })
+
+    try {
+        // Keep running until signal aborts or server closes
+        await new Promise<void>((resolve) => {
+            server.once("close", resolve)
+        })
+    } finally {
+        options?.signal?.removeEventListener("abort", shutdown)
+        process.off("SIGINT", on_process_signal)
+        process.off("SIGTERM", on_process_signal)
+    }
 }
