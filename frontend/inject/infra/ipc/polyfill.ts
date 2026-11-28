@@ -15,6 +15,7 @@ declare global {
          *  - Desktop: src-tauri/src/commands/message.rs (post_message_to_webview -> eval)
          */
         __tauri_ipc_dispatch_message_event?: (message: any, senderLabel: string) => void
+        __tauri_popup_polyfill_initialized?: boolean
         __TAURI_OPENER_LABEL__?: string
     }
 }
@@ -33,6 +34,9 @@ function dispatch_message_event(message: unknown, sender_label: string) {
 }
 
 export function setup_tauri_popup_polyfill() {
+    if (window.__tauri_popup_polyfill_initialized) return
+    window.__tauri_popup_polyfill_initialized = true
+
     init_ios_ipc_runtime()
 
     // Unconditionally register the receive helper for desktop Rust eval routing

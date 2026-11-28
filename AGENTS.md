@@ -175,7 +175,7 @@ The client-side persistence layer (`LocalForage` / IndexedDB) adheres to a stric
 - Constants: `SCREAMING_SNAKE_CASE` for module-level immutable values / semantic constants; use `snake_case` for local values and function bindings.
 - Type imports: use `import type` when importing only types.
 - Path aliases: prefer `@/` for imports within `frontend/`, and `@core/` for imports from `core/`.
-- WebView injection scripts: entry point is `src-tauri/src/inject.ts` (source) and `src-tauri/src/inject.js` (compiled output). Sub-modules under `frontend/inject/` may use `*.inject.ts` naming.
+- WebView injection scripts: entry point is `frontend/inject/index.ts`, bundled via Vite's `virtual:inject` plugin and registered at startup through native `set_runtime_inject_script`. Sub-modules under `frontend/inject/` may use `*.inject.ts` naming.
 - Type Definitions: Follow the proximity principle (define types close to where they are used). Avoid creating separate type files (like `types.ts` or `*.types.ts`) unless the type declarations are highly complex or repeatedly reused across multiple files.
 - Descriptive Naming: All variable, function, component, and file names must clearly reflect their purpose and responsibility. Use readable, self-explanatory names and strictly avoid generic, vague, or obscure names (e.g. prefer `is_sidebar_open` over `temp` or `flag`).
 - External Naming: Preserve names required by external APIs, framework contracts, serialized payloads, and implemented or overridden interfaces.

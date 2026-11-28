@@ -78,14 +78,14 @@ function service_worker_plugin(): Plugin {
     }
 }
 
-function inject_core_plugin(): Plugin {
-    const virtual_id = "virtual:inject-core"
+function inject_plugin(): Plugin {
+    const virtual_id = "virtual:inject"
     const resolved_virtual_id = `\0${virtual_id}`
     let dev_ctx: BuildContext | null = null
     let is_dev = false
 
     const build_options = (minify: boolean) => ({
-        entryPoints: [path.resolve(import.meta.dirname, "frontend/inject/core/index.ts")],
+        entryPoints: [path.resolve(import.meta.dirname, "frontend/inject/index.ts")],
         bundle: true,
         format: "iife" as const,
         target: "esnext",
@@ -95,7 +95,7 @@ function inject_core_plugin(): Plugin {
     })
 
     return {
-        name: "inject-core-plugin",
+        name: "inject-plugin",
         configResolved(config) {
             is_dev = config.command === "serve"
         },
@@ -148,7 +148,7 @@ export default defineConfig({
     plugins: [
         debug_bridge_plugin(),
         service_worker_plugin(),
-        inject_core_plugin(),
+        inject_plugin(),
         react({
             compiler: true
         })

@@ -71,6 +71,8 @@ dependencies = [
  "base64 0.22.1",
  "log",
  "objc2",
+ "objc2-foundation",
+ "objc2-web-kit",
  "reqwest",
  "serde",
  "serde_json",
@@ -78,6 +80,9 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-log",
  "tauri-plugin-window-state",
+ "webkit2gtk",
+ "webview2-com",
+ "windows-core",
 ]
 
 [[package]]

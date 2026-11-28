@@ -14,7 +14,7 @@ declare const process: {
     }
 }
 
-declare module "virtual:inject-core" {
+declare module "virtual:inject" {
     const script: string
     export default script
 }

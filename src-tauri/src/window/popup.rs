@@ -59,7 +59,7 @@ where
         );
         webview_builder = webview_builder.initialization_script(&label_script);
 
-        // Apply default webview settings (including inject_infra and active runtime inject script)
+        // Apply default webview settings (including the active runtime inject script)
         let webview_builder =
             match crate::webview::apply_default_webview_settings(&app, webview_builder) {
                 Ok(configured_builder) => configured_builder,

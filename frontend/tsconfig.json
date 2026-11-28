@@ -20,5 +20,5 @@
             "@core/*": ["../core/*"]
         }
     },
-    "include": ["./**/*.ts", "./**/*.tsx", "../src-tauri/src/inject.ts", "../cli/debug/browser/**/*.ts"]
+    "include": ["./**/*.ts", "./**/*.tsx", "../cli/debug/browser/**/*.ts"]
 }

@@ -42,6 +42,38 @@ pub async fn apply_runtime_inject_script<R: Runtime>(
     let marked_script = format_marked_script(raw_script);
     state.set_script(marked_script.clone());
 
+    register_platform_user_script(webview, state, marked_script.clone()).await?;
+
+    if let Some(script) = marked_script {
+        eval_in_current_webview(webview, script).await?;
+    }
+
+    Ok(())
+}
+
+async fn eval_in_current_webview<R: Runtime>(
+    webview: &Webview<R>,
+    script: String,
+) -> Result<(), String> {
+    let (tx, mut rx) = tauri::async_runtime::channel::<()>(1);
+    webview
+        .eval_with_callback(format!("{script}\n;undefined;"), move |_| {
+            let _ = tx.try_send(());
+        })
+        .map_err(|e| e.to_string())?;
+    rx.recv()
+        .await
+        .ok_or_else(|| "Runtime inject script evaluation was cancelled".to_string())
+}
+
+async fn register_platform_user_script<R: Runtime>(
+    webview: &Webview<R>,
+    state: &RuntimeInjectState,
+    marked_script: Option<String>,
+) -> Result<(), String> {
+    #[cfg(not(target_os = "windows"))]
+    let _ = state;
+
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
         apply_apple_runtime_script(webview, marked_script).await

@@ -7,7 +7,7 @@ import { register_runtime_inject_script } from "@/infra/runtime_inject"
 async function init_runtime_inject(): Promise<void> {
     if (!is_in_native()) return
     try {
-        const { default: script } = await import("virtual:inject-core")
+        const { default: script } = await import("virtual:inject")
         await register_runtime_inject_script(script)
     } catch (err) {
         console.warn("Failed to load runtime inject bundle", err)

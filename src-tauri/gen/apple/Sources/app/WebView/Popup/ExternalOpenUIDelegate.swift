@@ -82,7 +82,7 @@ final class ExternalOpenUIDelegate: NSObject, WKUIDelegate {
         let popupId = "popup_" + String(UUID().uuidString.prefix(8))
         let parentId = webView.webviewId ?? "main"
 
-        // Clone main's user scripts (Tauri init + Rust's inject.js), then override the label for this popup.
+        // Clone main's user scripts (Tauri init + registered runtime inject script), then override the label for this popup.
         for script in webView.configuration.userContentController.userScripts {
             popupContentController.addUserScript(script)
         }
