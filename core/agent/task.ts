@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process"
 import path from "node:path"
-import type { AgentToHubMessage, TaskExecMessage, TaskKillMessage } from "@/protocol"
+import type { AgentToHubMessage, TaskExecMessage, TaskKillMessage } from "@core/protocol"
 import { signal_process_tree_until_dead } from "./process_tree"
 
 export class TaskManager {

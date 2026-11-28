@@ -1,9 +1,14 @@
 import crypto from "node:crypto"
 import path from "node:path"
-import type { FileSink, FileSource } from "@/file"
-import { create_node_sink, create_node_source } from "@/file/adapters/node"
-import type { AgentToHubMessage, FilePullStartMessage, FilePushStartMessage, TransferErrorMessage } from "@/protocol"
-import { decode_transfer_frame, encode_transfer_frame } from "@/transport"
+import type { FileSink, FileSource } from "@core/file"
+import { create_node_sink, create_node_source } from "@core/file/adapters/node"
+import type {
+    AgentToHubMessage,
+    FilePullStartMessage,
+    FilePushStartMessage,
+    TransferErrorMessage
+} from "@core/protocol"
+import { decode_transfer_frame, encode_transfer_frame } from "@core/transport"
 
 export class TransferManager {
     private active_pulls: Map<string, { source: FileSource }> = new Map()

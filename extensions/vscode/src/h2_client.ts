@@ -1,6 +1,6 @@
 import * as http2 from "node:http2"
 import type * as vscode from "vscode"
-import type { HubStatus } from "@/caller"
+import type { HubStatus } from "@core/caller"
 
 export class H2StatusClient implements vscode.Disposable {
     private session: http2.ClientHttp2Session | null = null

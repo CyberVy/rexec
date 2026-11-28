@@ -11,8 +11,8 @@ import {
     type PtyResizeMessage,
     type PtySessionInfo,
     type PtyUpdateMessage
-} from "@/protocol"
-import { encode_pty_frame } from "@/transport"
+} from "@core/protocol"
+import { encode_pty_frame } from "@core/transport"
 import { load_pty_binding, type PtyBinding } from "./pty_binding"
 import { PtyProcess, type PtyExitStatus, type PtyHandle, type PtySpawnOptions } from "./pty_session"
 import { PtyRingBuffer } from "./ring_buffer"

@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process"
 import net from "node:net"
 import path from "node:path"
-import { RexecCaller } from "@/caller"
-import { parse_cli_args } from "@/caller/terminal/args"
-import { run_tty } from "@/caller/terminal/tty"
+import { RexecCaller } from "@core/caller"
+import { parse_cli_args } from "@core/caller/terminal/args"
+import { run_tty } from "@core/caller/terminal/tty"
 import { CLI_BIN, DEBUG_TOKEN, read_debug_config, record_history, repo_root } from "./helpers"
 
 interface ActiveSocketHandle {

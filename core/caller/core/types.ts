@@ -4,7 +4,7 @@ export interface CallerOptions {
     keep_alive?: boolean
 }
 
-export { HUB_ROUTES } from "@/protocol"
+export { HUB_ROUTES } from "@core/protocol"
 export type {
     AgentChannelName,
     ApiErrorResponse,
@@ -19,7 +19,7 @@ export type {
     HubRoutePath,
     HubStatus,
     PtySessionInfo
-} from "@/protocol"
+} from "@core/protocol"
 
 export interface PtyOptions {
     session_id?: string
@@ -43,4 +43,4 @@ export interface ExecOptions {
     signal?: AbortSignal
 }
 
-export type * from "@/file/types"
+export type * from "@core/file/types"

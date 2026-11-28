@@ -1,5 +1,5 @@
-import type { FileSink, FileSource, PullOptions, PullResult, PushOptions, PushResult } from "@/file/types"
-import { HUB_ROUTES, type ApiErrorResponse, type FilePushResponse } from "@/protocol"
+import type { FileSink, FileSource, PullOptions, PullResult, PushOptions, PushResult } from "@core/file/types"
+import { HUB_ROUTES, type ApiErrorResponse, type FilePushResponse } from "@core/protocol"
 
 /**
  * Fetches a remote file or directory from the Hub and pipes the body to a FileSink.

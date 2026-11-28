@@ -1,6 +1,6 @@
 import * as net from "node:net"
 import * as vscode from "vscode"
-import { RexecCaller, type ForwardTunnelClient } from "@/caller"
+import { RexecCaller, type ForwardTunnelClient } from "@core/caller"
 import type { PortForwardInfo } from "./types"
 
 interface ManagedTunnel {

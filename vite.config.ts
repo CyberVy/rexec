@@ -78,45 +78,6 @@ function service_worker_plugin(): Plugin {
     }
 }
 
-function dual_alias_plugin(): Plugin {
-    const resolve_file = (base_dir: string, sub_path: string) => {
-        const full = path.resolve(import.meta.dirname, base_dir, sub_path)
-        const candidates = [
-            full,
-            full + ".ts",
-            full + ".tsx",
-            full + ".js",
-            full + ".jsx",
-            path.join(full, "index.ts"),
-            path.join(full, "index.tsx")
-        ]
-        for (const c of candidates) {
-            if (fs.existsSync(c) && !fs.statSync(c).isDirectory()) {
-                return c
-            }
-        }
-        return null
-    }
-
-    return {
-        name: "dual-alias-plugin",
-        enforce: "pre",
-        resolveId(source, importer) {
-            if (!source.startsWith("@/")) return null
-            const sub = source.slice(2)
-            if (importer && importer.includes("/core/")) {
-                const in_core = resolve_file("core", sub)
-                if (in_core) return in_core
-            }
-            const in_frontend = resolve_file("frontend", sub)
-            if (in_frontend) return in_frontend
-            const in_core = resolve_file("core", sub)
-            if (in_core) return in_core
-            return null
-        }
-    }
-}
-
 function inject_core_plugin(): Plugin {
     const virtual_id = "virtual:inject-core"
     const resolved_virtual_id = `\0${virtual_id}`
@@ -185,7 +146,6 @@ export default defineConfig({
     root: path.resolve(import.meta.dirname, "frontend/app"),
     publicDir: path.resolve(import.meta.dirname, "public"),
     plugins: [
-        dual_alias_plugin(),
         debug_bridge_plugin(),
         service_worker_plugin(),
         inject_core_plugin(),
@@ -195,6 +155,7 @@ export default defineConfig({
     ],
     resolve: {
         alias: {
+            "@": path.resolve(import.meta.dirname, "./frontend"),
             "@core": path.resolve(import.meta.dirname, "./core")
         }
     },

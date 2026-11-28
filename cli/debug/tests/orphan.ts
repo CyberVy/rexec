@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from "node:child_process"
-import { RexecCaller } from "@/caller"
+import { RexecCaller } from "@core/caller"
 import { DEBUG_TOKEN, print_verdict, read_debug_config, record_history } from "./helpers"
 
 function leaked(marker: string): string[] {

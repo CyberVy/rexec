@@ -1,4 +1,4 @@
-import { build_ws_url, WsClient } from "@/transport/ws"
+import { build_ws_url, WsClient } from "@core/transport/ws"
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000
 

@@ -1,8 +1,8 @@
 import crypto from "node:crypto"
 import http from "node:http"
 import type { Socket } from "node:net"
-import { ForwardMuxClient, open_forward_tunnel, RexecCaller } from "@/caller"
-import { run_port_forward } from "@/caller/terminal/forward"
+import { ForwardMuxClient, open_forward_tunnel, RexecCaller } from "@core/caller"
+import { run_port_forward } from "@core/caller/terminal/forward"
 import { DEBUG_TOKEN, read_debug_config, record_history } from "./helpers"
 
 async function run(): Promise<void> {

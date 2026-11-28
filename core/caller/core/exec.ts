@@ -1,4 +1,4 @@
-import { HUB_ROUTES, type ExecKillRequestPayload, type ExecRequestPayload } from "@/protocol"
+import { HUB_ROUTES, type ExecKillRequestPayload, type ExecRequestPayload } from "@core/protocol"
 import type { ExecOptions } from "./types"
 
 export async function exec_command(

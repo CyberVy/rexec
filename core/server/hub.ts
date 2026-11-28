@@ -8,8 +8,8 @@ import {
     type HubChannelHealth,
     type HubHealthResponse,
     type HubToAgentMessage
-} from "@/protocol"
-import { LINK_PONG_PAYLOAD, is_link_ping } from "@/transport"
+} from "@core/protocol"
+import { LINK_PONG_PAYLOAD, is_link_ping } from "@core/transport"
 import { TaskRelay } from "./task_relay"
 import { TransferRelay } from "./transfer_relay"
 import { TunnelRelay } from "./tunnel_relay"

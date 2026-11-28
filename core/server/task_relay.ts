@@ -6,7 +6,7 @@ import type {
     HubToAgentMessage,
     TaskChunkMessage,
     TaskExitMessage
-} from "@/protocol"
+} from "@core/protocol"
 import { accepted_token, get_cors_headers } from "./utils"
 
 interface ActiveTask {

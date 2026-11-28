@@ -1,5 +1,5 @@
-import { HUB_ROUTES } from "@/protocol"
-import { SESSION_ID_BYTES, decode_forward_frame, encode_forward_frame } from "@/transport/framing"
+import { HUB_ROUTES } from "@core/protocol"
+import { SESSION_ID_BYTES, decode_forward_frame, encode_forward_frame } from "@core/transport/framing"
 import { HubTunnelClient } from "./tunnel_client"
 
 const FORWARD_PING_INTERVAL_MS = 20_000

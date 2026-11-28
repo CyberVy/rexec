@@ -5,8 +5,8 @@ import {
     type PtyListResMessage,
     type PtySessionInfo,
     type PtyUpdateResMessage
-} from "@/protocol"
-import { SESSION_ID_BYTES, decode_pty_frame, encode_pty_frame } from "@/transport/framing"
+} from "@core/protocol"
+import { SESSION_ID_BYTES, decode_pty_frame, encode_pty_frame } from "@core/transport/framing"
 import { HubTunnelClient, type HubTunnelDropInfo } from "./tunnel_client"
 
 export { PTY_CALLER_REPLACED_REASON }

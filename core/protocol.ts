@@ -1,6 +1,6 @@
 export type StreamType = "stdout" | "stderr"
 
-export { ChannelDomain, TRANSFER_ID_BYTES, FORWARD_HEADER_BYTES, TRANSFER_HEADER_BYTES } from "@/transport/framing"
+export { ChannelDomain, TRANSFER_ID_BYTES, FORWARD_HEADER_BYTES, TRANSFER_HEADER_BYTES } from "@core/transport/framing"
 
 export interface FileMetadata {
     path: string

@@ -1,4 +1,4 @@
-import type { ProgressInfo } from "@/caller"
+import type { ProgressInfo } from "@core/caller"
 
 export function format_bytes(bytes: number): string {
     if (bytes <= 0) return "0 B"

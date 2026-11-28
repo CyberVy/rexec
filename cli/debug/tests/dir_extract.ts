@@ -2,7 +2,7 @@ import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { create_node_sink } from "@/file/adapters/node"
+import { create_node_sink } from "@core/file/adapters/node"
 import { print_verdict, record_history } from "./helpers"
 
 // tar closes stdin as soon as it sees the archive trailer. A later chunk then

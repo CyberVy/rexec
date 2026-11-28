@@ -1,4 +1,4 @@
-import type { HubAgentOfflineMessage, HubAgentOnlineMessage, HubStatusMessage } from "@/protocol"
+import type { HubAgentOfflineMessage, HubAgentOnlineMessage, HubStatusMessage } from "@core/protocol"
 import {
     BROADCAST_CLIENT_ID,
     CLIENT_ID_BYTES,
@@ -8,7 +8,7 @@ import {
     unwrap_client_text,
     wrap_client_binary,
     wrap_client_text
-} from "@/transport"
+} from "@core/transport"
 import { CALLER_IDLE_MS, accepted_token, get_cors_headers, read_ws_bytes } from "./utils"
 
 interface CallerEntry {

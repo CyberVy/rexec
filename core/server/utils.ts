@@ -1,4 +1,4 @@
-import { HUB_ROUTES } from "@/protocol"
+import { HUB_ROUTES } from "@core/protocol"
 
 /** Caller sockets ping about every 20s. Past this, the caller is gone even if the socket never closed. */
 export const CALLER_IDLE_MS = 120_000

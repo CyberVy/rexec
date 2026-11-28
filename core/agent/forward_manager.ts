@@ -1,6 +1,11 @@
 import net from "node:net"
-import type { AgentToHubMessage, ForwardCloseMessage, ForwardOpenMessage, ForwardSessionEndMessage } from "@/protocol"
-import { encode_forward_frame } from "@/transport"
+import type {
+    AgentToHubMessage,
+    ForwardCloseMessage,
+    ForwardOpenMessage,
+    ForwardSessionEndMessage
+} from "@core/protocol"
+import { encode_forward_frame } from "@core/transport"
 
 function scope_key(client_id: string, session_id: string): string {
     return `${client_id}:${session_id}`

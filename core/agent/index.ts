@@ -6,7 +6,7 @@ import {
     type AgentChannelName,
     type AgentToHubMessage,
     type HubToAgentMessage
-} from "@/protocol"
+} from "@core/protocol"
 import {
     WsClient,
     build_ws_url,
@@ -16,7 +16,7 @@ import {
     unwrap_client_text,
     wrap_client_binary,
     wrap_client_text
-} from "@/transport"
+} from "@core/transport"
 import { parse_args } from "./args"
 import { ForwardManager } from "./forward_manager"
 import { PtyManager } from "./pty_manager"

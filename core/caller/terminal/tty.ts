@@ -1,4 +1,4 @@
-import { type PtySessionInfo, type RexecCaller } from "@/caller"
+import { type PtySessionInfo, type RexecCaller } from "@core/caller"
 import { ReplayQueryFilter, ReplayReplyFence, TTY_MODE_RESET, TTY_SCREEN_RESET } from "./tty_replay"
 import { format_bytes } from "./ui"
 

@@ -6,8 +6,8 @@ import type {
     FilePushResponse,
     HubToAgentMessage,
     TransferErrorMessage
-} from "@/protocol"
-import { TRANSFER_ID_BYTES, decode_transfer_frame, encode_transfer_frame } from "@/transport"
+} from "@core/protocol"
+import { TRANSFER_ID_BYTES, decode_transfer_frame, encode_transfer_frame } from "@core/transport"
 import { accepted_token, get_cors_headers } from "./utils"
 
 interface ActivePull {

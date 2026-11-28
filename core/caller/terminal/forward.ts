@@ -1,5 +1,5 @@
 import net from "node:net"
-import type { RexecCaller } from "@/caller"
+import type { RexecCaller } from "@core/caller"
 import { format_bytes } from "./ui"
 
 export interface ForwardOptions {
