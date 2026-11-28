@@ -274,6 +274,7 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
     reset_offset_on_start = true
 }: SwipeGestureParams<TEvent>) {
     let bound_element: HTMLElement | null = null
+    let active_target: Node | null = null
     let touch_start_ref: { x: number; y: number; time: number } | null = null
     let touch_samples: Array<{ x: number; time: number }> = []
     let swipe_start_x: number | null = null
@@ -282,7 +283,40 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
     let current_direction: SwipeDirection = "right"
     let last_diff_x = 0
 
+    const on_detached_touch_move = (event: Event) => {
+        if (!active_target || bound_element?.contains(active_target)) return
+        on_touch_move(event as TEvent)
+    }
+
+    const on_detached_touch_end = (event: Event) => {
+        if (!active_target || bound_element?.contains(active_target)) return
+        on_touch_end(event as TEvent)
+    }
+
+    const on_detached_touch_cancel = (event: Event) => {
+        if (!active_target || bound_element?.contains(active_target)) return
+        on_touch_cancel(event as TEvent)
+    }
+
+    const detach_target_listeners = () => {
+        if (!active_target) return
+        active_target.removeEventListener("touchmove", on_detached_touch_move)
+        active_target.removeEventListener("touchend", on_detached_touch_end)
+        active_target.removeEventListener("touchcancel", on_detached_touch_cancel)
+        active_target = null
+    }
+
+    const attach_target_listeners = (target: EventTarget | null) => {
+        detach_target_listeners()
+        if (!bound_element || !(target instanceof Node) || target === bound_element) return
+        active_target = target
+        target.addEventListener("touchmove", on_detached_touch_move, { passive: false })
+        target.addEventListener("touchend", on_detached_touch_end, { passive: true })
+        target.addEventListener("touchcancel", on_detached_touch_cancel, { passive: true })
+    }
+
     const reset_swipe = () => {
+        detach_target_listeners()
         touch_start_ref = null
         touch_samples = []
         swipe_start_x = null
@@ -291,9 +325,21 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
         last_diff_x = 0
     }
 
+    const reject_swipe = () => {
+        detach_target_listeners()
+        phase = "rejected"
+    }
+
     const apply_propagation = (event: TEvent) => {
         const should_stop = typeof stop_propagation === "function" ? stop_propagation(event) : stop_propagation
-        if (should_stop && typeof event.stopPropagation === "function") {
+        if (!should_stop) return
+        if (active_target && !bound_element?.contains(active_target)) {
+            if (typeof event.stopImmediatePropagation === "function") {
+                event.stopImmediatePropagation()
+            }
+            return
+        }
+        if (typeof event.stopPropagation === "function") {
             event.stopPropagation()
         }
     }
@@ -336,6 +382,7 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
         }
 
         const now = Date.now()
+        attach_target_listeners(event.target)
         touch_start_ref = {
             x: touch.clientX,
             y: touch.clientY,
@@ -363,7 +410,7 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
         if (phase === "pending") {
             const should_prevent = typeof prevent_default === "function" ? prevent_default(event) : prevent_default
             if (should_prevent && event.cancelable === false) {
-                phase = "rejected"
+                reject_swipe()
                 return
             }
 
@@ -373,7 +420,7 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
             if (abs_x <= 2 && abs_y <= 2) return
 
             if (abs_x <= abs_y * angle_ratio) {
-                phase = "rejected"
+                reject_swipe()
                 return
             }
 
@@ -382,13 +429,13 @@ export function create_swipe_gesture<TEvent extends TouchEvent = TouchEvent>({
 
             const is_enabled = typeof enabled === "function" ? enabled(direction, event) : (enabled ?? true)
             if (!is_enabled) {
-                phase = "rejected"
+                reject_swipe()
                 return
             }
 
             const start_result = on_start?.(direction, event)
             if (start_result === false) {
-                phase = "rejected"
+                reject_swipe()
                 return
             }
 

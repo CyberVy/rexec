@@ -29,21 +29,43 @@ class ScrollSyncBarrier {
     private has_stale_touch = false
     private commit_frames_done = false
     private raf_id: number | null = null
+    private readonly tracked_targets = new Set<Node>()
 
-    private readonly on_touch_start = () => {
+    private readonly on_touch_start = (event: TouchEvent) => {
         this.has_stale_touch = true
+        const target = event.target
+        if (target instanceof Node && !this.tracked_targets.has(target)) {
+            this.tracked_targets.add(target)
+            target.addEventListener("touchend", this.on_detached_touch_end, { passive: true })
+            target.addEventListener("touchcancel", this.on_detached_touch_end, { passive: true })
+        }
     }
 
     private readonly on_touch_move = (event: TouchEvent) => {
         if (event.cancelable) event.preventDefault()
     }
 
+    private readonly on_detached_touch_end = (event: Event) => {
+        const target = event.currentTarget
+        if (!(target instanceof Node) || document.contains(target)) return
+        this.on_touch_end(event as TouchEvent)
+    }
+
     private readonly on_touch_end = (event: TouchEvent) => {
         if (event.touches.length > 0) return
+        this.clear_tracked_targets()
         this.has_stale_touch = false
         if (this.commit_frames_done) {
             this.release()
         }
+    }
+
+    private clear_tracked_targets(): void {
+        for (const target of this.tracked_targets) {
+            target.removeEventListener("touchend", this.on_detached_touch_end)
+            target.removeEventListener("touchcancel", this.on_detached_touch_end)
+        }
+        this.tracked_targets.clear()
     }
 
     public is_active(): boolean {
@@ -107,6 +129,7 @@ class ScrollSyncBarrier {
         this.owner_id = null
         this.has_stale_touch = false
         this.commit_frames_done = false
+        this.clear_tracked_targets()
         document.removeEventListener("touchstart", this.on_touch_start, true)
         document.removeEventListener("touchmove", this.on_touch_move, true)
         document.removeEventListener("touchend", this.on_touch_end, true)
