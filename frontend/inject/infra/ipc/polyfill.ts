@@ -103,14 +103,11 @@ function setup_ios_tauri_invoke_polyfill() {
     }
 
     const current_tauri = window.__TAURI__
-    if (current_tauri) {
-        current_tauri.core = current_tauri.core || {}
-        current_tauri.core.invoke = custom_invoke
-    } else {
-        window.__TAURI__ = {
-            core: {
-                invoke: custom_invoke
-            }
+    window.__TAURI__ = {
+        ...current_tauri,
+        core: {
+            ...current_tauri?.core,
+            invoke: custom_invoke
         }
     }
 }
