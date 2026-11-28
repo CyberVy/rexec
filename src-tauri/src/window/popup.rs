@@ -52,8 +52,15 @@ where
         webview_builder = crate::window::appearance::apply_platform_decorations(webview_builder);
         webview_builder = register_popup_webview_handler(&app, webview_builder);
 
-        // Apply default webview settings
-        let mut webview_builder =
+        // Inject script to set window label and opener label before startup scripts run
+        let label_script = format!(
+            "window.__TAURI_WEBVIEW_LABEL__ = '{}'; window.__TAURI_OPENER_LABEL__ = '{}';",
+            popup_label, opener_label
+        );
+        webview_builder = webview_builder.initialization_script(&label_script);
+
+        // Apply default webview settings (including inject_infra and active runtime inject script)
+        let webview_builder =
             match crate::webview::apply_default_webview_settings(&app, webview_builder) {
                 Ok(configured_builder) => configured_builder,
                 Err(error) => {
@@ -61,19 +68,6 @@ where
                     return tauri::webview::NewWindowResponse::Deny;
                 }
             };
-
-        // Inject script to set window label and opener label
-        let label_script = format!(
-            "window.__TAURI_WEBVIEW_LABEL__ = '{}'; window.__TAURI_OPENER_LABEL__ = '{}';",
-            popup_label, opener_label
-        );
-        webview_builder = webview_builder.initialization_script(&label_script);
-
-        // Inject custom script
-        let inject_script = include_str!("../inject.js").trim();
-        if !inject_script.is_empty() {
-            webview_builder = webview_builder.initialization_script(inject_script);
-        }
 
         // Build and reveal popup window
         match webview_builder.build() {

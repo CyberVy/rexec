@@ -1,0 +1,6 @@
+[[permission]]
+identifier = "runtime-inject"
+description = "Allows the trusted main web app to register runtime WebView injection scripts."
+commands.allow = [
+  "set_runtime_inject_script",
+]

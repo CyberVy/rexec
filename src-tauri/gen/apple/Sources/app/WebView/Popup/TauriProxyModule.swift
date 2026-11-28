@@ -23,6 +23,10 @@ final class TauriProxyModule: IOSBridgeModule {
             reply.reject(code: "INVALID_PAYLOAD", message: "Missing cmd for tauri_proxy.invoke")
             return
         }
+        if cmd == "set_runtime_inject_script" {
+            reply.reject(code: "FORBIDDEN", message: "Command \(cmd) is not allowed from popup webviews")
+            return
+        }
         guard let mainBridge = mainWebView?.iosBridge else {
             reply.reject(code: "UNAVAILABLE", message: "Main WebView bridge is not available")
             return

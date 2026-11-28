@@ -1,3 +1,2 @@
-export default function inject() {
-    // No-op for projects without core injection
-}
+// Core runtime injection entry (bundled by Vite as virtual:inject-core and registered with native)
+export {}

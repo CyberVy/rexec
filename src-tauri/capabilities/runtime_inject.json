@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "runtime-inject",
+  "description": "Allow only the main window on local content or the trusted app origin to register runtime WebView injection scripts.",
+  "windows": [
+    "main"
+  ],
+  "local": true,
+  "remote": {
+    "urls": []
+  },
+  "permissions": [
+    "runtime-inject"
+  ]
+}

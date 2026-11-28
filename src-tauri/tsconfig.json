@@ -1,0 +1,11 @@
+{
+    "extends": "../frontend/tsconfig.json",
+    "compilerOptions": {
+        "lib": ["dom", "dom.iterable", "esnext", "webworker"],
+        "paths": {
+            "@/*": ["../frontend/*"],
+            "@core/*": ["../core/*"]
+        }
+    },
+    "include": ["./src/inject.ts", "../frontend/**/*.d.ts"]
+}

@@ -22,7 +22,6 @@ pub async fn create_child_webview(
             .parse::<Url>()
             .map_err(|e| format!("invalid url: {e}"))?;
 
-        let inject_script = include_str!("../inject.js").trim();
         let mut webview_builder =
             WebviewBuilder::new(&label, WebviewUrl::External(parsed_url)).auto_resize();
 
@@ -32,18 +31,19 @@ pub async fn create_child_webview(
             window.label()
         );
         webview_builder = webview_builder.initialization_script(&label_script);
+        webview_builder = crate::webview::inject::inject_child_webview_scripts(&app, webview_builder);
 
-        if !inject_script.is_empty() {
-            webview_builder = webview_builder.initialization_script(inject_script);
-        }
-
+        log::info!("Creating child webview: label={}, url={}", label, url);
         window
             .add_child(
                 webview_builder,
                 LogicalPosition::new(0.0, 0.0),
                 LogicalSize::new(0.0, 0.0),
             )
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                log::error!("Failed to create child webview {}: {}", label, e);
+                e.to_string()
+            })?;
 
         Ok(())
     }
@@ -65,8 +65,12 @@ pub async fn destroy_child_webview(
 ) -> Result<(), String> {
     #[cfg(desktop)]
     {
+        log::info!("Destroying child webview: label={}", label);
         if let Some(webview) = app.get_webview(&label) {
-            webview.close().map_err(|e| e.to_string())?;
+            webview.close().map_err(|e| {
+                log::error!("Failed to close child webview {}: {}", label, e);
+                e.to_string()
+            })?;
         }
 
         // Remove from active layouts

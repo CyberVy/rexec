@@ -1,8 +1,3 @@
-import { web_ipc_call } from "@/infra/web_ipc"
-import { consola } from "consola"
-
-const logger = consola.withTag("InjectUtils")
-
 export function execute_after_dom_content_loaded(callback: () => void) {
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", callback, { once: true })
@@ -32,11 +27,4 @@ export function safe_define_property(
         // Some runtimes expose non-configurable descriptors.
         return false
     }
-}
-export function notify_injection_success_of_window(_window: Window) {
-    web_ipc_call({
-        target: _window,
-        type: "on_injection_success",
-        payload: { origin: location.href }
-    }).catch((err: any) => logger.warn("Failed to notify injection success", err))
 }

@@ -2,12 +2,25 @@ import { createRoot } from "react-dom/client"
 import "./globals.css"
 import App from "./App"
 import { is_in_native } from "@/infra/device"
+import { register_runtime_inject_script } from "@/infra/runtime_inject"
+
+async function init_runtime_inject(): Promise<void> {
+    if (!is_in_native()) return
+    try {
+        const { default: script } = await import("virtual:inject-core")
+        await register_runtime_inject_script(script)
+    } catch (err) {
+        console.warn("Failed to load runtime inject bundle", err)
+    }
+}
 
 function mount() {
-    const root_element = document.getElementById("root")
-    if (root_element) {
-        createRoot(root_element).render(<App />)
-    }
+    void init_runtime_inject().finally(() => {
+        const root_element = document.getElementById("root")
+        if (root_element) {
+            createRoot(root_element).render(<App />)
+        }
+    })
 }
 
 function bootstrap() {

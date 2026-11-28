@@ -13,3 +13,8 @@ declare const process: {
         readonly NODE_ENV?: string
     }
 }
+
+declare module "virtual:inject-core" {
+    const script: string
+    export default script
+}

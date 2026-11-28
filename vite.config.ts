@@ -117,6 +117,70 @@ function dual_alias_plugin(): Plugin {
     }
 }
 
+function inject_core_plugin(): Plugin {
+    const virtual_id = "virtual:inject-core"
+    const resolved_virtual_id = `\0${virtual_id}`
+    let dev_ctx: BuildContext | null = null
+    let is_dev = false
+
+    const build_options = (minify: boolean) => ({
+        entryPoints: [path.resolve(import.meta.dirname, "frontend/inject/core/index.ts")],
+        bundle: true,
+        format: "iife" as const,
+        target: "esnext",
+        tsconfig: path.resolve(import.meta.dirname, "frontend/tsconfig.json"),
+        write: false,
+        minify
+    })
+
+    return {
+        name: "inject-core-plugin",
+        configResolved(config) {
+            is_dev = config.command === "serve"
+        },
+        resolveId(id) {
+            if (id === virtual_id) {
+                return resolved_virtual_id
+            }
+            return null
+        },
+        async load(id) {
+            if (id !== resolved_virtual_id) return null
+
+            let output = ""
+            if (is_dev) {
+                if (!dev_ctx) {
+                    dev_ctx = await esbuild.context(build_options(false))
+                }
+                const build_result = await dev_ctx.rebuild()
+                output = build_result.outputFiles?.[0]?.text || ""
+            } else {
+                const build_result = await esbuild.build(build_options(true))
+                output = build_result.outputFiles?.[0]?.text || ""
+            }
+
+            return `export default ${JSON.stringify(output)}`
+        },
+        configureServer(server) {
+            server.httpServer?.on("close", () => {
+                dev_ctx?.dispose()
+                dev_ctx = null
+            })
+
+            server.watcher.on("change", (file) => {
+                const normalized = file.replace(/\\/g, "/")
+                if (normalized.includes("/frontend/inject/")) {
+                    const mod = server.moduleGraph.getModuleById(resolved_virtual_id)
+                    if (mod) {
+                        server.moduleGraph.invalidateModule(mod)
+                    }
+                    server.ws.send({ type: "full-reload" })
+                }
+            })
+        }
+    }
+}
+
 export default defineConfig({
     root: path.resolve(import.meta.dirname, "frontend/app"),
     publicDir: path.resolve(import.meta.dirname, "public"),
@@ -124,6 +188,7 @@ export default defineConfig({
         dual_alias_plugin(),
         debug_bridge_plugin(),
         service_worker_plugin(),
+        inject_core_plugin(),
         react({
             compiler: true
         })

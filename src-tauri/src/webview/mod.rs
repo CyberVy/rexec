@@ -1,5 +1,6 @@
 pub(crate) mod inject;
 pub(crate) mod itp;
+pub(crate) mod runtime_inject;
 pub(crate) mod storage;
 
 use tauri::{Manager, Runtime, WebviewWindowBuilder};
@@ -25,6 +26,6 @@ where
     {
         builder = builder.user_agent(user_agent);
     }
-    let builder = inject::inject_startup_scripts(builder);
+    let builder = inject::inject_startup_scripts(manager, builder);
     Ok(builder)
 }
