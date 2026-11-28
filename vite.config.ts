@@ -1,7 +1,6 @@
 import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import path from "node:path"
-import fs from "node:fs"
 import esbuild, { type BuildContext } from "esbuild"
 import { debug_bridge_plugin } from "./cli/debug/plugin.ts"
 
@@ -169,12 +168,7 @@ export default defineConfig({
     },
     build: {
         outDir: path.resolve(import.meta.dirname, "dist"),
-        emptyOutDir: false,
-        rollupOptions: {
-            input: {
-                main: path.resolve(import.meta.dirname, "frontend/app/index.html")
-            }
-        }
+        emptyOutDir: false
     },
     define: {
         "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV || "development"),
